@@ -1,0 +1,430 @@
+import { useState, useEffect, useRef } from "react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail } from "lucide-react";
+import { login, restoreSession, logout, clockAction, startAutoSync, apiFetch } from "./api.js";
+
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`;
+
+const CHARCOAL = "#1F2421";
+const PAPER = "#F4F2ED";
+const AMBER = "#F2A93B";
+const TEAL = "#3D5A50";
+const RUST = "#C1502E";
+const LINE = "#D8D3C4";
+
+function pad(n) { return n.toString().padStart(2, "0"); }
+
+function formatElapsed(ms) {
+  const totalSec = Math.max(0, Math.floor(ms / 1000));
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${pad(h)}:${pad(m)}:${pad(s)}`;
+}
+
+function formatClock(date) {
+  if (!date) return "—";
+  return new Date(date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+
+function formatDuration(seconds) {
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  if (h === 0) return `${m}m`;
+  return `${h}h ${m}m`;
+}
+
+function getPayPeriod(date) {
+  const y = date.getFullYear();
+  const m = date.getMonth();
+  if (date.getDate() <= 15) {
+    return { start: new Date(y, m, 1), end: new Date(y, m, 15, 23, 59, 59) };
+  }
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  return { start: new Date(y, m, 16), end: new Date(y, m, lastDay, 23, 59, 59) };
+}
+
+function formatDateShort(d) {
+  return new Date(d).toLocaleDateString([], { month: "short", day: "numeric" });
+}
+
+export default function TimeClock() {
+  const [checkingSession, setCheckingSession] = useState(true);
+  const [loggedIn, setLoggedIn] = useState(false);
+  const [employee, setEmployee] = useState(null);
+
+  const [nameInput, setNameInput] = useState("");
+  const [pinInput, setPinInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const [status, setStatus] = useState("off"); // off | working | break
+  const [entryId, setEntryId] = useState(null);
+  const [jobName, setJobName] = useState("");
+  const [jobDraft, setJobDraft] = useState("");
+  const [location, setLocation] = useState("in_town"); // matches backend enum
+  const [clockInTime, setClockInTime] = useState(null);
+  const [breakStartedAt, setBreakStartedAt] = useState(null);
+
+  const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
+  const [now, setNow] = useState(new Date());
+  const [submitted, setSubmitted] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [savedOffline, setSavedOffline] = useState(false);
+  const tickRef = useRef(null);
+
+  useEffect(() => {
+    tickRef.current = setInterval(() => setNow(new Date()), 1000);
+    return () => clearInterval(tickRef.current);
+  }, []);
+
+  // On launch: try to restore a saved session, then load current status + this period's log.
+  useEffect(() => {
+    (async () => {
+      startAutoSync();
+      const emp = await restoreSession();
+      if (emp) {
+        setEmployee(emp);
+        setLoggedIn(true);
+        await refreshFromServer();
+      }
+      setCheckingSession(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  async function refreshFromServer() {
+    try {
+      const period = getPayPeriod(new Date());
+      const rows = await apiFetch(
+        `/api/time-entries?start=${period.start.toISOString()}&end=${period.end.toISOString()}`
+      );
+      setLog(rows.filter((r) => r.clock_out)); // completed shifts for the log list
+      const open = rows.find((r) => !r.clock_out);
+      if (open) {
+        setStatus("working");
+        setEntryId(open.time_entry_id);
+        setJobName(open.job_name);
+        setLocation(open.location_type);
+        setClockInTime(open.clock_in);
+      }
+    } catch (err) {
+      setActionError("Couldn't reach the server — showing your last known status.");
+    }
+  }
+
+  async function handleLogin() {
+    setLoginError("");
+    const name = nameInput.trim();
+    if (!name || !pinInput) {
+      setLoginError("Enter your name and PIN.");
+      return;
+    }
+    try {
+      const emp = await login(name, pinInput);
+      setEmployee(emp);
+      setLoggedIn(true);
+      setPinInput("");
+      await refreshFromServer();
+    } catch (err) {
+      setLoginError(err.message || "Login failed.");
+    }
+  }
+
+  function handleLogout() {
+    logout();
+    setLoggedIn(false);
+    setEmployee(null);
+    setStatus("off");
+    setEntryId(null);
+    setLog([]);
+  }
+
+  async function clockIn() {
+    setActionError("");
+    const res = await clockAction("/api/time-entries/clock-in", {
+      job_name: jobDraft.trim() || "Untitled job",
+      location_type: location,
+    });
+    setSavedOffline(res.offline);
+    if (res.data) {
+      setEntryId(res.data.id);
+      setClockInTime(res.data.clock_in);
+    } else {
+      // offline: fake a local id so the UI still works until it syncs
+      setClockInTime(new Date().toISOString());
+    }
+    setJobName(jobDraft.trim() || "Untitled job");
+    setStatus("working");
+    setJobDraft("");
+  }
+
+  async function startBreak() {
+    setActionError("");
+    const res = await clockAction(`/api/time-entries/${entryId}/break-start`, {});
+    setSavedOffline(res.offline);
+    setBreakStartedAt(new Date().toISOString());
+    setStatus("break");
+  }
+
+  async function endBreak() {
+    setActionError("");
+    const res = await clockAction(`/api/time-entries/${entryId}/break-end`, {});
+    setSavedOffline(res.offline);
+    setBreakStartedAt(null);
+    setStatus("working");
+  }
+
+  async function clockOut() {
+    setActionError("");
+    const res = await clockAction(`/api/time-entries/${entryId}/clock-out`, {});
+    setSavedOffline(res.offline);
+    setStatus("off");
+    setEntryId(null);
+    setJobName("");
+    setClockInTime(null);
+    setSubmitted(false);
+    await refreshFromServer();
+  }
+
+  const elapsedMs = clockInTime ? now - new Date(clockInTime) : 0;
+  const currentBreakMs = status === "break" && breakStartedAt ? now - new Date(breakStartedAt) : 0;
+
+  const statusMeta = {
+    off: { label: "OFF THE CLOCK", color: CHARCOAL, bg: LINE },
+    working: { label: "WORKING", color: "#fff", bg: TEAL },
+    break: { label: "ON BREAK", color: "#fff", bg: RUST },
+  }[status];
+
+  const period = getPayPeriod(now);
+  const periodTotalSeconds = log.reduce((s, e) => s + Number(e.worked_seconds || 0), 0);
+
+  async function submitHours() {
+    setActionError("");
+    try {
+      await apiFetch("/api/timesheets/submit", { method: "POST" });
+      setSubmitted(true);
+    } catch (err) {
+      setActionError(err.message || "Nothing to submit yet.");
+    }
+  }
+
+  if (checkingSession) {
+    return (
+      <div style={{ background: PAPER, minHeight: "100vh" }} className="w-full min-h-screen flex items-center justify-center">
+        <style>{FONT_IMPORT}</style>
+        <p style={{ fontFamily: "'IBM Plex Mono', monospace", color: "#8A8578" }} className="text-sm">
+          Loading…
+        </p>
+      </div>
+    );
+  }
+
+  if (!loggedIn) {
+    return (
+      <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL, fontFamily: "'IBM Plex Mono', monospace" }} className="w-full min-h-screen flex items-center justify-center px-4">
+        <style>{FONT_IMPORT}</style>
+        <div style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff" }} className="w-full max-w-xs rounded-md p-6">
+          <h1 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xl font-semibold uppercase mb-1 text-center">
+            Site Clock
+          </h1>
+          <p className="text-xs text-center mb-5" style={{ color: "#8A8578" }}>Your personal time clock</p>
+          <input
+            autoFocus
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            placeholder="Your name"
+            style={{ border: `1.5px solid ${LINE}` }}
+            className="w-full px-3 py-2.5 text-sm rounded-sm mb-3 outline-none"
+          />
+          <input
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            placeholder="PIN"
+            type="password"
+            inputMode="numeric"
+            style={{ border: `1.5px solid ${LINE}` }}
+            className="w-full px-3 py-2.5 text-sm rounded-sm mb-3 outline-none"
+          />
+          {loginError && (
+            <p className="text-xs mb-3" style={{ color: RUST }}>{loginError}</p>
+          )}
+          <button
+            onClick={handleLogin}
+            style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
+            className="w-full py-2.5 rounded-sm text-sm font-semibold"
+          >
+            CONTINUE
+          </button>
+          <p className="text-[10px] text-center mt-4" style={{ color: "#8A8578" }}>
+            You only need to do this once on this device.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL }} className="w-full min-h-screen pb-16">
+      <style>{FONT_IMPORT}</style>
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
+        <div className="flex items-baseline justify-between mb-1">
+          <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
+            Site Clock
+          </h1>
+          <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
+            <LogOut size={12} /> {employee?.name}
+          </button>
+        </div>
+        <div className="h-px w-full mb-6" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
+
+        {actionError && (
+          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
+            {actionError}
+          </div>
+        )}
+        {savedOffline && (
+          <div style={{ background: "#fff", border: `1.5px dashed ${AMBER}` }} className="rounded-md p-3 mb-4 text-xs">
+            No connection — saved on this device and will sync automatically once you're back online.
+          </div>
+        )}
+
+        <div style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff" }} className="rounded-md p-5 mb-6">
+          <div className="flex items-center justify-between mb-4">
+            <span style={{ background: statusMeta.bg, color: statusMeta.color, fontFamily: "'Oswald', sans-serif" }} className="px-2.5 py-1 text-xs tracking-widest rounded-sm">
+              {statusMeta.label}
+            </span>
+            <span className="text-xs" style={{ color: "#8A8578" }}>{now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+          </div>
+
+          <div className="text-center mb-4">
+            <div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-5xl font-semibold tabular-nums">
+              {status === "off" ? "00:00:00" : formatElapsed(elapsedMs)}
+            </div>
+            {status === "break" && (
+              <div className="text-xs mt-1" style={{ color: "#8A8578" }}>
+                break {formatElapsed(currentBreakMs)}
+              </div>
+            )}
+          </div>
+
+          {status === "off" ? (
+            <input
+              value={jobDraft}
+              onChange={(e) => setJobDraft(e.target.value)}
+              placeholder="Job / site name"
+              style={{ border: `1.5px solid ${LINE}` }}
+              className="w-full px-3 py-2 text-sm rounded-sm mb-3 outline-none"
+            />
+          ) : (
+            <div className="flex items-center gap-2 mb-3 text-sm">
+              <Clock size={14} style={{ color: "#8A8578" }} />
+              <span className="font-medium">{jobName}</span>
+              <span style={{ color: "#8A8578" }}>· in since {formatClock(clockInTime)}</span>
+            </div>
+          )}
+
+          <div className="flex mb-4 rounded-sm overflow-hidden" style={{ border: `1.5px solid ${CHARCOAL}` }}>
+            <button
+              disabled={status !== "off"}
+              onClick={() => setLocation("in_town")}
+              style={{ background: location === "in_town" ? TEAL : "transparent", color: location === "in_town" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
+              className="flex-1 py-2 text-sm flex items-center justify-center gap-1.5 disabled:opacity-60"
+            >
+              <MapPin size={14} /> IN TOWN
+            </button>
+            <button
+              disabled={status !== "off"}
+              onClick={() => setLocation("traveling")}
+              style={{ background: location === "traveling" ? RUST : "transparent", color: location === "traveling" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
+              className="flex-1 py-2 text-sm flex items-center justify-center gap-1.5 disabled:opacity-60 border-l"
+            >
+              <Plane size={14} /> TRAVELING
+            </button>
+          </div>
+
+          <div className="flex gap-2">
+            {status === "off" && (
+              <button onClick={clockIn} style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+                <Play size={16} /> CLOCK IN
+              </button>
+            )}
+            {status === "working" && (
+              <>
+                <button onClick={startBreak} style={{ border: `1.5px solid ${CHARCOAL}`, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+                  <Pause size={16} /> BREAK
+                </button>
+                <button onClick={clockOut} style={{ background: CHARCOAL, color: PAPER, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+                  <Square size={14} /> CLOCK OUT
+                </button>
+              </>
+            )}
+            {status === "break" && (
+              <button onClick={endBreak} style={{ background: RUST, color: "#fff", fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+                <Play size={16} /> END BREAK
+              </button>
+            )}
+          </div>
+        </div>
+
+        <div style={{ border: `1.5px solid ${CHARCOAL}`, background: CHARCOAL, color: PAPER }} className="rounded-md p-4 mb-6">
+          <div className="flex items-center justify-between mb-1">
+            <span style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xs uppercase tracking-widest opacity-80">
+              Current pay period
+            </span>
+            <span className="text-xs opacity-70">{formatDateShort(period.start)} – {formatDateShort(period.end)}</span>
+          </div>
+          <div style={{ fontFamily: "'Oswald', sans-serif" }} className="text-3xl font-semibold tabular-nums mb-3">
+            {formatDuration(periodTotalSeconds)}
+          </div>
+          <button
+            onClick={submitHours}
+            disabled={log.length === 0}
+            style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
+            className="w-full py-2.5 rounded-sm text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+          >
+            <Send size={14} /> SUBMIT HOURS FOR PAYROLL
+          </button>
+          {submitted && (
+            <p className="text-[11px] mt-2 flex items-center gap-1 opacity-80">
+              <Mail size={11} /> Sent — you and the office both got a copy.
+            </p>
+          )}
+        </div>
+
+        <div className="mb-3 flex items-center justify-between">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+            This Period's Punches
+          </h2>
+          <span className="text-xs" style={{ color: "#8A8578" }}>{log.length} total</span>
+        </div>
+
+        {log.length === 0 ? (
+          <p className="text-sm" style={{ color: "#8A8578" }}>No completed shifts yet this pay period.</p>
+        ) : (
+          <div className="flex flex-col gap-3">
+            {log.map((entry) => (
+              <div key={entry.time_entry_id} style={{ background: "#fff", border: `1.5px dashed ${LINE}` }} className="rounded-md p-4">
+                <div className="flex items-start justify-between mb-2">
+                  <div>
+                    <div className="text-sm font-medium">{entry.job_name}</div>
+                    <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "#8A8578" }}>
+                      {entry.location_type === "in_town" ? (<><MapPin size={11} /> In town</>) : (<><Plane size={11} /> Traveling</>)}
+                    </div>
+                  </div>
+                  <div style={{ fontFamily: "'Oswald', sans-serif" }} className="text-lg font-semibold tabular-nums">
+                    {formatDuration(entry.worked_seconds)}
+                  </div>
+                </div>
+                <div className="flex justify-between text-xs pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
+                  <span>{formatClock(entry.clock_in)} → {formatClock(entry.clock_out)}</span>
+                  {entry.break_seconds > 0 && <span>break {formatDuration(entry.break_seconds)}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
