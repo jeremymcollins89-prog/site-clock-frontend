@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail } from "lucide-react";
 import { login, restoreSession, logout, clockAction, startAutoSync, apiFetch } from "./api.js";
+import { useGeoAutoClock } from "./geoAutoClock.js";
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`;
 
@@ -70,6 +71,49 @@ export default function TimeClock() {
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
   const [savedOffline, setSavedOffline] = useState(false);
+  // Geolocation-based auto clock in/out
+  const SHOP_LAT = Number(import.meta.env.VITE_SHOP_LAT);
+  const SHOP_LNG = Number(import.meta.env.VITE_SHOP_LNG);
+  const SHOP_RADIUS_M = Number(import.meta.env.VITE_SHOP_RADIUS_M || 152); // ~500ft
+
+  async function autoClockIn() {
+    setActionError("");
+    const res = await clockAction("/api/time-entries/clock-in", {
+      job_name: "Shop",
+      location_type: "in_town",
+    });
+    setSavedOffline(res.offline);
+    if (res.data) {
+      setEntryId(res.data.id);
+      setClockInTime(res.data.clock_in);
+    } else {
+      setClockInTime(new Date().toISOString());
+    }
+    setJobName("Shop");
+    setStatus("working");
+  }
+
+  async function autoClockOut() {
+    if (!entryId) return;
+    setActionError("");
+    const res = await clockAction(`/api/time-entries/${entryId}/clock-out`, {});
+    setSavedOffline(res.offline);
+    setStatus("off");
+    setEntryId(null);
+    setJobName("");
+    setClockInTime(null);
+    setSubmitted(false);
+    await refreshFromServer();
+  }
+
+  const geo = useGeoAutoClock({
+    status,
+    autoClockIn,
+    autoClockOut,
+    shopLat: SHOP_LAT,
+    shopLng: SHOP_LNG,
+    radiusMeters: SHOP_RADIUS_M,
+  });
   const tickRef = useRef(null);
 
   useEffect(() => {
@@ -286,6 +330,15 @@ export default function TimeClock() {
         {savedOffline && (
           <div style={{ background: "#fff", border: `1.5px dashed ${AMBER}` }} className="rounded-md p-3 mb-4 text-xs">
             No connection — saved on this device and will sync automatically once you're back online.
+          </div>
+        )}{geo.configured && geo.permission === "denied" && (
+          <div style={{ background: "#fff", border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
+            Location access is off, so auto clock-in/out won't work — the manual buttons below still do. To enable it, allow location for this site in your phone's settings.
+          </div>
+        )}
+        {geo.configured && geo.permission === "granted" && (
+          <div style={{ background: "#fff", border: `1.5px dashed ${LINE}`, color: "#8A8578" }} className="rounded-md p-3 mb-4 text-xs">
+            Auto clock-in/out: {geo.withinRange ? "at the shop" : "away from the shop"} — {geo.withinRange ? "you'll clock in automatically after 8am" : "you'll clock out automatically after 4:30pm if you don't return"}.
           </div>
         )}
 
