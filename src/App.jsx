@@ -135,6 +135,31 @@ export default function TimeClock() {
     const interval = setInterval(sendPing, 5 * 60 * 1000);
     return () => clearInterval(interval);
   }, [status]);
+  useEffect(() => {
+    if (status === "off") return;
+
+    async function checkPingRequest() {
+      try {
+        const data = await apiFetch("/api/time-entries/ping-status");
+        if (data.shouldPing) {
+          navigator.geolocation.getCurrentPosition(
+            (pos) => {
+              apiFetch("/api/time-entries/ping-location", {
+                method: "POST",
+                body: { lat: pos.coords.latitude, lng: pos.coords.longitude },
+              }).catch(() => {});
+            },
+            () => {},
+            { enableHighAccuracy: true, maximumAge: 0, timeout: 15000 }
+          );
+        }
+      } catch {}
+    }
+
+    checkPingRequest();
+    const interval = setInterval(checkPingRequest, 20000);
+    return () => clearInterval(interval);
+  }, [status]);
   const tickRef = useRef(null);
 
   useEffect(() => {
