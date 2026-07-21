@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sign Up — Site Clock</title>
+<style>
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F2A93B;
+    --teal: #3D5A50;
+    --rust: #C1502E;
+    --line: #D8D3C4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Segoe UI", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--charcoal);
+    padding: 24px;
+  }
+  .box {
+    background: #fff;
+    border: 1.5px solid var(--charcoal);
+    border-radius: 8px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+  }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  p.sub { margin: 0 0 24px; color: #8A8578; font-size: 14px; }
+  label { font-size: 12px; color: #8A8578; display: block; margin-bottom: 4px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  button {
+    width: 100%;
+    margin-top: 22px;
+    background: var(--amber);
+    color: var(--charcoal);
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    padding: 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .error {
+    color: var(--rust);
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  .success {
+    display: none;
+    text-align: center;
+  }
+  .success h2 { font-size: 20px; margin-bottom: 8px; }
+  .success p { font-size: 14px; color: #8A8578; line-height: 1.5; }
+  .success .creds {
+    background: var(--paper);
+    border: 1px dashed var(--line);
+    border-radius: 4px;
+    padding: 14px;
+    margin: 16px 0;
+    text-align: left;
+    font-size: 13px;
+  }
+  .success .creds div { margin-bottom: 6px; }
+  .success .creds strong { color: var(--charcoal); }
+  a.btn-link {
+    display: block;
+    text-align: center;
+    margin-top: 16px;
+    background: var(--charcoal);
+    color: var(--paper);
+    padding: 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <div id="form-view">
+    <h1>Site Clock</h1>
+    <p class="sub">Set up time tracking for your team in under a minute.</p>
+
+    <label>Company name</label>
+    <input id="company-name" placeholder="Acme Contracting" />
+
+    <label>Your email</label>
+    <input id="admin-email" type="email" placeholder="you@company.com" />
+
+    <label>Password</label>
+    <input id="admin-password" type="password" placeholder="At least 8 characters" />
+
+    <button id="submit-btn" onclick="doSignup()">Create account</button>
+    <div id="signup-error" class="error"></div>
+  </div>
+
+  <div id="success-view" class="success">
+    <h2>You're all set</h2>
+    <p>Your company account is ready. Here's what to do next:</p>
+    <div class="creds">
+      <div><strong>Admin login:</strong> <span id="success-email"></span></div>
+      <div>Use the password you just created.</div>
+    </div>
+    <p>Download the desktop admin app to add employees and manage hours, and share the employee app link with your team so they can start clocking in.</p>
+    <a class="btn-link" href="/" target="_blank">Open employee app</a>
+  </div>
+</div>
+
+<script>
+const API_BASE_URL = "https://site-clock-backend-production.up.railway.app";
+
+async function doSignup() {
+  const companyName = document.getElementById("company-name").value.trim();
+  const email = document.getElementById("admin-email").value.trim();
+  const password = document.getElementById("admin-password").value;
+  const errEl = document.getElementById("signup-error");
+  const btn = document.getElementById("submit-btn");
+
+  errEl.style.display = "none";
+
+  if (!companyName || !email || !password) {
+    errEl.textContent = "All fields are required.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (password.length < 8) {
+    errEl.textContent = "Password must be at least 8 characters.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Creating account...";
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/companies/signup`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_name: companyName, admin_email: email, admin_password: password }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Something went wrong");
+
+    document.getElementById("success-email").textContent = email;
+    document.getElementById("form-view").style.display = "none";
+    document.getElementById("success-view").style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = "block";
+    btn.disabled = false;
+    btn.textContent = "Create account";
+  }
+}
+</script>
+</body>
+</html>
