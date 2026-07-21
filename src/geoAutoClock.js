@@ -22,7 +22,7 @@ function isAfterHour(date, hour, minute) {
   return date.getHours() > hour || (date.getHours() === hour && date.getMinutes() >= minute);
 }
 
-function useGeoAutoClock({ status, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters }) {
+function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters }) {
   const [permission, setPermission] = useState("unknown");
   const [withinRange, setWithinRange] = useState(null);
   const [distanceMeters, setDistanceMeters] = useState(null);
@@ -34,6 +34,11 @@ function useGeoAutoClock({ status, autoClockIn, autoClockOut, shopLat, shopLng, 
 
   async function evaluate(position) {
     if (!configured) return;
+    // Auto clock-in/out only applies to the "in town" shop crew pattern —
+    // someone who's chosen "Traveling" is expected to be away from the
+    // shop, so their location shouldn't trigger either rule.
+    if (locationMode !== "in_town") return;
+
     const { latitude, longitude } = position.coords;
     const dist = haversineMeters(latitude, longitude, shopLat, shopLng);
     setDistanceMeters(dist);
@@ -43,7 +48,9 @@ function useGeoAutoClock({ status, autoClockIn, autoClockOut, shopLat, shopLng, 
     if (actingRef.current) return;
     const now = new Date();
 
-    if (inRange && status === "off" && isAfterHour(now, 8, 0)) {
+    // Auto clock-in: any time someone shows up at the shop, no time-of-day
+    // restriction.
+    if (inRange && status === "off") {
       actingRef.current = true;
       try {
         await autoClockIn();
@@ -110,7 +117,7 @@ function useGeoAutoClock({ status, autoClockIn, autoClockOut, shopLat, shopLng, 
       document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, configured]);
+  }, [status, configured, locationMode]);
 
   return { permission, withinRange, distanceMeters, geoError, configured };
 }

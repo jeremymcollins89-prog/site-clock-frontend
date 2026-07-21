@@ -111,6 +111,7 @@ const [emailInput, setEmailInput] = useState("");
 
   const geo = useGeoAutoClock({
     status,
+    locationMode: location,
     autoClockIn,
     autoClockOut,
     shopLat: SHOP_LAT,
