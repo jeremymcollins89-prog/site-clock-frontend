@@ -116,13 +116,21 @@
 
   <div id="success-view" class="success">
     <h2>You're all set</h2>
-    <p>Your company account is ready. Here's what to do next:</p>
+    <p>Your company account is ready. Here's what to do next, in order:</p>
     <div class="creds">
-      <div><strong>Admin login:</strong> <span id="success-email"></span></div>
+      <div><strong>Your admin login:</strong> <span id="success-email"></span></div>
       <div>Use the password you just created.</div>
     </div>
-    <p>Download the desktop admin app to add employees and manage hours, and share the employee app link with your team so they can start clocking in.</p>
-    <a class="btn-link" href="/" target="_blank">Open employee app</a>
+
+    <p style="text-align:left; margin: 20px 0 6px;"><strong>Step 1.</strong> Download and install the admin app below, then sign in with the email and password above. This is for you, the business owner — not your employees.</p>
+    <a class="btn-link" href="https://github.com/jeremymcollins89-prog/site-clock-admin/releases/latest/download/Site-Clock-Admin-Setup.exe">Download admin app (Windows)</a>
+
+    <p style="text-align:left; margin: 20px 0 6px;"><strong>Step 2.</strong> Inside the admin app, go to the Employees tab and add each employee — they each get their own email and PIN, separate from your admin login.</p>
+
+    <p style="text-align:left; margin: 20px 0 6px;"><strong>Step 3.</strong> Share this link with your employees so they can clock in with the email and PIN you set up for them:</p>
+    <div class="creds" style="text-align:left; word-break: break-all;">
+      https://site-clock-frontend-production.up.railway.app/
+    </div>
   </div>
 </div>
 
