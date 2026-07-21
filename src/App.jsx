@@ -203,14 +203,22 @@ const [emailInput, setEmailInput] = useState("");
   }
 
   async function handleLogin() {
-  setLoginError("");
-  const email = emailInput.trim();
-  if (!email || !pinInput) {
-    setLoginError("Enter your email and PIN.");
-    return;
+    setLoginError("");
+    const email = emailInput.trim();
+    if (!email || !pinInput) {
+      setLoginError("Enter your email and PIN.");
+      return;
+    }
+    try {
+      const emp = await login(email, pinInput);
+      setEmployee(emp);
+      setLoggedIn(true);
+      setPinInput("");
+      await refreshFromServer();
+    } catch (err) {
+      setLoginError(err.message || "Login failed.");
+    }
   }
-  try {
-    const emp = await login(email, pinInput);
 
   function handleLogout() {
     logout();
@@ -220,7 +228,6 @@ const [emailInput, setEmailInput] = useState("");
     setEntryId(null);
     setLog([]);
   }
-
   async function clockIn() {
     setActionError("");
     const res = await clockAction("/api/time-entries/clock-in", {
