@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail } from "lucide-react";
-import { login, restoreSession, logout, clockAction, startAutoSync, apiFetch } from "./api.js";
+import { login, restoreSession, logout, clockAction, startAutoSync, apiFetch, forgotPin } from "./api.js";
 import { useGeoAutoClock } from "./geoAutoClock.js";
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`;
@@ -57,6 +57,7 @@ export default function TimeClock() {
 const [emailInput, setEmailInput] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [pinResetMsg, setPinResetMsg] = useState("");
 
   const [status, setStatus] = useState("off"); // off | working | break
   const [entryId, setEntryId] = useState(null);
@@ -220,6 +221,22 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  async function handleForgotPin() {
+    setLoginError("");
+    setPinResetMsg("");
+    const email = emailInput.trim();
+    if (!email) {
+      setLoginError("Enter your email above first, then tap \"Forgot PIN?\" again.");
+      return;
+    }
+    try {
+      await forgotPin(email);
+      setPinResetMsg("If that email has an account, we've sent a link to reset your PIN.");
+    } catch (err) {
+      setLoginError(err.message || "Couldn't reach the server. Try again.");
+    }
+  }
+
   function handleLogout() {
     logout();
     setLoggedIn(false);
@@ -339,12 +356,23 @@ const [emailInput, setEmailInput] = useState("");
           {loginError && (
             <p className="text-xs mb-3" style={{ color: RUST }}>{loginError}</p>
           )}
+          {pinResetMsg && (
+            <p className="text-xs mb-3" style={{ color: TEAL }}>{pinResetMsg}</p>
+          )}
           <button
             onClick={handleLogin}
             style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
             className="w-full py-2.5 rounded-sm text-sm font-semibold"
           >
             CONTINUE
+          </button>
+          <button
+            type="button"
+            onClick={handleForgotPin}
+            className="w-full text-center mt-3 text-xs underline"
+            style={{ color: "#8A8578", background: "none", border: "none" }}
+          >
+            Forgot PIN?
           </button>
           <p className="text-[10px] text-center mt-4" style={{ color: "#8A8578" }}>
             You only need to do this once on this device.

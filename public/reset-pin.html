@@ -1,0 +1,169 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Reset PIN — Site Clock</title>
+<style>
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F2A93B;
+    --teal: #3D5A50;
+    --rust: #C1502E;
+    --line: #D8D3C4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Segoe UI", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--charcoal);
+    padding: 24px;
+  }
+  .box {
+    background: #fff;
+    border: 1.5px solid var(--charcoal);
+    border-radius: 8px;
+    padding: 32px;
+    width: 100%;
+    max-width: 380px;
+  }
+  h1 { margin: 0 0 4px; font-size: 24px; }
+  p.sub { margin: 0 0 24px; color: #8A8578; font-size: 14px; }
+  label { font-size: 12px; color: #8A8578; display: block; margin-bottom: 4px; margin-top: 14px; }
+  label:first-of-type { margin-top: 0; }
+  input {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 4px;
+    font-size: 14px;
+  }
+  button {
+    width: 100%;
+    margin-top: 22px;
+    background: var(--amber);
+    color: var(--charcoal);
+    border: none;
+    border-radius: 4px;
+    font-weight: 600;
+    padding: 12px;
+    font-size: 14px;
+    cursor: pointer;
+  }
+  button:disabled { opacity: 0.5; cursor: default; }
+  .error {
+    color: var(--rust);
+    font-size: 13px;
+    margin-top: 12px;
+    display: none;
+  }
+  .success {
+    display: none;
+    text-align: center;
+  }
+  .success h2 { font-size: 20px; margin-bottom: 8px; }
+  .success p { font-size: 14px; color: #8A8578; line-height: 1.5; }
+  a.btn-link {
+    display: block;
+    text-align: center;
+    margin-top: 16px;
+    background: var(--charcoal);
+    color: var(--paper);
+    padding: 12px;
+    border-radius: 4px;
+    text-decoration: none;
+    font-size: 14px;
+    font-weight: 600;
+  }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <div id="invalid-view" style="display:none; text-align:center;">
+    <h1>Reset PIN</h1>
+    <p class="sub">This reset link is missing or invalid. Go back to the Site Clock app and tap "Forgot PIN?" again.</p>
+    <a class="btn-link" href="/">Open Site Clock</a>
+  </div>
+
+  <div id="form-view">
+    <h1>Reset your PIN</h1>
+    <p class="sub">Choose a new PIN for clocking in.</p>
+
+    <label>New PIN</label>
+    <input id="new-pin" type="password" inputmode="numeric" placeholder="4-digit PIN" />
+
+    <label>Confirm new PIN</label>
+    <input id="confirm-pin" type="password" inputmode="numeric" placeholder="4-digit PIN" />
+
+    <button id="submit-btn" onclick="doReset()">Set new PIN</button>
+    <div id="reset-error" class="error"></div>
+  </div>
+
+  <div id="success-view" class="success">
+    <h2>PIN updated</h2>
+    <p>You can now log in with your new PIN.</p>
+    <a class="btn-link" href="/">Open Site Clock</a>
+  </div>
+</div>
+
+<script>
+const API_BASE_URL = "https://site-clock-backend-production.up.railway.app";
+
+const params = new URLSearchParams(window.location.search);
+const token = params.get("token");
+
+if (!token) {
+  document.getElementById("form-view").style.display = "none";
+  document.getElementById("invalid-view").style.display = "block";
+}
+
+async function doReset() {
+  const newPin = document.getElementById("new-pin").value.trim();
+  const confirmPin = document.getElementById("confirm-pin").value.trim();
+  const errEl = document.getElementById("reset-error");
+  const btn = document.getElementById("submit-btn");
+
+  errEl.style.display = "none";
+
+  if (!newPin || !confirmPin) {
+    errEl.textContent = "Enter and confirm your new PIN.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (newPin !== confirmPin) {
+    errEl.textContent = "PINs don't match.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = "Updating...";
+
+  try {
+    const res = await fetch(`${API_BASE_URL}/api/auth/reset-pin`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ token, new_pin: newPin }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Something went wrong");
+
+    document.getElementById("form-view").style.display = "none";
+    document.getElementById("success-view").style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message;
+    errEl.style.display = "block";
+    btn.disabled = false;
+    btn.textContent = "Set new PIN";
+  }
+}
+</script>
+</body>
+</html>

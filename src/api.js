@@ -55,6 +55,10 @@ async function restoreSession() {
   }
 }
 
+async function forgotPin(email) {
+  return apiFetch("/api/auth/forgot-pin", { method: "POST", body: { email } });
+}
+
 function logout() {
   clearSession();
 }
@@ -84,4 +88,4 @@ function startAutoSync() {
   trySync(); // also try once on load in case actions queued during a previous session
 }
 
-export { login, restoreSession, logout, getSavedEmployee, clockAction, startAutoSync, apiFetch };
+export { login, restoreSession, logout, getSavedEmployee, clockAction, startAutoSync, apiFetch, forgotPin };
