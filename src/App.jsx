@@ -313,6 +313,8 @@ const [emailInput, setEmailInput] = useState("");
 
   const elapsedMs = clockInTime ? now - new Date(clockInTime) : 0;
   const currentBreakMs = status === "break" && breakStartedAt ? now - new Date(breakStartedAt) : 0;
+  const LONG_SHIFT_MS = 10 * 60 * 60 * 1000; // 10 hours
+  const shiftTooLong = (status === "working" || status === "break") && elapsedMs > LONG_SHIFT_MS;
 
   const statusMeta = {
     off: { label: "OFF THE CLOCK", color: CHARCOAL, bg: LINE },
@@ -427,6 +429,11 @@ const [emailInput, setEmailInput] = useState("");
         )}{geo.configured && geo.permission === "denied" && (
           <div style={{ background: "#fff", border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
             Location access is off, so auto clock-in/out won't work — the manual buttons below still do. To enable it, allow location for this site in your phone's settings.
+          </div>
+        )}
+        {shiftTooLong && (
+          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
+            You've been clocked in for over 10 hours — did you forget to clock out?
           </div>
         )}
         <div style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff" }} className="rounded-md p-5 mb-6">
