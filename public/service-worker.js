@@ -7,7 +7,7 @@
 //    handled separately by offlineQueue.js, not by this file, since that
 //    needs IndexedDB rather than the Cache API.
 
-const CACHE_NAME = "site-clock-shell-v1";
+const CACHE_NAME = "site-clock-shell-v2";
 const SHELL_FILES = [
   "/",
   "/index.html",
@@ -47,7 +47,30 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // App shell: cache-first, so the app opens instantly and works offline.
+  // The page itself (index.html / "/"): network-first. This is the piece
+  // that was going stale — cache-first meant a phone that had ever opened
+  // the app would keep seeing that same snapshot forever, no matter how
+  // many times we shipped an update. Network-first means anyone with a
+  // signal always gets the latest version; the cached copy is only used
+  // as a fallback when there's genuinely no connection at all.
+  if (request.mode === "navigate" || request.destination === "document") {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          const copy = response.clone();
+          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          return response;
+        })
+        .catch(() =>
+          caches.match(request).then((cached) => cached || caches.match("/index.html"))
+        )
+    );
+    return;
+  }
+
+  // Everything else (icons, manifest, the built JS/CSS bundles, which are
+  // content-hashed per build): cache-first is safe here since a new
+  // deploy produces new filenames rather than overwriting old ones.
   event.respondWith(
     caches.match(request).then((cached) => {
       return (
