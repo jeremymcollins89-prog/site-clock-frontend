@@ -118,6 +118,7 @@ const [emailInput, setEmailInput] = useState("");
     shopLng: SHOP_LNG,
     radiusMeters: SHOP_RADIUS_M,
     clockOutTime: employee?.auto_clockout_time,
+    sessionReady: !checkingSession,
   });
   useEffect(() => {
     if (status === "off") return;
@@ -196,11 +197,17 @@ const [emailInput, setEmailInput] = useState("");
       setLog(rows.filter((r) => r.clock_out)); // completed shifts for the log list
       const open = rows.find((r) => !r.clock_out);
       if (open) {
-        setStatus("working");
         setEntryId(open.time_entry_id);
         setJobName(open.job_name);
         setLocation(open.location_type);
         setClockInTime(open.clock_in);
+        if (open.open_break_start) {
+          setStatus("break");
+          setBreakStartedAt(open.open_break_start);
+        } else {
+          setStatus("working");
+          setBreakStartedAt(null);
+        }
       }
     } catch (err) {
       setActionError("Couldn't reach the server — showing your last known status.");

@@ -35,18 +35,28 @@ function parseClockOutTime(timeStr) {
   return { hour: 16, minute: 30 };
 }
 
-function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockOutTime }) {
+function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockOutTime, sessionReady }) {
   const [permission, setPermission] = useState("unknown");
   const [withinRange, setWithinRange] = useState(null);
   const [distanceMeters, setDistanceMeters] = useState(null);
   const [geoError, setGeoError] = useState("");
   const actingRef = useRef(false);
   const watchIdRef = useRef(null);
+  // Tracks the previous in-range reading so auto clock-in only fires on a
+  // genuine arrival (out-of-range -> in-range), not just "currently in
+  // range" — otherwise clocking out manually while still at the shop gets
+  // immediately overridden by auto clock-in on the next location check.
+  const wasInRangeRef = useRef(false);
 
   const configured = Number.isFinite(shopLat) && Number.isFinite(shopLng);
 
   async function evaluate(position) {
     if (!configured) return;
+    // Don't evaluate anything until the app has confirmed the real status
+    // from the server — right after opening the app there's a brief window
+    // where status still holds its stale default, and acting on it here
+    // could fire a spurious auto clock-in before the true status loads.
+    if (!sessionReady) return;
     // Auto clock-in/out only applies to the "in town" shop crew pattern —
     // someone who's chosen "Traveling" is expected to be away from the
     // shop, so their location shouldn't trigger either rule.
@@ -58,12 +68,15 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     const inRange = dist <= radiusMeters;
     setWithinRange(inRange);
 
+    const justArrived = inRange && !wasInRangeRef.current;
+    wasInRangeRef.current = inRange;
+
     if (actingRef.current) return;
     const now = new Date();
 
-    // Auto clock-in: any time someone shows up at the shop, no time-of-day
-    // restriction.
-    if (inRange && status === "off") {
+    // Auto clock-in: only on a genuine arrival, any time of day — not
+    // every time we happen to check while already sitting in range.
+    if (justArrived && status === "off") {
       actingRef.current = true;
       try {
         await autoClockIn();
@@ -132,7 +145,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
       document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, configured, locationMode, clockOutTime]);
+  }, [status, configured, locationMode, clockOutTime, sessionReady]);
 
   return { permission, withinRange, distanceMeters, geoError, configured };
 }
