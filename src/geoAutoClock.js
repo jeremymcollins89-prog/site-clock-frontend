@@ -22,7 +22,20 @@ function isAfterHour(date, hour, minute) {
   return date.getHours() > hour || (date.getHours() === hour && date.getMinutes() >= minute);
 }
 
-function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters }) {
+// Parses a Postgres TIME string like "16:30:00" (or "16:30") into
+// { hour, minute }. Falls back to 4:30pm if the value is missing or
+// malformed, so a company that hasn't set this yet behaves like before.
+function parseClockOutTime(timeStr) {
+  if (typeof timeStr === "string") {
+    const match = timeStr.match(/^(\d{1,2}):(\d{2})/);
+    if (match) {
+      return { hour: Number(match[1]), minute: Number(match[2]) };
+    }
+  }
+  return { hour: 16, minute: 30 };
+}
+
+function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockOutTime }) {
   const [permission, setPermission] = useState("unknown");
   const [withinRange, setWithinRange] = useState(null);
   const [distanceMeters, setDistanceMeters] = useState(null);
@@ -57,7 +70,9 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
       } finally {
         actingRef.current = false;
       }
-    } else if (!inRange && status === "working" && isAfterHour(now, 16, 30)) {
+    } else if (!inRange && status === "working") {
+      const { hour, minute } = parseClockOutTime(clockOutTime);
+      if (!isAfterHour(now, hour, minute)) return;
       actingRef.current = true;
       try {
         await autoClockOut();
@@ -117,7 +132,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
       document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, configured, locationMode]);
+  }, [status, configured, locationMode, clockOutTime]);
 
   return { permission, withinRange, distanceMeters, geoError, configured };
 }

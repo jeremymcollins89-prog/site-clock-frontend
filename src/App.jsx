@@ -117,6 +117,7 @@ const [emailInput, setEmailInput] = useState("");
     shopLat: SHOP_LAT,
     shopLng: SHOP_LNG,
     radiusMeters: SHOP_RADIUS_M,
+    clockOutTime: employee?.auto_clockout_time,
   });
   useEffect(() => {
     if (status === "off") return;
