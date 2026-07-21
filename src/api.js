@@ -39,8 +39,8 @@ async function apiFetch(path, { method = "GET", body } = {}) {
   return data;
 }
 
-async function login(name, pin) {
-  const data = await apiFetch("/api/auth/login", { method: "POST", body: { name, pin } });
+async function login(email, pin) {
+  const data = await apiFetch("/api/auth/login", { method: "POST", body: { email, pin } });
   saveSession(data.token, data.employee);
   return data.employee;
 }

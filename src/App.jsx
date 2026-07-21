@@ -54,7 +54,7 @@ export default function TimeClock() {
   const [loggedIn, setLoggedIn] = useState(false);
   const [employee, setEmployee] = useState(null);
 
-  const [nameInput, setNameInput] = useState("");
+const [emailInput, setEmailInput] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [loginError, setLoginError] = useState("");
 
@@ -203,22 +203,14 @@ export default function TimeClock() {
   }
 
   async function handleLogin() {
-    setLoginError("");
-    const name = nameInput.trim();
-    if (!name || !pinInput) {
-      setLoginError("Enter your name and PIN.");
-      return;
-    }
-    try {
-      const emp = await login(name, pinInput);
-      setEmployee(emp);
-      setLoggedIn(true);
-      setPinInput("");
-      await refreshFromServer();
-    } catch (err) {
-      setLoginError(err.message || "Login failed.");
-    }
+  setLoginError("");
+  const email = emailInput.trim();
+  if (!email || !pinInput) {
+    setLoginError("Enter your email and PIN.");
+    return;
   }
+  try {
+    const emp = await login(email, pinInput);
 
   function handleLogout() {
     logout();
@@ -319,10 +311,11 @@ export default function TimeClock() {
           </h1>
           <p className="text-xs text-center mb-5" style={{ color: "#8A8578" }}>Your personal time clock</p>
           <input
-            autoFocus
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            placeholder="Your name"
+  autoFocus
+  type="email"
+  value={emailInput}
+  onChange={(e) => setEmailInput(e.target.value)}
+  placeholder="Your email"
             style={{ border: `1.5px solid ${LINE}` }}
             className="w-full px-3 py-2.5 text-sm rounded-sm mb-3 outline-none"
           />
