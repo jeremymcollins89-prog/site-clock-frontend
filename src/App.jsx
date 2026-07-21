@@ -412,12 +412,6 @@ const [emailInput, setEmailInput] = useState("");
             Location access is off, so auto clock-in/out won't work — the manual buttons below still do. To enable it, allow location for this site in your phone's settings.
           </div>
         )}
-        {geo.configured && geo.permission === "granted" && (
-          <div style={{ background: "#fff", border: `1.5px dashed ${LINE}`, color: "#8A8578" }} className="rounded-md p-3 mb-4 text-xs">
-            Auto clock-in/out: {geo.withinRange ? "at the shop" : "away from the shop"} — {geo.withinRange ? "you'll clock in automatically after 8am" : "you'll clock out automatically after 4:30pm if you don't return"}.
-          </div>
-        )}
-
         <div style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff" }} className="rounded-md p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
             <span style={{ background: statusMeta.bg, color: statusMeta.color, fontFamily: "'Oswald', sans-serif" }} className="px-2.5 py-1 text-xs tracking-widest rounded-sm">
