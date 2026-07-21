@@ -35,6 +35,37 @@ function parseClockOutTime(timeStr) {
   return { hour: 16, minute: 30 };
 }
 
+// Manual clock-outs need to stick — an in-memory "did we just arrive" check
+// alone isn't enough, since closing and reopening the app (or the phone
+// suspending it in the background) resets in-memory state, and the very
+// next location reading looks exactly like a fresh arrival even though the
+// employee never left. Persisting this in localStorage survives that.
+const SUPPRESS_KEY = "site-clock-suppress-auto-clockin";
+
+function isAutoClockInSuppressed() {
+  try {
+    return localStorage.getItem(SUPPRESS_KEY) === "true";
+  } catch {
+    return false;
+  }
+}
+
+function markManualClockOut() {
+  try {
+    localStorage.setItem(SUPPRESS_KEY, "true");
+  } catch {
+    // ignore — worst case, auto clock-in behaves as if this flag weren't added
+  }
+}
+
+function clearAutoClockInSuppression() {
+  try {
+    localStorage.removeItem(SUPPRESS_KEY);
+  } catch {
+    // ignore
+  }
+}
+
 function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockOutTime, sessionReady }) {
   const [permission, setPermission] = useState("unknown");
   const [withinRange, setWithinRange] = useState(null);
@@ -71,12 +102,19 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     const justArrived = inRange && !wasInRangeRef.current;
     wasInRangeRef.current = inRange;
 
+    // Once they've actually left the shop, a manual clock-out no longer
+    // needs to be protected — the next arrival is a genuine new one.
+    if (!inRange && isAutoClockInSuppressed()) {
+      clearAutoClockInSuppression();
+    }
+
     if (actingRef.current) return;
     const now = new Date();
 
     // Auto clock-in: only on a genuine arrival, any time of day — not
-    // every time we happen to check while already sitting in range.
-    if (justArrived && status === "off") {
+    // every time we happen to check while already sitting in range, and
+    // never right after a manual clock-out until they've actually left.
+    if (justArrived && status === "off" && !isAutoClockInSuppressed()) {
       actingRef.current = true;
       try {
         await autoClockIn();
@@ -150,4 +188,4 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
   return { permission, withinRange, distanceMeters, geoError, configured };
 }
 
-export { useGeoAutoClock, haversineMeters };
+export { useGeoAutoClock, haversineMeters, markManualClockOut, clearAutoClockInSuppression };

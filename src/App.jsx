@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail } from "lucide-react";
 import { login, restoreSession, logout, clockAction, startAutoSync, apiFetch, forgotPin } from "./api.js";
-import { useGeoAutoClock } from "./geoAutoClock.js";
+import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`;
 
@@ -273,6 +273,9 @@ const [emailInput, setEmailInput] = useState("");
     setJobName(jobDraft.trim() || "Untitled job");
     setStatus("working");
     setJobDraft("");
+    // A fresh manual clock-in means any earlier "don't auto clock-in" flag
+    // (from a previous manual clock-out) is stale — clear it.
+    clearAutoClockInSuppression();
   }
 
   async function startBreak() {
@@ -300,6 +303,11 @@ const [emailInput, setEmailInput] = useState("");
     setJobName("");
     setClockInTime(null);
     setSubmitted(false);
+    // Manual clock-out takes precedence over auto clock-in: don't let the
+    // geo check clock them right back in just because they're still
+    // standing at the shop. This sticks even if the app is closed and
+    // reopened, and only clears once they've actually left.
+    markManualClockOut();
     await refreshFromServer();
   }
 
