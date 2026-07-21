@@ -7,7 +7,7 @@
 //    handled separately by offlineQueue.js, not by this file, since that
 //    needs IndexedDB rather than the Cache API.
 
-const CACHE_NAME = "site-clock-shell-v2";
+const CACHE_NAME = "site-clock-shell-v3";
 const SHELL_FILES = [
   "/",
   "/index.html",
