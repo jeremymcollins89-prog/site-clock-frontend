@@ -72,10 +72,12 @@ const [emailInput, setEmailInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
   const [savedOffline, setSavedOffline] = useState(false);
-  // Geolocation-based auto clock in/out
-  const SHOP_LAT = Number(import.meta.env.VITE_SHOP_LAT);
-  const SHOP_LNG = Number(import.meta.env.VITE_SHOP_LNG);
-  const SHOP_RADIUS_M = Number(import.meta.env.VITE_SHOP_RADIUS_M || 152); // ~500ft
+  // Geolocation-based auto clock in/out — each company sets its own shop
+  // location (Settings tab in the admin app); the backend sends it back on
+  // login and on session restore, attached to the employee object.
+  const SHOP_LAT = employee?.shop_lat != null ? Number(employee.shop_lat) : NaN;
+  const SHOP_LNG = employee?.shop_lng != null ? Number(employee.shop_lng) : NaN;
+  const SHOP_RADIUS_M = employee?.shop_radius_m != null ? Number(employee.shop_radius_m) : 152; // ~500ft
 
   async function autoClockIn() {
     setActionError("");
