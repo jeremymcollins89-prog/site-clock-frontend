@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Privacy Policy — Coll Timeclock</title>
+<style>
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F2A93B;
+    --teal: #3D5A50;
+    --rust: #C1502E;
+    --line: #D8D3C4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    font-family: "Segoe UI", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--charcoal);
+    padding: 24px;
+    display: flex;
+    justify-content: center;
+  }
+  .box {
+    background: #fff;
+    border: 1.5px solid var(--charcoal);
+    border-radius: 8px;
+    padding: 40px;
+    width: 100%;
+    max-width: 720px;
+    line-height: 1.6;
+  }
+  h1 { margin: 0 0 4px; font-size: 26px; }
+  p.sub { margin: 0 0 28px; color: #8A8578; font-size: 14px; }
+  h2 { font-size: 17px; margin: 28px 0 8px; }
+  p, li { font-size: 14.5px; }
+  ul { margin: 8px 0; padding-left: 20px; }
+  a { color: var(--teal); }
+  .note {
+    background: var(--paper);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 14px 16px;
+    font-size: 13px;
+    color: #6b6759;
+    margin-top: 32px;
+  }
+</style>
+</head>
+<body>
+
+<div class="box">
+  <h1>Privacy Policy</h1>
+  <p class="sub">Coll Timeclock — last updated July 2026</p>
+
+  <p>Coll Timeclock is a work-hours tracking service used by employers ("companies") and their
+  employees. This page explains what information we collect through the employee app and the
+  employer (admin) app, and how it's used.</p>
+
+  <h2>Information we collect</h2>
+  <ul>
+    <li><strong>Account info:</strong> employee name, email address, and a PIN (stored as a one-way
+    hash — we never store or can see your actual PIN). Company admins provide a business email and
+    password (also stored as a one-way hash).</li>
+    <li><strong>Time records:</strong> clock-in and clock-out timestamps, break times, job/location
+    labels, and hours submitted for payroll.</li>
+    <li><strong>Location data:</strong> if an employee's company has location-based auto clock-in/out
+    enabled, the app checks the device's GPS location against the company's registered shop address
+    to detect arrival and departure. This check only runs while the app is open or in the background
+    as permitted by your device, and only for employees whose company has turned this feature on.</li>
+    <li><strong>Payroll contact info:</strong> each company sets its own payroll inbox address, used
+    only to email that company's submitted timesheets.</li>
+  </ul>
+
+  <h2>How we use this information</h2>
+  <ul>
+    <li>To record and report hours worked, for the employee and their employer.</li>
+    <li>To optionally automate clock-in/out based on arrival at a company's job site.</li>
+    <li>To send account-related emails: password/PIN reset links and submitted timesheets.</li>
+    <li>To let a company's admin view their own employees' time records and overview dashboard.</li>
+  </ul>
+
+  <h2>What we don't do</h2>
+  <ul>
+    <li>We don't sell or share your data with advertisers or unrelated third parties.</li>
+    <li>We don't track location outside of the clock-in/out check described above.</li>
+    <li>Each company's data (employees, time records, settings) is only visible to that company's
+    own admin account — never to other companies using Coll Timeclock.</li>
+  </ul>
+
+  <h2>How data is stored and secured</h2>
+  <p>Data is stored in a managed Postgres database and transmitted over encrypted (HTTPS)
+  connections. Passwords and PINs are hashed before storage. Access to admin and employee accounts
+  is controlled through authenticated, time-limited login sessions.</p>
+
+  <h2>Data retention and deletion</h2>
+  <p>We retain account and time-record data for as long as a company's account is active, since
+  historical hours are part of payroll recordkeeping. An employee or admin can request that their
+  account or company data be deleted by contacting us at the address below.</p>
+
+  <h2>Children's privacy</h2>
+  <p>Coll Timeclock is a workplace tool intended for employees of subscribing companies and is not
+  directed at children.</p>
+
+  <h2>Changes to this policy</h2>
+  <p>If this policy changes, the updated version will be posted on this page with a new "last
+  updated" date.</p>
+
+  <h2>Contact</h2>
+  <p>Questions about this policy or your data can be sent to
+  <a href="mailto:jeremymcollins89@gmail.com">jeremymcollins89@gmail.com</a>.</p>
+
+  <div class="note">
+    This policy is written in plain language to describe what Coll Timeclock actually does. It
+    isn't a substitute for legal advice — if you plan to scale this to many customers, it's worth
+    having a lawyer review it against the specific privacy laws that apply to where your customers
+    are located.
+  </div>
+</div>
+
+</body>
+</html>
