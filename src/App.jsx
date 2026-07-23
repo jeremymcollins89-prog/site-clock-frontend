@@ -121,7 +121,7 @@ function ScheduleView({ schedule, loading }) {
     <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
       <div className="mb-4 flex items-center justify-between">
         <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
-          Upcoming Jobs
+          Upcoming Events
         </h2>
         <span className="text-xs" style={{ color: "#8A8578" }}>Next 30 days</span>
       </div>
