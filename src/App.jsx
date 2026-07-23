@@ -217,7 +217,7 @@ function EventCard({ job }) {
 }
 
 function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday }) {
-  const [selectedDay, setSelectedDay] = useState(null);
+  const [selectedDay, setSelectedDay] = useState(todayStr());
 
   const jobsByDate = {};
   schedule.forEach((job) => {
@@ -246,7 +246,14 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
         <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
           Schedule
         </h2>
-        <button onClick={onToday} className="text-xs underline" style={{ color: "#8A8578" }}>
+        <button
+          onClick={() => {
+            onToday();
+            setSelectedDay(todayStr());
+          }}
+          className="text-xs underline"
+          style={{ color: "#8A8578" }}
+        >
           Today
         </button>
       </div>
