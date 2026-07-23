@@ -149,25 +149,89 @@ const MONTH_LABELS = [
   "July", "August", "September", "October", "November", "December",
 ];
 
-function EventCard({ job }) {
-  const jobAddress = formatAddress(job.customer_street, job.customer_city, job.customer_state, job.customer_zip);
+// Compact summary row -- tap it to see the full details (customer, phone,
+// address, notes) in JobDetailSheet below. Keeps the day list scannable
+// even when several jobs land on the same day.
+function EventCard({ job, onSelect }) {
   const dateLabel =
     job.start_date === job.end_date
       ? formatDateShort(job.start_date)
       : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
   return (
-    <div style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
-      <div className="flex items-start gap-2 mb-1">
-        <span
-          style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10, marginTop: 4 }}
-          className="rounded-full flex-shrink-0"
-        />
-        <div className="flex-1">
-          <div className="text-sm font-medium">
-            {job.title}
+    <button
+      onClick={() => onSelect(job)}
+      style={{ background: "#fff", border: `1.5px solid ${LINE}`, textAlign: "left", width: "100%" }}
+      className="rounded-md p-4 flex items-center gap-2"
+    >
+      <span
+        style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10 }}
+        className="rounded-full flex-shrink-0"
+      />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-medium">
+          {job.title}
+          {job.event_type && job.event_type !== "job" && (
+            <span
+              className="ml-2 rounded"
+              style={{
+                fontSize: "10px",
+                textTransform: "uppercase",
+                letterSpacing: "0.04em",
+                padding: "2px 6px",
+                background: LINE,
+                color: "#5C6660",
+              }}
+            >
+              {job.event_type === "personal" ? "Personal" : "Other"}
+            </span>
+          )}
+        </div>
+        <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
+      </div>
+      <span style={{ color: "#8A8578", fontSize: 18, flexShrink: 0 }}>&rsaquo;</span>
+    </button>
+  );
+}
+
+// Bottom-sheet with the full picture for one job: customer name, a tel:
+// link for the phone, a Google Maps directions link for the address, and
+// any notes. Tapping the dimmed backdrop closes it, same as the admin apps.
+function JobDetailSheet({ job, onClose }) {
+  if (!job) return null;
+  const jobAddress = formatAddress(job.customer_street, job.customer_city, job.customer_state, job.customer_zip);
+  const dateLabel =
+    job.start_date === job.end_date
+      ? formatDateShort(job.start_date)
+      : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 100 }}
+      className="flex items-end"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: PAPER,
+          width: "100%",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          borderTopLeftRadius: 16,
+          borderTopRightRadius: 16,
+          padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
+        }}
+      >
+        <div className="flex items-start justify-between gap-2 mb-1">
+          <div className="flex items-center gap-2 min-w-0">
+            <span
+              style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10 }}
+              className="rounded-full flex-shrink-0"
+            />
+            <span className="text-base font-medium truncate">{job.title}</span>
             {job.event_type && job.event_type !== "job" && (
               <span
-                className="ml-2 rounded"
+                className="rounded flex-shrink-0"
                 style={{
                   fontSize: "10px",
                   textTransform: "uppercase",
@@ -181,43 +245,51 @@ function EventCard({ job }) {
               </span>
             )}
           </div>
-          <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
-          {job.customer_name && (
-            <div className="text-xs mt-1" style={{ color: "#5C6660" }}>{job.customer_name}</div>
-          )}
-          {job.customer_phone && (
-            <a
-              href={`tel:${job.customer_phone.replace(/[^0-9+]/g, "")}`}
-              className="text-xs mt-0.5 block underline"
-              style={{ color: RUST }}
-            >
-              {job.customer_phone}
-            </a>
-          )}
-          {jobAddress && (
-            <a
-              href={googleMapsDirectionsUrl(jobAddress)}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-xs mt-0.5 block underline"
-              style={{ color: RUST }}
-            >
-              {jobAddress} (get directions)
-            </a>
-          )}
+          <button
+            onClick={onClose}
+            style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none", flexShrink: 0 }}
+          >
+            &times;
+          </button>
         </div>
+        <div className="text-xs mb-3" style={{ color: "#8A8578" }}>{dateLabel}</div>
+
+        {job.customer_name && (
+          <div className="text-sm font-medium mt-2" style={{ color: CHARCOAL }}>{job.customer_name}</div>
+        )}
+        {job.customer_phone && (
+          <a
+            href={`tel:${job.customer_phone.replace(/[^0-9+]/g, "")}`}
+            className="text-sm mt-1 block underline"
+            style={{ color: RUST }}
+          >
+            {job.customer_phone}
+          </a>
+        )}
+        {jobAddress && (
+          <a
+            href={googleMapsDirectionsUrl(jobAddress)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm mt-1 block underline"
+            style={{ color: RUST }}
+          >
+            {jobAddress} (get directions)
+          </a>
+        )}
+        {job.notes && (
+          <p className="text-sm mt-3 pt-3" style={{ color: "#5C6660", borderTop: `1px solid ${LINE}` }}>
+            {job.notes}
+          </p>
+        )}
       </div>
-      {job.notes && (
-        <p className="text-xs mt-2 pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
-          {job.notes}
-        </p>
-      )}
     </div>
   );
 }
 
 function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday }) {
   const [selectedDay, setSelectedDay] = useState(todayStr());
+  const [selectedJob, setSelectedJob] = useState(null);
 
   const jobsByDate = {};
   schedule.forEach((job) => {
@@ -341,7 +413,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
               ) : (
                 <div className="flex flex-col gap-3">
                   {dayEvents.map((job) => (
-                    <EventCard key={job.id} job={job} />
+                    <EventCard key={job.id} job={job} onSelect={setSelectedJob} />
                   ))}
                 </div>
               )}
@@ -351,6 +423,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
           )}
         </>
       )}
+      <JobDetailSheet job={selectedJob} onClose={() => setSelectedJob(null)} />
     </div>
   );
 }
