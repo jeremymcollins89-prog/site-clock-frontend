@@ -108,6 +108,17 @@ function formatDateShort(d) {
   return new Date(d).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function googleMapsDirectionsUrl(address) {
+  return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
+}
+
+// Combines street/city/state/zip into a single display string, e.g.
+// "123 Main St, Denver, CO 80202" -- skips whichever parts are blank.
+function formatAddress(street, city, state, zip) {
+  const cityStateZip = [city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return [street, cityStateZip].filter(Boolean).join(", ");
+}
+
 function ScheduleView({ schedule, loading }) {
   if (loading) {
     return (
@@ -135,6 +146,7 @@ function ScheduleView({ schedule, loading }) {
               job.start_date === job.end_date
                 ? formatDateShort(job.start_date)
                 : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
+            const jobAddress = formatAddress(job.customer_street, job.customer_city, job.customer_state, job.customer_zip);
             return (
               <div key={job.id} style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
                 <div className="flex items-start gap-2 mb-1">
@@ -162,6 +174,20 @@ function ScheduleView({ schedule, loading }) {
                       )}
                     </div>
                     <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
+                    {job.customer_name && (
+                      <div className="text-xs mt-1" style={{ color: "#5C6660" }}>{job.customer_name}</div>
+                    )}
+                    {jobAddress && (
+                      <a
+                        href={googleMapsDirectionsUrl(jobAddress)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-xs mt-0.5 inline-block underline"
+                        style={{ color: RUST }}
+                      >
+                        {jobAddress} (get directions)
+                      </a>
+                    )}
                   </div>
                 </div>
                 {job.notes && (
