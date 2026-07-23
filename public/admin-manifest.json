@@ -1,0 +1,17 @@
+{
+  "name": "Coll Admin",
+  "short_name": "Coll Admin",
+  "description": "Manage employees, schedules, customers, and payroll for Coll Timeclock",
+  "start_url": "/admin.html",
+  "scope": "/admin.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F2ED",
+  "theme_color": "#1F2421",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

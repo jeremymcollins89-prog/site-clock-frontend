@@ -1,0 +1,1511 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Coll Admin</title>
+
+<link rel="manifest" href="/admin-manifest.json" />
+<meta name="theme-color" content="#1F2421" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Coll Admin" />
+
+<style>
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F2A93B;
+    --teal: #3D5A50;
+    --rust: #C1502E;
+    --line: #D8D3C4;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0;
+    height: 100%;
+    font-family: "Segoe UI", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--charcoal);
+    -webkit-tap-highlight-color: transparent;
+  }
+  input, select, textarea {
+    width: 100%;
+    padding: 11px 12px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    font-size: 16px; /* 16px avoids iOS Safari zoom-on-focus */
+    margin-bottom: 10px;
+    background: #fff;
+    color: var(--charcoal);
+    font-family: inherit;
+  }
+  label { font-size: 11px; color: #8A8578; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+  button { cursor: pointer; font-family: inherit; }
+  .btn-primary {
+    width: 100%; background: var(--amber); color: var(--charcoal); border: none;
+    border-radius: 6px; font-weight: 700; padding: 13px; font-size: 15px; margin-top: 4px;
+  }
+  .btn-primary:disabled { opacity: 0.5; }
+  .btn-secondary {
+    width: 100%; background: transparent; color: var(--charcoal); border: 1.5px solid var(--charcoal);
+    border-radius: 6px; font-weight: 600; padding: 11px; font-size: 14px;
+  }
+  .btn-small {
+    border: none; border-radius: 5px; padding: 8px 12px; font-size: 12.5px; color: #fff; font-weight: 600;
+  }
+  .error { color: var(--rust); font-size: 13px; margin: 8px 0; display: none; }
+  .success-msg { color: var(--teal); font-size: 13px; margin: 8px 0; display: none; }
+  .card {
+    background: #fff; border: 1.5px solid var(--line); border-radius: 8px;
+    padding: 16px; margin-bottom: 12px;
+  }
+  .badge {
+    display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600;
+  }
+  .chip {
+    display: inline-block; background: var(--line); color: var(--charcoal);
+    font-size: 11px; padding: 3px 9px; border-radius: 20px; margin: 2px 4px 2px 0;
+  }
+  .type-badge {
+    display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
+    padding: 2px 7px; border-radius: 3px; background: var(--line); color: var(--charcoal); margin-left: 6px;
+    vertical-align: middle;
+  }
+  .job-color-dot {
+    display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle;
+  }
+  a.link { color: var(--rust); text-decoration: none; }
+  a.link:active { opacity: 0.7; }
+
+  /* ---------- Login ---------- */
+  #login-screen {
+    display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px;
+  }
+  #login-screen.visible { display: flex; }
+  .login-box { background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px; padding: 28px; width: 100%; max-width: 360px; }
+  .login-box h1 { margin: 0 0 4px; font-size: 22px; }
+  .login-box p.sub { margin: 0 0 20px; color: #8A8578; font-size: 13.5px; }
+  .login-box .fine-link { text-align: center; margin-top: 12px; }
+  .login-box .fine-link a { font-size: 12.5px; color: #8A8578; text-decoration: underline; }
+
+  /* ---------- App shell ---------- */
+  #app { display: none; height: 100%; }
+  #app.visible { display: block; }
+  .top-bar {
+    position: fixed; top: 0; left: 0; right: 0; height: 54px; z-index: 40;
+    background: var(--charcoal); color: var(--paper);
+    display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+  }
+  .top-bar h1 { font-size: 17px; margin: 0; font-weight: 700; }
+  .top-bar button {
+    background: transparent; border: 1.5px solid rgba(244,242,237,0.4); color: var(--paper);
+    border-radius: 5px; padding: 6px 10px; font-size: 12px;
+  }
+  main.content {
+    padding: 68px 14px 78px;
+    max-width: 560px; margin: 0 auto;
+    min-height: 100vh;
+  }
+  .view { display: none; }
+  .view.active { display: block; }
+  .view-header {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;
+  }
+  .view-header h2 { font-size: 18px; margin: 0; }
+
+  .bottom-nav {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
+    background: #fff; border-top: 1.5px solid var(--line);
+    display: flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+  }
+  .nav-btn {
+    flex: 1; background: transparent; border: none; padding: 6px 2px;
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    color: #8A8578; font-size: 10.5px; font-weight: 600;
+  }
+  .nav-btn .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--line); }
+  .nav-btn.active { color: var(--rust); }
+  .nav-btn.active .dot { background: var(--rust); }
+
+  /* ---------- Full-screen sheets ---------- */
+  .sheet {
+    display: none; position: fixed; inset: 0; z-index: 100;
+    background: var(--paper); overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  .sheet.visible { display: block; }
+  .sheet-header {
+    position: sticky; top: 0; background: var(--paper); z-index: 5;
+    display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px;
+    border-bottom: 1.5px solid var(--line);
+  }
+  .sheet-header .back-btn {
+    background: transparent; border: none; font-size: 22px; color: var(--charcoal); padding: 0 4px;
+    line-height: 1;
+  }
+  .sheet-header h2 { font-size: 16px; margin: 0; flex: 1; }
+  .sheet-body { padding: 16px; max-width: 560px; margin: 0 auto; }
+
+  /* ---------- Employees ---------- */
+  .emp-card { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+  .emp-card .actions button { margin-left: 6px; }
+  .stat-row { display: flex; gap: 22px; margin: 12px 0 16px; }
+  .stat-label { font-size: 10.5px; color: #8A8578; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat-value { font-size: 21px; font-weight: 700; }
+
+  .entry-card { border: 1.5px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fff; }
+  .entry-field { margin-bottom: 8px; }
+  .entry-field label { margin-bottom: 3px; }
+  .entry-meta { display: flex; gap: 18px; font-size: 13px; margin: 6px 0 10px; }
+  .entry-meta div strong { display: block; font-size: 15px; }
+
+  /* ---------- Calendar ---------- */
+  .cal-toolbar { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+  .cal-nav-btn { background: transparent; border: 1.5px solid var(--charcoal); border-radius: 5px; padding: 6px 12px; font-size: 14px; }
+  .cal-month-label { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-dow { font-size: 9.5px; text-transform: uppercase; color: #8A8578; text-align: center; padding-bottom: 3px; }
+  .cal-day {
+    min-height: 44px; border: 1px solid var(--line); border-radius: 5px; background: #fff;
+    display: flex; flex-direction: column; align-items: center; padding: 3px 0; cursor: pointer;
+  }
+  .cal-day.cal-day-empty { background: transparent; border: none; }
+  .cal-day.cal-day-today { border-color: var(--amber); border-width: 2px; }
+  .cal-day-num { font-size: 11px; color: #8A8578; }
+  .cal-dots { display: flex; gap: 2px; margin-top: 3px; flex-wrap: wrap; justify-content: center; }
+  .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
+
+  .checkbox-list {
+    max-height: 160px; overflow-y: auto; border: 1.5px solid var(--line); border-radius: 6px; padding: 8px; margin-bottom: 10px;
+  }
+  .checkbox-list label { display: block; text-transform: none; font-size: 14px; color: var(--charcoal); margin-bottom: 6px; }
+  .color-swatches { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
+  .color-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; }
+  .color-swatch.selected { border-color: var(--charcoal); }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Coll Admin</h1>
+    <p class="sub">Sign in to manage your business.</p>
+    <label>Email</label>
+    <input id="admin-email-input" type="email" autocomplete="username" />
+    <label>Password</label>
+    <input id="admin-key-input" type="password" autocomplete="current-password" />
+    <button class="btn-primary" onclick="doLogin()">Sign in</button>
+    <div id="login-error" class="error"></div>
+    <div id="login-info" class="success-msg"></div>
+    <div class="fine-link"><a href="#" onclick="doForgotPassword(); return false;">Forgot password?</a></div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="top-bar">
+    <h1>Coll Admin</h1>
+    <button onclick="doLogout()">Log out</button>
+  </div>
+
+  <main class="content">
+
+    <section id="view-overview" class="view active">
+      <div class="view-header"><h2>Overview</h2></div>
+      <div id="overview-list"></div>
+    </section>
+
+    <section id="view-employees" class="view">
+      <div class="view-header"><h2>Employees</h2></div>
+      <div class="card">
+        <label>Name</label>
+        <input id="new-emp-name" placeholder="Full name" />
+        <label>Email</label>
+        <input id="new-emp-email" placeholder="name@company.com" />
+        <label>4-digit PIN</label>
+        <input id="new-emp-pin" placeholder="1234" />
+        <button class="btn-primary" onclick="addEmployee()">Add employee</button>
+        <div id="add-emp-error" class="error"></div>
+      </div>
+      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">Tap an employee to view or edit their hours.</p>
+      <div id="employees-list"></div>
+    </section>
+
+    <section id="view-schedule" class="view">
+      <div class="view-header"><h2>Schedule</h2></div>
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h3 style="margin:0; font-size:15px;">Crews</h3>
+          <button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet()">New crew</button>
+        </div>
+        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">A reusable group you can assign to a job all at once.</p>
+        <div id="crews-list"></div>
+      </div>
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h3 style="margin:0; font-size:15px;">Jobs</h3>
+          <button class="btn-small" style="background:var(--rust);" onclick="openJobSheet(null, todayStr())">New job</button>
+        </div>
+        <div class="cal-toolbar">
+          <button class="cal-nav-btn" onclick="navigateSchedule(-1)">&larr;</button>
+          <span class="cal-month-label" id="schedule-month-label"></span>
+          <button class="cal-nav-btn" onclick="navigateSchedule(1)">&rarr;</button>
+        </div>
+        <button class="btn-secondary" style="margin-bottom:10px;" onclick="goToToday()">Today</button>
+        <div id="schedule-calendar"></div>
+      </div>
+    </section>
+
+    <section id="view-customers" class="view">
+      <div class="view-header"><h2>Customers</h2></div>
+      <div class="card">
+        <button class="btn-primary" onclick="openCustomerSheet()">New customer</button>
+      </div>
+      <input id="customer-search-input" placeholder="Search by name..." oninput="renderCustomersList()" />
+      <div id="customers-list"></div>
+    </section>
+
+    <section id="view-settings" class="view">
+      <div class="view-header"><h2>Settings</h2></div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Payroll email</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Where "Submit Hours for Payroll" sends timesheets. Required before employees can submit hours.</p>
+        <label>Payroll email</label>
+        <input id="payroll-email-input" type="email" placeholder="payroll@company.com" />
+        <button class="btn-primary" onclick="savePayrollEmail()">Save</button>
+        <div id="payroll-email-error" class="error"></div>
+        <div id="payroll-email-success" class="success-msg"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Pay schedule</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Controls what "Submit Hours for Payroll" bundles together.</p>
+        <label>Pay frequency</label>
+        <select id="pay-frequency-select" onchange="togglePayScheduleFields()">
+          <option value="semi_monthly">1st &amp; 15th (semi-monthly)</option>
+          <option value="biweekly">Bi-weekly</option>
+          <option value="weekly">Weekly</option>
+          <option value="monthly">Monthly</option>
+          <option value="custom">Custom</option>
+        </select>
+        <div id="pay-anchor-field" style="display:none;">
+          <label>Start date of a known pay period</label>
+          <input id="pay-anchor-input" type="date" />
+        </div>
+        <div id="pay-custom-days-field" style="display:none;">
+          <label>Days per pay period</label>
+          <input id="pay-custom-days-input" type="number" min="1" placeholder="e.g. 10" />
+        </div>
+        <button class="btn-primary" onclick="savePaySchedule()">Save</button>
+        <div id="pay-schedule-error" class="error"></div>
+        <div id="pay-schedule-success" class="success-msg"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Change admin email</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">This is the email you sign in with. Requires your current password.</p>
+        <label>New email</label>
+        <input id="change-email-new" type="email" placeholder="you@company.com" />
+        <label>Current password</label>
+        <input id="change-email-password" type="password" />
+        <button class="btn-primary" onclick="submitChangeEmail()">Save</button>
+        <div id="change-email-error" class="error"></div>
+        <div id="change-email-success" class="success-msg"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Change password</h3>
+        <label>Current password</label>
+        <input id="current-password-input" type="password" />
+        <label>New password</label>
+        <input id="new-password-input" type="password" placeholder="At least 8 characters" />
+        <label>Confirm new password</label>
+        <input id="confirm-password-input" type="password" />
+        <button class="btn-primary" onclick="submitChangePassword()">Update password</button>
+        <div id="password-modal-error" class="error"></div>
+        <div id="password-modal-success" class="success-msg"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Shop location</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">
+          Where employees auto clock-in/out. Tip: right-click your shop on Google Maps, tap the coordinates to copy, paste the first number as Latitude and second as Longitude.
+        </p>
+        <label>Latitude</label>
+        <input id="shop-lat-input" placeholder="e.g. 39.7392" />
+        <label>Longitude</label>
+        <input id="shop-lng-input" placeholder="e.g. -104.9903" />
+        <label>Radius (meters)</label>
+        <input id="shop-radius-input" placeholder="152" />
+        <label>Auto clock-out time</label>
+        <input id="clockout-time-input" type="time" />
+        <button class="btn-primary" onclick="saveShopLocation()">Save</button>
+        <div id="shop-location-error" class="error"></div>
+        <div id="shop-location-success" class="success-msg"></div>
+      </div>
+    </section>
+
+  </main>
+
+  <div class="bottom-nav">
+    <button class="nav-btn active" data-view="overview" onclick="showView('overview')"><span class="dot"></span>Overview</button>
+    <button class="nav-btn" data-view="employees" onclick="showView('employees')"><span class="dot"></span>Employees</button>
+    <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
+    <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
+    <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
+  </div>
+</div>
+
+<!-- ---------- Full-screen sheets ---------- -->
+
+<div class="sheet" id="employee-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeEmployeeSheet()">&times;</button>
+    <h2>Employee</h2>
+  </div>
+  <div class="sheet-body" id="employee-sheet-content"></div>
+</div>
+
+<div class="sheet" id="edit-employee-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeEditEmployeeSheet()">&times;</button>
+    <h2>Edit employee</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="edit-emp-error" class="error"></div>
+    <div id="edit-emp-success" class="success-msg"></div>
+    <label>Email</label>
+    <input id="edit-emp-email" type="email" />
+    <label>New PIN (leave blank to keep current)</label>
+    <input id="edit-emp-pin" placeholder="4-digit PIN" />
+    <button class="btn-primary" onclick="submitEditEmployee()">Save changes</button>
+  </div>
+</div>
+
+<div class="sheet" id="crew-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeCrewSheet()">&times;</button>
+    <h2 id="crew-sheet-title">New crew</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="crew-sheet-error" class="error"></div>
+    <label>Crew name</label>
+    <input id="crew-name-input" placeholder="e.g. Roofing crew A" />
+    <label>Members</label>
+    <div id="crew-members-list" class="checkbox-list"></div>
+    <button class="btn-primary" onclick="submitCrew()">Save crew</button>
+  </div>
+</div>
+
+<div class="sheet" id="job-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="cancelJobSheet()">&times;</button>
+    <h2 id="job-sheet-title">New job</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="job-sheet-error" class="error"></div>
+    <label>Customer (optional)</label>
+    <select id="job-customer-input" onchange="onJobCustomerChange()">
+      <option value="">— none —</option>
+    </select>
+    <label>Job title</label>
+    <input id="job-title-input" placeholder="e.g. Smith residence re-roof, team meeting" />
+    <label>Type</label>
+    <select id="job-type-input">
+      <option value="job">Job</option>
+      <option value="personal">Personal</option>
+      <option value="other">Other</option>
+    </select>
+    <label>Notes (optional)</label>
+    <input id="job-notes-input" placeholder="Any details the crew should know" />
+    <label>Start date</label>
+    <input id="job-start-input" type="date" />
+    <label>End date</label>
+    <input id="job-end-input" type="date" />
+    <label>Color</label>
+    <div class="color-swatches" id="job-color-swatches"></div>
+    <label>Assign a crew (optional)</label>
+    <div id="job-crews-list" class="checkbox-list"></div>
+    <label>Assign individual employees (optional)</label>
+    <div id="job-employees-list" class="checkbox-list"></div>
+    <button class="btn-primary" onclick="submitJob()">Save job</button>
+  </div>
+</div>
+
+<div class="sheet" id="day-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="dismissDaySheet()">&times;</button>
+    <h2>Day</h2>
+  </div>
+  <div class="sheet-body" id="day-sheet-content"></div>
+</div>
+
+<div class="sheet" id="customer-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeCustomerSheet()">&times;</button>
+    <h2 id="customer-sheet-title">New customer</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="customer-sheet-error" class="error"></div>
+    <label>Name</label>
+    <input id="customer-name-input" placeholder="e.g. Smith" />
+    <label>Phone</label>
+    <input id="customer-phone-input" placeholder="(555) 555-5555" />
+    <label>Email</label>
+    <input id="customer-email-input" type="email" placeholder="customer@email.com" />
+    <label>Street address</label>
+    <input id="customer-street-input" placeholder="123 Main St" />
+    <label>City</label>
+    <input id="customer-city-input" placeholder="Denver" />
+    <label>State</label>
+    <input id="customer-state-input" placeholder="CO" />
+    <label>Zip</label>
+    <input id="customer-zip-input" placeholder="80202" />
+    <label>Notes (optional)</label>
+    <input id="customer-notes-input" placeholder="Any details worth remembering" />
+    <button class="btn-primary" onclick="submitCustomer()">Save customer</button>
+  </div>
+</div>
+
+<div class="sheet" id="customer-history-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeCustomerHistorySheet()">&times;</button>
+    <h2>History</h2>
+  </div>
+  <div class="sheet-body" id="customer-history-content"></div>
+</div>
+
+<script>
+const API_BASE_URL = "https://site-clock-backend-production.up.railway.app";
+const TOKEN_KEY = "coll-admin-token";
+
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+async function apiFetch(path, { method = "GET", body } = {}) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+// Thin wrapper matching the same shape the desktop admin app uses, so the
+// business logic below reads identically to the proven desktop version.
+const admin = {
+  login: async (email, password) => {
+    const data = await apiFetch("/api/admin/login", { method: "POST", body: { email, password } });
+    setToken(data.token);
+    return true;
+  },
+  hasSession: () => Boolean(getToken()),
+  logout: () => clearToken(),
+  forgotPassword: (email) => apiFetch("/api/admin/forgot-password", { method: "POST", body: { email } }),
+  changePassword: (currentPassword, newPassword) =>
+    apiFetch("/api/admin/change-password", { method: "POST", body: { current_password: currentPassword, new_password: newPassword } }),
+  changeEmail: (newEmail, currentPassword) =>
+    apiFetch("/api/admin/change-email", { method: "POST", body: { new_email: newEmail, current_password: currentPassword } }),
+
+  listEmployees: () => apiFetch("/api/admin/employees"),
+  addEmployee: (employee) => apiFetch("/api/admin/employees", { method: "POST", body: employee }),
+  updateEmployee: (id, patch) => apiFetch(`/api/admin/employees/${id}`, { method: "PATCH", body: patch }),
+
+  listTimeEntries: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/api/admin/time-entries?${qs}`);
+  },
+  updateTimeEntry: (id, patch) => apiFetch(`/api/admin/time-entries/${id}`, { method: "PATCH", body: patch }),
+
+  getOverview: () => apiFetch("/api/admin/overview"),
+  requestPing: (employeeId) => apiFetch(`/api/admin/employees/${employeeId}/request-ping`, { method: "POST" }),
+
+  getShopLocation: () => apiFetch("/api/admin/shop-location"),
+  updateShopLocation: (patch) => apiFetch("/api/admin/shop-location", { method: "PATCH", body: patch }),
+
+  getPayrollEmail: () => apiFetch("/api/admin/payroll-email"),
+  updatePayrollEmail: (payrollEmail) => apiFetch("/api/admin/payroll-email", { method: "PATCH", body: { payroll_email: payrollEmail } }),
+
+  getPaySchedule: () => apiFetch("/api/admin/pay-schedule"),
+  updatePaySchedule: (patch) => apiFetch("/api/admin/pay-schedule", { method: "PATCH", body: patch }),
+
+  listCrews: () => apiFetch("/api/admin/crews"),
+  addCrew: (crew) => apiFetch("/api/admin/crews", { method: "POST", body: crew }),
+  updateCrew: (id, patch) => apiFetch(`/api/admin/crews/${id}`, { method: "PATCH", body: patch }),
+  deleteCrew: (id) => apiFetch(`/api/admin/crews/${id}`, { method: "DELETE" }),
+
+  listJobs: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/api/admin/jobs${qs ? `?${qs}` : ""}`);
+  },
+  addJob: (job) => apiFetch("/api/admin/jobs", { method: "POST", body: job }),
+  updateJob: (id, patch) => apiFetch(`/api/admin/jobs/${id}`, { method: "PATCH", body: patch }),
+  deleteJob: (id) => apiFetch(`/api/admin/jobs/${id}`, { method: "DELETE" }),
+
+  listCustomers: () => apiFetch("/api/admin/customers"),
+  addCustomer: (customer) => apiFetch("/api/admin/customers", { method: "POST", body: customer }),
+  updateCustomer: (id, patch) => apiFetch(`/api/admin/customers/${id}`, { method: "PATCH", body: patch }),
+  deleteCustomer: (id) => apiFetch(`/api/admin/customers/${id}`, { method: "DELETE" }),
+  getCustomerEvents: (id) => apiFetch(`/api/admin/customers/${id}/events`),
+};
+
+// ---------- Init / auth ----------
+async function init() {
+  if (admin.hasSession()) {
+    showApp();
+  } else {
+    document.getElementById("login-screen").classList.add("visible");
+  }
+}
+
+async function doLogin() {
+  const email = document.getElementById("admin-email-input").value;
+  const key = document.getElementById("admin-key-input").value;
+  const errEl = document.getElementById("login-error");
+  errEl.style.display = "none";
+  try {
+    await admin.login(email, key);
+    showApp();
+  } catch (err) {
+    errEl.textContent = err.message || "Login failed";
+    errEl.style.display = "block";
+  }
+}
+
+function doLogout() {
+  admin.logout();
+  document.getElementById("app").classList.remove("visible");
+  document.getElementById("login-screen").classList.add("visible");
+}
+
+async function doForgotPassword() {
+  const email = document.getElementById("admin-email-input").value.trim();
+  const errEl = document.getElementById("login-error");
+  const infoEl = document.getElementById("login-info");
+  errEl.style.display = "none";
+  infoEl.style.display = "none";
+  if (!email) {
+    errEl.textContent = "Enter your email above first, then tap \"Forgot password?\" again.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.forgotPassword(email);
+    infoEl.textContent = "If that email has an account, we've sent a reset link to it. Check your email.";
+    infoEl.style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message || "Something went wrong. Try again.";
+    errEl.style.display = "block";
+  }
+}
+
+function showApp() {
+  document.getElementById("login-screen").classList.remove("visible");
+  document.getElementById("app").classList.add("visible");
+  loadOverview();
+  loadEmployees();
+  loadCrews();
+  loadCustomers();
+  renderScheduleCalendar();
+  loadShopLocation();
+  loadPayrollEmail();
+  loadPaySchedule();
+  setInterval(loadOverview, 60000);
+}
+
+function showView(name) {
+  document.querySelectorAll(".nav-btn").forEach(function(b) { b.classList.toggle("active", b.dataset.view === name); });
+  document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
+  window.scrollTo(0, 0);
+}
+
+// ---------- Shared helpers ----------
+function fmtDuration(seconds) {
+  if (seconds == null) return "-";
+  const totalMin = Math.round(seconds / 60);
+  const h = Math.floor(totalMin / 60);
+  const m = totalMin % 60;
+  return h === 0 ? m + "m" : h + "h " + m + "m";
+}
+function fmtDurationShort(seconds) { return fmtDuration(seconds || 0); }
+
+function fmtSince(iso) {
+  if (!iso) return "";
+  const mins = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  if (mins < 60) return mins + "m ago";
+  const h = Math.floor(mins / 60);
+  const m = mins % 60;
+  return h + "h " + m + "m ago";
+}
+
+// Converts a UTC ISO timestamp into "YYYY-MM-DDTHH:mm" in the browser's
+// local timezone, for datetime-local inputs.
+function toLocalDatetimeInputValue(iso) {
+  if (!iso) return "";
+  const d = new Date(iso);
+  const pad = (n) => String(n).padStart(2, "0");
+  return d.getFullYear() + "-" + pad(d.getMonth() + 1) + "-" + pad(d.getDate()) +
+    "T" + pad(d.getHours()) + ":" + pad(d.getMinutes());
+}
+
+function mapsUrl(address) { return "https://www.google.com/maps/dir/?api=1&destination=" + encodeURIComponent(address); }
+function telUrl(phone) { return "tel:" + phone.replace(/[^0-9+]/g, ""); }
+function formatAddressParts(street, city, state, zip) {
+  const cityStateZip = [city, [state, zip].filter(Boolean).join(" ")].filter(Boolean).join(", ");
+  return [street, cityStateZip].filter(Boolean).join(", ");
+}
+function formatAddress(c) { return formatAddressParts(c.street, c.city, c.state, c.zip); }
+
+const JOB_COLORS = { rust: "#C1502E", amber: "#F2A93B", teal: "#3D5A50", blue: "#3B6FA9", purple: "#7B4F9E", rose: "#B8547A", charcoal: "#5C6660" };
+const EVENT_TYPE_LABELS = { job: "Job", personal: "Personal", other: "Other" };
+
+const DOW_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
+const MONTH_LABELS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+
+function todayStr() { return dateToStr(new Date()); }
+function dateToStr(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+
+function eachDateStrInRange(startStr, endStr, cb) {
+  const [sy, sm, sd] = startStr.slice(0, 10).split("-").map(Number);
+  const [ey, em, ed] = endStr.slice(0, 10).split("-").map(Number);
+  let cur = Date.UTC(sy, sm - 1, sd);
+  const end = Date.UTC(ey, em - 1, ed);
+  while (cur <= end) {
+    const d = new Date(cur);
+    cb(d.getUTCFullYear() + "-" + String(d.getUTCMonth() + 1).padStart(2, "0") + "-" + String(d.getUTCDate()).padStart(2, "0"));
+    cur += 86400000;
+  }
+}
+
+// ---------- Overview ----------
+async function loadOverview() {
+  const data = await admin.getOverview();
+  const activeOnly = data.employees.filter(function(e) { return e.active; });
+  const list = document.getElementById("overview-list");
+
+  list.innerHTML = activeOnly.map(function(e) {
+    const isClockedIn = !!e.open_entry_id;
+    const shiftHours = isClockedIn && e.open_clock_in ? (Date.now() - new Date(e.open_clock_in).getTime()) / 3600000 : 0;
+    const shiftTooLong = isClockedIn && shiftHours > 10;
+
+    const statusBadge = isClockedIn
+      ? '<span class="badge" style="background:#3D5A50; color:#fff;">Clocked In</span>'
+      : '<span class="badge" style="background:#D8D3C4; color:#1F2421;">Off the Clock</span>';
+    const longShiftBadge = shiftTooLong
+      ? '<span class="badge" style="background:#C1502E; color:#fff; margin-left:6px;">Over 10h</span>'
+      : '';
+
+    const currentJob = isClockedIn
+      ? '<div style="font-size:12.5px; color:#8A8578; margin-top:4px;">' +
+          (e.open_job_name || "") + " - " + (e.open_location_type === "in_town" ? "In town" : "Traveling") +
+          " - since " + fmtSince(e.open_clock_in) +
+        '</div>'
+      : "";
+
+    return '<div class="card" style="' + (shiftTooLong ? "border-color:#C1502E;" : "") + '" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', ' + isClockedIn + ')">' +
+        '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+          '<strong style="font-size:15.5px;">' + e.name + '</strong>' +
+          statusBadge + longShiftBadge +
+        '</div>' +
+        currentJob +
+        '<div class="stat-row">' +
+          '<div><div class="stat-label">Regular</div><div class="stat-value">' + fmtDurationShort(e.regular_seconds) + '</div></div>' +
+          '<div><div class="stat-label">Travel</div><div class="stat-value">' + fmtDurationShort(e.travel_seconds) + '</div></div>' +
+        '</div>' +
+      '</div>';
+  }).join("") || '<p style="color:#8A8578; font-size:13px;">No active employees yet.</p>';
+}
+
+// ---------- Employees + hours ----------
+async function loadEmployees() {
+  window.allEmployees = await admin.listEmployees();
+  const body = document.getElementById("employees-list");
+  body.innerHTML = window.allEmployees.map(function(e) {
+    return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', false)">' +
+      '<div>' +
+        '<strong>' + e.name + '</strong>' +
+        '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + '</div>' +
+      '</div>' +
+      '<span class="actions" style="white-space:nowrap;">' +
+        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email + '\')">Edit</button>' +
+        '<button class="btn-small" style="background:' + (e.active ? "#C1502E" : "#3D5A50") + ';" onclick="event.stopPropagation(); toggleActive(\'' + e.id + '\', ' + (!e.active) + ')">' + (e.active ? "Deactivate" : "Reactivate") + '</button>' +
+      '</span>' +
+    '</div>';
+  }).join("") || '<p style="color:#8A8578; font-size:13px;">No employees yet.</p>';
+}
+
+async function addEmployee() {
+  const name = document.getElementById("new-emp-name").value.trim();
+  const email = document.getElementById("new-emp-email").value.trim();
+  const pin = document.getElementById("new-emp-pin").value.trim();
+  const errEl = document.getElementById("add-emp-error");
+  errEl.style.display = "none";
+  if (!name || !email || !pin) {
+    errEl.textContent = "Name, email, and PIN are all required.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.addEmployee({ name: name, email: email, pin: pin });
+    document.getElementById("new-emp-name").value = "";
+    document.getElementById("new-emp-email").value = "";
+    document.getElementById("new-emp-pin").value = "";
+    loadEmployees();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't add employee";
+    errEl.style.display = "block";
+  }
+}
+
+let editingEmployeeId = null;
+function openEditEmployeeSheet(id, email) {
+  editingEmployeeId = id;
+  document.getElementById("edit-emp-email").value = email;
+  document.getElementById("edit-emp-pin").value = "";
+  document.getElementById("edit-emp-error").style.display = "none";
+  document.getElementById("edit-emp-success").style.display = "none";
+  document.getElementById("edit-employee-sheet").classList.add("visible");
+}
+function closeEditEmployeeSheet() {
+  document.getElementById("edit-employee-sheet").classList.remove("visible");
+  editingEmployeeId = null;
+}
+async function submitEditEmployee() {
+  const email = document.getElementById("edit-emp-email").value.trim();
+  const pin = document.getElementById("edit-emp-pin").value.trim();
+  const errEl = document.getElementById("edit-emp-error");
+  const successEl = document.getElementById("edit-emp-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+  if (!email) {
+    errEl.textContent = "Email is required.";
+    errEl.style.display = "block";
+    return;
+  }
+  const patch = { email: email };
+  if (pin) patch.pin = pin;
+  try {
+    await admin.updateEmployee(editingEmployeeId, patch);
+    successEl.textContent = "Employee updated.";
+    successEl.style.display = "block";
+    loadEmployees();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't update employee.";
+    errEl.style.display = "block";
+  }
+}
+async function toggleActive(id, newActive) {
+  await admin.updateEmployee(id, { active: newActive });
+  loadEmployees();
+}
+
+let currentEmployeeDetail = null;
+async function openEmployeeSheet(id, name, active, isClockedIn) {
+  currentEmployeeDetail = { id: id, name: name, active: active, isClockedIn: isClockedIn };
+  const today = new Date();
+  const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+  const defaultStart = monthStart.toISOString().slice(0, 10);
+  const defaultEnd = today.toISOString().slice(0, 10);
+  document.getElementById("employee-sheet").classList.add("visible");
+  await renderEmployeeDetail(defaultStart, defaultEnd);
+}
+function closeEmployeeSheet() {
+  document.getElementById("employee-sheet").classList.remove("visible");
+  currentEmployeeDetail = null;
+}
+
+async function renderEmployeeDetail(start, end) {
+  const ed = currentEmployeeDetail;
+  if (!ed) return;
+  const rows = await admin.listTimeEntries({ employee_id: ed.id, start: start, end: end });
+
+  const regularSeconds = rows.reduce((s, r) => s + (r.location_type === "in_town" ? Number(r.worked_seconds || 0) : 0), 0);
+  const travelSeconds = rows.reduce((s, r) => s + (r.location_type === "traveling" ? Number(r.worked_seconds || 0) : 0), 0);
+
+  const cardsHtml = rows.map(function(r) {
+    return '<div class="entry-card">' +
+      '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" /></div>' +
+      '<div class="entry-field"><label>Location</label><select data-field="location_type" data-id="' + r.time_entry_id + '">' +
+        '<option value="in_town"' + (r.location_type === "in_town" ? " selected" : "") + '>In town</option>' +
+        '<option value="traveling"' + (r.location_type === "traveling" ? " selected" : "") + '>Traveling</option>' +
+      '</select></div>' +
+      '<div class="entry-field"><label>Clock in</label><input type="datetime-local" value="' + (r.clock_in ? toLocalDatetimeInputValue(r.clock_in) : "") + '" data-field="clock_in" data-id="' + r.time_entry_id + '" /></div>' +
+      '<div class="entry-field"><label>Clock out</label><input type="datetime-local" value="' + (r.clock_out ? toLocalDatetimeInputValue(r.clock_out) : "") + '" data-field="clock_out" data-id="' + r.time_entry_id + '" /></div>' +
+      '<div class="entry-meta"><div><strong>' + fmtDuration(r.worked_seconds) + '</strong>Worked</div><div><strong>' + fmtDuration(r.break_seconds) + '</strong>Break</div></div>' +
+      '<button class="btn-secondary" onclick="saveEmployeeDetailRow(\'' + r.time_entry_id + '\')">Save</button>' +
+    '</div>';
+  }).join("");
+
+  document.getElementById("employee-sheet-content").innerHTML =
+    '<h2 style="margin:0 0 2px; font-size:20px;">' + ed.name + '</h2>' +
+    '<p style="color:#8A8578; margin:0 0 12px;">' + (ed.active ? "Active" : "Inactive") + '</p>' +
+    '<div class="stat-row">' +
+      '<div><div class="stat-label">Regular</div><div class="stat-value">' + fmtDurationShort(regularSeconds) + '</div></div>' +
+      '<div><div class="stat-label">Travel</div><div class="stat-value">' + fmtDurationShort(travelSeconds) + '</div></div>' +
+    '</div>' +
+    '<div style="display:flex; gap:10px;">' +
+      '<div style="flex:1;"><label>From</label><input id="emp-detail-start" type="date" value="' + start + '" onchange="onEmployeeDetailRangeChange()" /></div>' +
+      '<div style="flex:1;"><label>To</label><input id="emp-detail-end" type="date" value="' + end + '" onchange="onEmployeeDetailRangeChange()" /></div>' +
+    '</div>' +
+    (cardsHtml || '<p style="color:#8A8578; font-size:13px; text-align:center; padding:16px 0;">No hours in this date range.</p>') +
+    (ed.isClockedIn
+      ? '<button class="btn-primary" onclick="requestPing(\'' + ed.id + '\')">Ping now</button><p id="ping-status-msg" style="font-size:12px; color:#8A8578; margin-top:8px;"></p>'
+      : '');
+}
+
+function onEmployeeDetailRangeChange() {
+  const start = document.getElementById("emp-detail-start").value;
+  const end = document.getElementById("emp-detail-end").value;
+  renderEmployeeDetail(start, end);
+}
+
+async function saveEmployeeDetailRow(id) {
+  const inputs = document.querySelectorAll('#employee-sheet-content [data-id="' + id + '"]');
+  const patch = {};
+  inputs.forEach(function(el) {
+    const field = el.dataset.field;
+    let val = el.value;
+    if ((field === "clock_in" || field === "clock_out") && val) val = new Date(val).toISOString();
+    patch[field] = val;
+  });
+  await admin.updateTimeEntry(id, patch);
+  const start = document.getElementById("emp-detail-start").value;
+  const end = document.getElementById("emp-detail-end").value;
+  await renderEmployeeDetail(start, end);
+}
+
+async function requestPing(employeeId) {
+  const msg = document.getElementById("ping-status-msg");
+  msg.textContent = "Requesting...";
+  try {
+    await admin.requestPing(employeeId);
+    msg.textContent = "Requested — the employee's app will send an updated location within about 20 seconds.";
+  } catch (err) {
+    msg.textContent = "Couldn't send request: " + (err.message || "unknown error");
+  }
+}
+
+// ---------- Crews ----------
+let editingCrewId = null;
+window.allCrews = [];
+
+async function loadCrews() {
+  window.allCrews = await admin.listCrews();
+  const list = document.getElementById("crews-list");
+  if (window.allCrews.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No crews yet.</p>';
+    return;
+  }
+  list.innerHTML = window.allCrews.map(function(c) {
+    const members = c.members.map(function(m) { return '<span class="chip">' + m.name + '</span>'; }).join("");
+    return '<div class="card" style="margin-bottom:8px;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+        '<strong>' + c.name + '</strong>' +
+        '<span>' +
+          '<button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet(\'' + c.id + '\')">Edit</button>' +
+          '<button class="btn-small" style="background:#C1502E; margin-left:6px;" onclick="deleteCrewConfirm(\'' + c.id + '\')">Delete</button>' +
+        '</span>' +
+      '</div>' +
+      '<div style="margin-top:6px;">' + (members || '<span style="color:#8A8578; font-size:12px;">No members yet</span>') + '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function openCrewSheet(crewId) {
+  editingCrewId = crewId || null;
+  const crew = crewId ? window.allCrews.find(function(c) { return c.id === crewId; }) : null;
+  document.getElementById("crew-sheet-title").textContent = crew ? "Edit crew" : "New crew";
+  document.getElementById("crew-name-input").value = crew ? crew.name : "";
+  document.getElementById("crew-sheet-error").style.display = "none";
+
+  const memberIds = crew ? crew.members.map(function(m) { return m.id; }) : [];
+  const employees = (window.allEmployees || []).filter(function(e) { return e.active || memberIds.indexOf(e.id) !== -1; });
+  document.getElementById("crew-members-list").innerHTML = employees.map(function(e) {
+    const checked = memberIds.indexOf(e.id) !== -1 ? "checked" : "";
+    return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + e.name + '</label>';
+  }).join("") || '<p style="color:#8A8578; font-size:12px;">Add employees first, then build crews.</p>';
+
+  document.getElementById("crew-sheet").classList.add("visible");
+}
+function closeCrewSheet() {
+  document.getElementById("crew-sheet").classList.remove("visible");
+  editingCrewId = null;
+}
+async function submitCrew() {
+  const name = document.getElementById("crew-name-input").value.trim();
+  const errEl = document.getElementById("crew-sheet-error");
+  errEl.style.display = "none";
+  if (!name) {
+    errEl.textContent = "Crew name is required.";
+    errEl.style.display = "block";
+    return;
+  }
+  const employeeIds = Array.from(document.querySelectorAll('#crew-members-list input:checked')).map(function(el) { return el.value; });
+  try {
+    if (editingCrewId) {
+      await admin.updateCrew(editingCrewId, { name: name, employee_ids: employeeIds });
+    } else {
+      await admin.addCrew({ name: name, employee_ids: employeeIds });
+    }
+    closeCrewSheet();
+    loadCrews();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save crew.";
+    errEl.style.display = "block";
+  }
+}
+async function deleteCrewConfirm(id) {
+  if (!confirm("Delete this crew? Jobs already assigned to its members won't be affected.")) return;
+  await admin.deleteCrew(id);
+  loadCrews();
+}
+
+// ---------- Schedule calendar ----------
+let scheduleAnchor = (function() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), 1);
+})();
+
+function navigateSchedule(direction) {
+  scheduleAnchor = new Date(scheduleAnchor.getFullYear(), scheduleAnchor.getMonth() + direction, 1);
+  renderScheduleCalendar();
+}
+function goToToday() {
+  const now = new Date();
+  scheduleAnchor = new Date(now.getFullYear(), now.getMonth(), 1);
+  renderScheduleCalendar();
+}
+
+async function renderScheduleCalendar() {
+  const year = scheduleAnchor.getFullYear();
+  const month = scheduleAnchor.getMonth();
+  document.getElementById("schedule-month-label").textContent = MONTH_LABELS[month] + " " + year;
+
+  const startStr = dateToStr(scheduleAnchor);
+  const endStr = dateToStr(new Date(year, month + 1, 0));
+  window.lastJobRows = await admin.listJobs({ start: startStr, end: endStr });
+
+  const jobsByDate = {};
+  window.lastJobRows.forEach(function(job) {
+    eachDateStrInRange(job.start_date, job.end_date, function(dateStr) {
+      if (!jobsByDate[dateStr]) jobsByDate[dateStr] = [];
+      jobsByDate[dateStr].push(job);
+    });
+  });
+  window.lastJobsByDate = jobsByDate;
+
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = todayStr();
+
+  let html = '<div class="cal-grid">';
+  html += DOW_LABELS.map(function(l) { return '<div class="cal-dow">' + l + '</div>'; }).join("");
+  for (let b = 0; b < firstDow; b++) html += '<div class="cal-day cal-day-empty"></div>';
+
+  for (let day = 1; day <= daysInMonth; day++) {
+    const dateStr = year + "-" + String(month + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+    const dayJobs = jobsByDate[dateStr] || [];
+    const isToday = dateStr === today;
+    const dots = dayJobs.slice(0, 4).map(function(j) {
+      return '<span class="cal-dot" style="background:' + (JOB_COLORS[j.color] || JOB_COLORS.rust) + ';"></span>';
+    }).join("");
+    html += '<div class="cal-day' + (isToday ? ' cal-day-today' : '') + '" onclick="openDaySheet(\'' + dateStr + '\')">' +
+      '<div class="cal-day-num">' + day + '</div>' +
+      '<div class="cal-dots">' + dots + '</div>' +
+    '</div>';
+  }
+
+  const totalCells = firstDow + daysInMonth;
+  const trailing = (7 - (totalCells % 7)) % 7;
+  for (let t = 0; t < trailing; t++) html += '<div class="cal-day cal-day-empty"></div>';
+
+  html += '</div>';
+  document.getElementById("schedule-calendar").innerHTML = html;
+}
+
+let currentDaySheetDate = null;
+function formatDayHeading(dateStr) {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const local = new Date(y, m - 1, d);
+  return local.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
+}
+
+function openDaySheet(dateStr) {
+  currentDaySheetDate = dateStr;
+  const dayJobs = (window.lastJobsByDate && window.lastJobsByDate[dateStr]) || [];
+
+  const rows = dayJobs.map(function(j) {
+    const assigned = j.assigned_employees.map(function(e) { return '<span class="chip">' + e.name + '</span>'; }).join("");
+    const jobAddress = formatAddressParts(j.customer_street, j.customer_city, j.customer_state, j.customer_zip);
+    return '<div class="card" style="margin-bottom:8px;">' +
+      '<div>' +
+        '<span class="job-color-dot" style="background:' + (JOB_COLORS[j.color] || JOB_COLORS.rust) + ';"></span>' +
+        '<strong>' + j.title + '</strong>' +
+        '<span class="type-badge">' + (EVENT_TYPE_LABELS[j.event_type] || "Job") + '</span>' +
+      '</div>' +
+      (j.customer_name ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
+        '<strong>' + j.customer_name + '</strong>' +
+        (j.customer_phone ? '<br/><a class="link" href="' + telUrl(j.customer_phone) + '">' + j.customer_phone + '</a>' : "") +
+        (jobAddress ? '<br/><a class="link" href="' + mapsUrl(jobAddress) + '" target="_blank">' + jobAddress + ' (directions)</a>' : "") +
+      '</div>' : '') +
+      (j.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' + j.notes + '</div>' : '') +
+      '<div style="margin-top:8px;">' + (assigned || '<span style="color:#8A8578; font-size:12px;">Nobody assigned yet</span>') + '</div>' +
+      '<div style="margin-top:10px; display:flex; gap:8px;">' +
+        '<button class="btn-small" style="background:var(--teal); flex:1;" onclick="closeDaySheet(); openJobSheet(\'' + j.id + '\');">Edit</button>' +
+        '<button class="btn-small" style="background:#C1502E; flex:1;" onclick="deleteJobConfirm(\'' + j.id + '\')">Delete</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+
+  document.getElementById("day-sheet-content").innerHTML =
+    '<h2 style="margin-top:0; font-size:18px;">' + formatDayHeading(dateStr) + '</h2>' +
+    (rows || '<p style="color:#8A8578; font-size:13px;">Nothing scheduled for this day.</p>') +
+    '<button class="btn-primary" onclick="closeDaySheet(); openJobSheet(null, \'' + dateStr + '\');">New job on this day</button>';
+
+  document.getElementById("day-sheet").classList.add("visible");
+}
+function closeDaySheet() {
+  document.getElementById("day-sheet").classList.remove("visible");
+}
+function dismissDaySheet() {
+  closeDaySheet();
+  currentDaySheetDate = null;
+}
+
+let editingJobId = null;
+let selectedJobColor = "rust";
+
+function renderJobColorSwatches() {
+  const el = document.getElementById("job-color-swatches");
+  el.innerHTML = Object.keys(JOB_COLORS).map(function(name) {
+    const selected = name === selectedJobColor ? " selected" : "";
+    return '<div class="color-swatch' + selected + '" style="background:' + JOB_COLORS[name] + ';" onclick="selectJobColor(\'' + name + '\')"></div>';
+  }).join("");
+}
+function selectJobColor(name) {
+  selectedJobColor = name;
+  renderJobColorSwatches();
+}
+
+function openJobSheet(jobId, prefillDateStr) {
+  editingJobId = jobId || null;
+  const job = jobId ? (window.lastJobRows || []).find(function(j) { return j.id === jobId; }) : null;
+  const defaultDate = prefillDateStr || todayStr();
+  document.getElementById("job-sheet-title").textContent = job ? "Edit job" : "New job";
+  document.getElementById("job-sheet-error").style.display = "none";
+  document.getElementById("job-title-input").value = job ? job.title : "";
+  document.getElementById("job-type-input").value = job ? (job.event_type || "job") : "job";
+
+  const customers = window.allCustomers || [];
+  document.getElementById("job-customer-input").innerHTML =
+    '<option value="">— none —</option>' +
+    customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join("");
+  document.getElementById("job-customer-input").value = job && job.customer_id ? job.customer_id : "";
+
+  document.getElementById("job-notes-input").value = job ? (job.notes || "") : "";
+  document.getElementById("job-start-input").value = job ? job.start_date.slice(0, 10) : defaultDate;
+  document.getElementById("job-end-input").value = job ? job.end_date.slice(0, 10) : defaultDate;
+  selectedJobColor = job ? job.color : "rust";
+  renderJobColorSwatches();
+
+  const assignedIds = job ? job.assigned_employees.map(function(e) { return e.id; }) : [];
+  const assignedCrewIds = job ? job.assigned_employees.map(function(e) { return e.crew_id; }).filter(Boolean) : [];
+
+  const crews = window.allCrews || [];
+  document.getElementById("job-crews-list").innerHTML = crews.map(function(c) {
+    const checked = assignedCrewIds.indexOf(c.id) !== -1 ? "checked" : "";
+    return '<label><input type="checkbox" value="' + c.id + '" ' + checked + ' /> ' + c.name + '</label>';
+  }).join("") || '<p style="color:#8A8578; font-size:12px;">No crews yet.</p>';
+
+  const employees = (window.allEmployees || []).filter(function(e) { return e.active || assignedIds.indexOf(e.id) !== -1; });
+  document.getElementById("job-employees-list").innerHTML = employees.map(function(e) {
+    const checked = assignedIds.indexOf(e.id) !== -1 ? "checked" : "";
+    return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + e.name + '</label>';
+  }).join("");
+
+  document.getElementById("job-sheet").classList.add("visible");
+}
+
+function onJobCustomerChange() {
+  const select = document.getElementById("job-customer-input");
+  if (!select.value) return;
+  const customer = (window.allCustomers || []).find(function(c) { return c.id === select.value; });
+  if (customer) document.getElementById("job-title-input").value = customer.name;
+}
+
+function closeJobSheet() {
+  document.getElementById("job-sheet").classList.remove("visible");
+  editingJobId = null;
+}
+function cancelJobSheet() {
+  closeJobSheet();
+  if (currentDaySheetDate) openDaySheet(currentDaySheetDate);
+}
+
+async function submitJob() {
+  const title = document.getElementById("job-title-input").value.trim();
+  const notes = document.getElementById("job-notes-input").value.trim();
+  const startDate = document.getElementById("job-start-input").value;
+  const endDate = document.getElementById("job-end-input").value;
+  const errEl = document.getElementById("job-sheet-error");
+  errEl.style.display = "none";
+
+  if (!title || !startDate || !endDate) {
+    errEl.textContent = "Title, start date, and end date are required.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (endDate < startDate) {
+    errEl.textContent = "End date can't be before the start date.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  const employeeIds = Array.from(document.querySelectorAll('#job-employees-list input:checked')).map(function(el) { return el.value; });
+  const crewIds = Array.from(document.querySelectorAll('#job-crews-list input:checked')).map(function(el) { return el.value; });
+
+  const payload = {
+    title: title,
+    notes: notes,
+    start_date: startDate,
+    end_date: endDate,
+    color: selectedJobColor,
+    event_type: document.getElementById("job-type-input").value,
+    customer_id: document.getElementById("job-customer-input").value || null,
+    employee_ids: employeeIds,
+    crew_ids: crewIds,
+  };
+
+  try {
+    if (editingJobId) {
+      await admin.updateJob(editingJobId, payload);
+    } else {
+      await admin.addJob(payload);
+    }
+    closeJobSheet();
+    await renderScheduleCalendar();
+    if (currentDaySheetDate) openDaySheet(currentDaySheetDate);
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save job.";
+    errEl.style.display = "block";
+  }
+}
+
+async function deleteJobConfirm(id) {
+  if (!confirm("Delete this job? Assigned employees will no longer see it in their schedule.")) return;
+  await admin.deleteJob(id);
+  await renderScheduleCalendar();
+  if (currentDaySheetDate) openDaySheet(currentDaySheetDate);
+}
+
+// ---------- Customers ----------
+let editingCustomerId = null;
+window.allCustomers = [];
+
+async function loadCustomers() {
+  window.allCustomers = await admin.listCustomers();
+  renderCustomersList();
+}
+
+function renderCustomersList() {
+  const searchEl = document.getElementById("customer-search-input");
+  const search = searchEl ? searchEl.value.trim().toLowerCase() : "";
+  const list = document.getElementById("customers-list");
+  const customers = (window.allCustomers || []).filter(function(c) {
+    return !search || c.name.toLowerCase().indexOf(search) !== -1;
+  });
+
+  if (customers.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">' +
+      ((window.allCustomers || []).length === 0 ? "No customers yet." : "No customers match that search.") +
+      '</p>';
+    return;
+  }
+
+  list.innerHTML = customers.map(function(c) {
+    const fullAddress = formatAddress(c);
+    const details = (c.phone ? '<div style="font-size:12.5px;"><a class="link" href="' + telUrl(c.phone) + '">' + c.phone + '</a></div>' : "") +
+      (c.email ? '<div style="font-size:12.5px;"><a class="link" href="mailto:' + c.email + '">' + c.email + '</a></div>' : "") +
+      (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + mapsUrl(fullAddress) + '" target="_blank">' + fullAddress + ' (directions)</a></div>' : "");
+    return '<div class="card">' +
+      '<strong>' + c.name + '</strong>' +
+      details +
+      (c.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + c.notes + '</div>' : '') +
+      '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">' +
+        '<button class="btn-small" style="background:var(--charcoal);" onclick="openCustomerHistorySheet(\'' + c.id + '\')">Events</button>' +
+        '<button class="btn-small" style="background:var(--teal);" onclick="openCustomerSheet(\'' + c.id + '\')">Edit</button>' +
+        '<button class="btn-small" style="background:#C1502E;" onclick="deleteCustomerConfirm(\'' + c.id + '\')">Delete</button>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function openCustomerSheet(customerId) {
+  editingCustomerId = customerId || null;
+  const customer = customerId ? (window.allCustomers || []).find(function(c) { return c.id === customerId; }) : null;
+  document.getElementById("customer-sheet-title").textContent = customer ? "Edit customer" : "New customer";
+  document.getElementById("customer-sheet-error").style.display = "none";
+  document.getElementById("customer-name-input").value = customer ? customer.name : "";
+  document.getElementById("customer-phone-input").value = customer ? (customer.phone || "") : "";
+  document.getElementById("customer-email-input").value = customer ? (customer.email || "") : "";
+  document.getElementById("customer-street-input").value = customer ? (customer.street || "") : "";
+  document.getElementById("customer-city-input").value = customer ? (customer.city || "") : "";
+  document.getElementById("customer-state-input").value = customer ? (customer.state || "") : "";
+  document.getElementById("customer-zip-input").value = customer ? (customer.zip || "") : "";
+  document.getElementById("customer-notes-input").value = customer ? (customer.notes || "") : "";
+  document.getElementById("customer-sheet").classList.add("visible");
+}
+function closeCustomerSheet() {
+  document.getElementById("customer-sheet").classList.remove("visible");
+  editingCustomerId = null;
+}
+async function submitCustomer() {
+  const name = document.getElementById("customer-name-input").value.trim();
+  const errEl = document.getElementById("customer-sheet-error");
+  errEl.style.display = "none";
+  if (!name) {
+    errEl.textContent = "Name is required.";
+    errEl.style.display = "block";
+    return;
+  }
+  const payload = {
+    name: name,
+    phone: document.getElementById("customer-phone-input").value.trim(),
+    email: document.getElementById("customer-email-input").value.trim(),
+    street: document.getElementById("customer-street-input").value.trim(),
+    city: document.getElementById("customer-city-input").value.trim(),
+    state: document.getElementById("customer-state-input").value.trim(),
+    zip: document.getElementById("customer-zip-input").value.trim(),
+    notes: document.getElementById("customer-notes-input").value.trim(),
+  };
+  try {
+    if (editingCustomerId) {
+      await admin.updateCustomer(editingCustomerId, payload);
+    } else {
+      await admin.addCustomer(payload);
+    }
+    closeCustomerSheet();
+    await loadCustomers();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save customer.";
+    errEl.style.display = "block";
+  }
+}
+async function deleteCustomerConfirm(id) {
+  if (!confirm("Delete this customer? Past jobs stay on the calendar, they'll just no longer be linked to this customer.")) return;
+  await admin.deleteCustomer(id);
+  await loadCustomers();
+}
+
+async function openCustomerHistorySheet(id) {
+  const customer = (window.allCustomers || []).find(function(c) { return c.id === id; });
+  if (!customer) return;
+  const events = await admin.getCustomerEvents(id);
+  const rows = events.map(function(ev) {
+    const dateLabel = ev.start_date === ev.end_date ? ev.start_date.slice(0, 10) : ev.start_date.slice(0, 10) + " – " + ev.end_date.slice(0, 10);
+    return '<div class="card" style="margin-bottom:8px;">' +
+      '<span class="job-color-dot" style="background:' + (JOB_COLORS[ev.color] || JOB_COLORS.rust) + ';"></span>' +
+      '<strong>' + ev.title + '</strong>' +
+      '<span class="type-badge">' + (EVENT_TYPE_LABELS[ev.event_type] || "Job") + '</span>' +
+      '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + dateLabel + '</div>' +
+    '</div>';
+  }).join("");
+
+  document.getElementById("customer-history-content").innerHTML =
+    '<h2 style="margin-top:0; font-size:18px;">' + customer.name + '</h2>' +
+    '<p style="font-size:12px; color:#8A8578; margin-top:-8px;">Job history</p>' +
+    (rows || '<p style="color:#8A8578; font-size:13px;">No jobs linked to this customer yet.</p>');
+
+  document.getElementById("customer-history-sheet").classList.add("visible");
+}
+function closeCustomerHistorySheet() {
+  document.getElementById("customer-history-sheet").classList.remove("visible");
+}
+
+// ---------- Settings ----------
+function togglePayScheduleFields() {
+  const frequency = document.getElementById("pay-frequency-select").value;
+  const needsAnchor = frequency === "biweekly" || frequency === "weekly" || frequency === "custom";
+  document.getElementById("pay-anchor-field").style.display = needsAnchor ? "block" : "none";
+  document.getElementById("pay-custom-days-field").style.display = frequency === "custom" ? "block" : "none";
+}
+
+async function loadPaySchedule() {
+  try {
+    const data = await admin.getPaySchedule();
+    document.getElementById("pay-frequency-select").value = data.pay_frequency || "semi_monthly";
+    if (data.pay_period_anchor) document.getElementById("pay-anchor-input").value = String(data.pay_period_anchor).slice(0, 10);
+    if (data.pay_period_custom_days) document.getElementById("pay-custom-days-input").value = data.pay_period_custom_days;
+    togglePayScheduleFields();
+  } catch (err) { /* non-fatal */ }
+}
+
+async function savePaySchedule() {
+  const frequency = document.getElementById("pay-frequency-select").value;
+  const anchor = document.getElementById("pay-anchor-input").value;
+  const customDays = document.getElementById("pay-custom-days-input").value;
+  const errEl = document.getElementById("pay-schedule-error");
+  const successEl = document.getElementById("pay-schedule-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+
+  const needsAnchor = frequency === "biweekly" || frequency === "weekly" || frequency === "custom";
+  if (needsAnchor && !anchor) {
+    errEl.textContent = "Pick the start date of a known pay period.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (frequency === "custom" && (!customDays || Number(customDays) < 1)) {
+    errEl.textContent = "Enter how many days are in each pay period.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.updatePaySchedule({
+      pay_frequency: frequency,
+      pay_period_anchor: needsAnchor ? anchor : null,
+      pay_period_custom_days: frequency === "custom" ? Number(customDays) : null,
+    });
+    successEl.textContent = "Pay schedule saved.";
+    successEl.style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save pay schedule.";
+    errEl.style.display = "block";
+  }
+}
+
+async function loadShopLocation() {
+  try {
+    const loc = await admin.getShopLocation();
+    document.getElementById("shop-lat-input").value = loc.shop_lat != null ? loc.shop_lat : "";
+    document.getElementById("shop-lng-input").value = loc.shop_lng != null ? loc.shop_lng : "";
+    document.getElementById("shop-radius-input").value = loc.shop_radius_m != null ? loc.shop_radius_m : 152;
+    document.getElementById("clockout-time-input").value = loc.auto_clockout_time ? loc.auto_clockout_time.slice(0, 5) : "16:30";
+  } catch (err) { /* non-fatal */ }
+}
+
+async function saveShopLocation() {
+  const lat = document.getElementById("shop-lat-input").value.trim();
+  const lng = document.getElementById("shop-lng-input").value.trim();
+  const radius = document.getElementById("shop-radius-input").value.trim();
+  const clockoutTime = document.getElementById("clockout-time-input").value.trim();
+  const errEl = document.getElementById("shop-location-error");
+  const successEl = document.getElementById("shop-location-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+
+  if (!lat || !lng) {
+    errEl.textContent = "Latitude and longitude are both required.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.updateShopLocation({
+      shop_lat: Number(lat),
+      shop_lng: Number(lng),
+      shop_radius_m: radius ? Number(radius) : 152,
+      auto_clockout_time: clockoutTime || undefined,
+    });
+    successEl.textContent = "Shop location saved. Employees will use this the next time they open the app.";
+    successEl.style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save shop location.";
+    errEl.style.display = "block";
+  }
+}
+
+async function loadPayrollEmail() {
+  try {
+    const data = await admin.getPayrollEmail();
+    document.getElementById("payroll-email-input").value = data.payroll_email || "";
+  } catch (err) { /* non-fatal */ }
+}
+
+async function savePayrollEmail() {
+  const email = document.getElementById("payroll-email-input").value.trim();
+  const errEl = document.getElementById("payroll-email-error");
+  const successEl = document.getElementById("payroll-email-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+  try {
+    await admin.updatePayrollEmail(email);
+    successEl.textContent = "Payroll email saved.";
+    successEl.style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save payroll email.";
+    errEl.style.display = "block";
+  }
+}
+
+async function submitChangeEmail() {
+  const newEmail = document.getElementById("change-email-new").value.trim();
+  const password = document.getElementById("change-email-password").value;
+  const errEl = document.getElementById("change-email-error");
+  const successEl = document.getElementById("change-email-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+  if (!newEmail || !password) {
+    errEl.textContent = "Enter the new email and your current password.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.changeEmail(newEmail, password);
+    successEl.textContent = "Email updated. Use it the next time you sign in.";
+    successEl.style.display = "block";
+    document.getElementById("change-email-password").value = "";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't update email.";
+    errEl.style.display = "block";
+  }
+}
+
+async function submitChangePassword() {
+  const current = document.getElementById("current-password-input").value;
+  const next = document.getElementById("new-password-input").value;
+  const confirmVal = document.getElementById("confirm-password-input").value;
+  const errEl = document.getElementById("password-modal-error");
+  const successEl = document.getElementById("password-modal-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+
+  if (!current || !next || !confirmVal) {
+    errEl.textContent = "All fields are required.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (next.length < 8) {
+    errEl.textContent = "New password must be at least 8 characters.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (next !== confirmVal) {
+    errEl.textContent = "New passwords don't match.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.changePassword(current, next);
+    successEl.textContent = "Password updated.";
+    successEl.style.display = "block";
+    document.getElementById("current-password-input").value = "";
+    document.getElementById("new-password-input").value = "";
+    document.getElementById("confirm-password-input").value = "";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't update password.";
+    errEl.style.display = "block";
+  }
+}
+
+init();
+</script>
+</body>
+</html>
