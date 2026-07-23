@@ -67,6 +67,10 @@ async function getMySchedule(start, end) {
   return apiFetch(`/api/schedule/me${qs ? `?${qs}` : ""}`);
 }
 
+async function getCustomers() {
+  return apiFetch("/api/schedule/customers");
+}
+
 async function getVapidPublicKey() {
   return apiFetch("/api/push/vapid-public-key");
 }
@@ -118,6 +122,7 @@ export {
   apiFetch,
   forgotPin,
   getMySchedule,
+  getCustomers,
   getVapidPublicKey,
   subscribePush,
   unsubscribePush,

@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -9,6 +9,7 @@ import {
   apiFetch,
   forgotPin,
   getMySchedule,
+  getCustomers,
   getVapidPublicKey,
   subscribePush,
 } from "./api.js";
@@ -119,80 +120,295 @@ function formatAddress(street, city, state, zip) {
   return [street, cityStateZip].filter(Boolean).join(", ");
 }
 
-function ScheduleView({ schedule, loading }) {
-  if (loading) {
-    return (
-      <p className="text-sm" style={{ color: "#8A8578", fontFamily: "'IBM Plex Mono', monospace" }}>
-        Loading your schedule…
-      </p>
-    );
+function dateToStr(d) {
+  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+}
+
+function todayStr() {
+  return dateToStr(new Date());
+}
+
+// Given "YYYY-MM-DD" strings, steps through every date in [startStr, endStr]
+// using UTC arithmetic only, so there's no local-timezone off-by-one risk
+// near midnight.
+function eachDateStrInRange(startStr, endStr, cb) {
+  let [y, m, d] = startStr.slice(0, 10).split("-").map(Number);
+  const [ey, em, ed] = endStr.slice(0, 10).split("-").map(Number);
+  let cursor = Date.UTC(y, m - 1, d);
+  const end = Date.UTC(ey, em - 1, ed);
+  while (cursor <= end) {
+    const cd = new Date(cursor);
+    cb(cd.getUTCFullYear() + "-" + String(cd.getUTCMonth() + 1).padStart(2, "0") + "-" + String(cd.getUTCDate()).padStart(2, "0"));
+    cursor += 24 * 60 * 60 * 1000;
   }
+}
+
+const DOW_LABELS = ["S", "M", "T", "W", "T", "F", "S"];
+const MONTH_LABELS = [
+  "January", "February", "March", "April", "May", "June",
+  "July", "August", "September", "October", "November", "December",
+];
+
+function EventCard({ job }) {
+  const jobAddress = formatAddress(job.customer_street, job.customer_city, job.customer_state, job.customer_zip);
+  const dateLabel =
+    job.start_date === job.end_date
+      ? formatDateShort(job.start_date)
+      : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
+  return (
+    <div style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
+      <div className="flex items-start gap-2 mb-1">
+        <span
+          style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10, marginTop: 4 }}
+          className="rounded-full flex-shrink-0"
+        />
+        <div className="flex-1">
+          <div className="text-sm font-medium">
+            {job.title}
+            {job.event_type && job.event_type !== "job" && (
+              <span
+                className="ml-2 rounded"
+                style={{
+                  fontSize: "10px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.04em",
+                  padding: "2px 6px",
+                  background: LINE,
+                  color: "#5C6660",
+                }}
+              >
+                {job.event_type === "personal" ? "Personal" : "Other"}
+              </span>
+            )}
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
+          {job.customer_name && (
+            <div className="text-xs mt-1" style={{ color: "#5C6660" }}>{job.customer_name}</div>
+          )}
+          {job.customer_phone && (
+            <a
+              href={`tel:${job.customer_phone.replace(/[^0-9+]/g, "")}`}
+              className="text-xs mt-0.5 block underline"
+              style={{ color: RUST }}
+            >
+              {job.customer_phone}
+            </a>
+          )}
+          {jobAddress && (
+            <a
+              href={googleMapsDirectionsUrl(jobAddress)}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs mt-0.5 block underline"
+              style={{ color: RUST }}
+            >
+              {jobAddress} (get directions)
+            </a>
+          )}
+        </div>
+      </div>
+      {job.notes && (
+        <p className="text-xs mt-2 pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
+          {job.notes}
+        </p>
+      )}
+    </div>
+  );
+}
+
+function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday }) {
+  const [selectedDay, setSelectedDay] = useState(null);
+
+  const jobsByDate = {};
+  schedule.forEach((job) => {
+    eachDateStrInRange(job.start_date, job.end_date, (dateStr) => {
+      if (!jobsByDate[dateStr]) jobsByDate[dateStr] = [];
+      jobsByDate[dateStr].push(job);
+    });
+  });
+
+  const year = monthAnchor.getFullYear();
+  const month = monthAnchor.getMonth();
+  const firstDow = new Date(year, month, 1).getDay();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const today = todayStr();
+
+  const cells = [];
+  for (let b = 0; b < firstDow; b++) cells.push(null);
+  for (let day = 1; day <= daysInMonth; day++) cells.push(day);
+  while (cells.length % 7 !== 0) cells.push(null);
+
+  const dayEvents = selectedDay ? jobsByDate[selectedDay] || [] : [];
 
   return (
     <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
       <div className="mb-4 flex items-center justify-between">
         <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
-          Upcoming Events
+          Schedule
         </h2>
-        <span className="text-xs" style={{ color: "#8A8578" }}>Next 30 days</span>
+        <button onClick={onToday} className="text-xs underline" style={{ color: "#8A8578" }}>
+          Today
+        </button>
       </div>
 
-      {schedule.length === 0 ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>Nothing scheduled for you right now.</p>
+      <div className="flex items-center justify-between mb-3">
+        <button
+          onClick={onPrevMonth}
+          style={{ border: `1.5px solid ${CHARCOAL}` }}
+          className="rounded-sm px-3 py-1 text-sm"
+        >
+          ‹
+        </button>
+        <span style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+          {MONTH_LABELS[month]} {year}
+        </span>
+        <button
+          onClick={onNextMonth}
+          style={{ border: `1.5px solid ${CHARCOAL}` }}
+          className="rounded-sm px-3 py-1 text-sm"
+        >
+          ›
+        </button>
+      </div>
+
+      {loading ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+      ) : (
+        <>
+          <div className="grid grid-cols-7 gap-1 mb-1">
+            {DOW_LABELS.map((l, i) => (
+              <div key={i} className="text-center text-[10px] uppercase" style={{ color: "#8A8578" }}>
+                {l}
+              </div>
+            ))}
+          </div>
+          <div className="grid grid-cols-7 gap-1 mb-6">
+            {cells.map((day, i) => {
+              if (day == null) return <div key={i} />;
+              const dateStr = year + "-" + String(month + 1).padStart(2, "0") + "-" + String(day).padStart(2, "0");
+              const dayJobs = jobsByDate[dateStr] || [];
+              const isToday = dateStr === today;
+              const isSelected = dateStr === selectedDay;
+              return (
+                <button
+                  key={i}
+                  onClick={() => setSelectedDay(dateStr === selectedDay ? null : dateStr)}
+                  style={{
+                    border: `1.5px solid ${isSelected ? RUST : isToday ? AMBER : LINE}`,
+                    background: "#fff",
+                  }}
+                  className="rounded-sm py-1.5 flex flex-col items-center gap-0.5"
+                >
+                  <span className="text-xs">{day}</span>
+                  {dayJobs.length > 0 && (
+                    <span className="flex gap-0.5">
+                      {dayJobs.slice(0, 3).map((j, idx) => (
+                        <span
+                          key={idx}
+                          style={{
+                            width: 4,
+                            height: 4,
+                            borderRadius: "50%",
+                            background: JOB_COLORS[j.color] || RUST,
+                          }}
+                        />
+                      ))}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+
+          {selectedDay ? (
+            <>
+              <h3 className="text-xs uppercase tracking-widest mb-2" style={{ color: "#8A8578" }}>
+                {new Date(year, month, Number(selectedDay.split("-")[2])).toLocaleDateString([], {
+                  weekday: "long",
+                  month: "long",
+                  day: "numeric",
+                })}
+              </h3>
+              {dayEvents.length === 0 ? (
+                <p className="text-sm" style={{ color: "#8A8578" }}>Nothing scheduled that day.</p>
+              ) : (
+                <div className="flex flex-col gap-3">
+                  {dayEvents.map((job) => (
+                    <EventCard key={job.id} job={job} />
+                  ))}
+                </div>
+              )}
+            </>
+          ) : (
+            <p className="text-sm" style={{ color: "#8A8578" }}>Tap a day to see what's scheduled.</p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function CustomersView({ customers, loading }) {
+  const [search, setSearch] = useState("");
+  const filtered = customers.filter(
+    (c) => !search || c.name.toLowerCase().indexOf(search.toLowerCase()) !== -1
+  );
+
+  return (
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+          Customers
+        </h2>
+      </div>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search by name..."
+        style={{ border: `1.5px solid ${LINE}` }}
+        className="w-full px-3 py-2 text-sm rounded-sm mb-4 outline-none"
+      />
+      {loading ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>
+          {customers.length === 0 ? "No customers yet." : "No customers match that search."}
+        </p>
       ) : (
         <div className="flex flex-col gap-3">
-          {schedule.map((job) => {
-            const dateLabel =
-              job.start_date === job.end_date
-                ? formatDateShort(job.start_date)
-                : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
-            const jobAddress = formatAddress(job.customer_street, job.customer_city, job.customer_state, job.customer_zip);
+          {filtered.map((c) => {
+            const address = formatAddress(c.street, c.city, c.state, c.zip);
             return (
-              <div key={job.id} style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
-                <div className="flex items-start gap-2 mb-1">
-                  <span
-                    style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10, marginTop: 4 }}
-                    className="rounded-full flex-shrink-0"
-                  />
-                  <div className="flex-1">
-                    <div className="text-sm font-medium">
-                      {job.title}
-                      {job.event_type && job.event_type !== "job" && (
-                        <span
-                          className="ml-2 rounded"
-                          style={{
-                            fontSize: "10px",
-                            textTransform: "uppercase",
-                            letterSpacing: "0.04em",
-                            padding: "2px 6px",
-                            background: LINE,
-                            color: "#5C6660",
-                          }}
-                        >
-                          {job.event_type === "personal" ? "Personal" : "Other"}
-                        </span>
-                      )}
-                    </div>
-                    <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
-                    {job.customer_name && (
-                      <div className="text-xs mt-1" style={{ color: "#5C6660" }}>{job.customer_name}</div>
-                    )}
-                    {jobAddress && (
-                      <a
-                        href={googleMapsDirectionsUrl(jobAddress)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs mt-0.5 inline-block underline"
-                        style={{ color: RUST }}
-                      >
-                        {jobAddress} (get directions)
-                      </a>
-                    )}
-                  </div>
-                </div>
-                {job.notes && (
+              <div key={c.id} style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
+                <div className="text-sm font-medium mb-1">{c.name}</div>
+                {c.phone && (
+                  <a
+                    href={`tel:${c.phone.replace(/[^0-9+]/g, "")}`}
+                    className="text-xs block underline"
+                    style={{ color: RUST }}
+                  >
+                    {c.phone}
+                  </a>
+                )}
+                {c.email && (
+                  <a href={`mailto:${c.email}`} className="text-xs block underline" style={{ color: RUST }}>
+                    {c.email}
+                  </a>
+                )}
+                {address && (
+                  <a
+                    href={googleMapsDirectionsUrl(address)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-xs block underline mt-0.5"
+                    style={{ color: RUST }}
+                  >
+                    {address} (get directions)
+                  </a>
+                )}
+                {c.notes && (
                   <p className="text-xs mt-2 pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
-                    {job.notes}
+                    {c.notes}
                   </p>
                 )}
               </div>
@@ -223,9 +439,15 @@ const [emailInput, setEmailInput] = useState("");
   const [breakStartedAt, setBreakStartedAt] = useState(null);
 
   const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
-  const [view, setView] = useState("clock"); // clock | schedule
+  const [view, setView] = useState("clock"); // clock | schedule | customers
   const [schedule, setSchedule] = useState([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
+  const [scheduleMonthAnchor, setScheduleMonthAnchor] = useState(() => {
+    const n = new Date();
+    return new Date(n.getFullYear(), n.getMonth(), 1);
+  });
+  const [customers, setCustomers] = useState([]);
+  const [customersLoading, setCustomersLoading] = useState(false);
   const [now, setNow] = useState(new Date());
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -360,10 +582,12 @@ const [emailInput, setEmailInput] = useState("");
     return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
   }, []);
 
-  async function loadSchedule() {
+  async function loadSchedule(anchor) {
     setScheduleLoading(true);
     try {
-      const rows = await getMySchedule();
+      const monthStart = new Date(anchor.getFullYear(), anchor.getMonth(), 1);
+      const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
+      const rows = await getMySchedule(dateToStr(monthStart), dateToStr(monthEnd));
       setSchedule(rows);
     } catch {
       // non-fatal — leave whatever was last loaded
@@ -372,10 +596,34 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  async function loadCustomers() {
+    setCustomersLoading(true);
+    try {
+      const rows = await getCustomers();
+      setCustomers(rows);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setCustomersLoading(false);
+    }
+  }
+
+  function goPrevMonth() {
+    setScheduleMonthAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1));
+  }
+  function goNextMonth() {
+    setScheduleMonthAnchor((a) => new Date(a.getFullYear(), a.getMonth() + 1, 1));
+  }
+  function goToday() {
+    const n = new Date();
+    setScheduleMonthAnchor(new Date(n.getFullYear(), n.getMonth(), 1));
+  }
+
   useEffect(() => {
-    if (view === "schedule" && loggedIn) loadSchedule();
+    if (view === "schedule" && loggedIn) loadSchedule(scheduleMonthAnchor);
+    if (view === "customers" && loggedIn) loadCustomers();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, loggedIn]);
+  }, [view, loggedIn, scheduleMonthAnchor]);
 
   async function refreshFromServer() {
     try {
@@ -608,7 +856,16 @@ const [emailInput, setEmailInput] = useState("");
         <div className="h-px w-full mb-6" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
 
         {view === "schedule" ? (
-          <ScheduleView schedule={schedule} loading={scheduleLoading} />
+          <CalendarView
+            schedule={schedule}
+            loading={scheduleLoading}
+            monthAnchor={scheduleMonthAnchor}
+            onPrevMonth={goPrevMonth}
+            onNextMonth={goNextMonth}
+            onToday={goToday}
+          />
+        ) : view === "customers" ? (
+          <CustomersView customers={customers} loading={customersLoading} />
         ) : (
         <>
         {actionError && (
@@ -789,6 +1046,14 @@ const [emailInput, setEmailInput] = useState("");
           >
             <CalendarDays size={18} style={{ color: view === "schedule" ? AMBER : "#8A8578" }} />
             Schedule
+          </button>
+          <button
+            onClick={() => setView("customers")}
+            style={{ color: view === "customers" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+            className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
+          >
+            <Users size={18} style={{ color: view === "customers" ? AMBER : "#8A8578" }} />
+            Customers
           </button>
         </div>
       </div>
