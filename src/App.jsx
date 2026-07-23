@@ -143,7 +143,24 @@ function ScheduleView({ schedule, loading }) {
                     className="rounded-full flex-shrink-0"
                   />
                   <div className="flex-1">
-                    <div className="text-sm font-medium">{job.title}</div>
+                    <div className="text-sm font-medium">
+                      {job.title}
+                      {job.event_type && job.event_type !== "job" && (
+                        <span
+                          className="ml-2 rounded"
+                          style={{
+                            fontSize: "10px",
+                            textTransform: "uppercase",
+                            letterSpacing: "0.04em",
+                            padding: "2px 6px",
+                            background: LINE,
+                            color: "#5C6660",
+                          }}
+                        >
+                          {job.event_type === "personal" ? "Personal" : "Other"}
+                        </span>
+                      )}
+                    </div>
                     <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
                   </div>
                 </div>
