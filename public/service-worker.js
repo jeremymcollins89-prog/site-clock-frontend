@@ -7,7 +7,7 @@
 //    handled separately by offlineQueue.js, not by this file, since that
 //    needs IndexedDB rather than the Cache API.
 
-const CACHE_NAME = "site-clock-shell-v3";
+const CACHE_NAME = "site-clock-shell-v4";
 const SHELL_FILES = [
   "/",
   "/index.html",
@@ -34,6 +34,43 @@ self.addEventListener("activate", (event) => {
     )
   );
   self.clients.claim();
+});
+
+// Job-scheduling push notifications: the backend sends { title, body, url }
+// when an admin schedules this employee for a job.
+self.addEventListener("push", (event) => {
+  let data = { title: "Coll Timeclock", body: "You have a schedule update.", url: "/" };
+  if (event.data) {
+    try {
+      data = { ...data, ...event.data.json() };
+    } catch {
+      data.body = event.data.text();
+    }
+  }
+  event.waitUntil(
+    self.registration.showNotification(data.title, {
+      body: data.body,
+      icon: "/icons/icon-192.png",
+      badge: "/icons/icon-192.png",
+      data: { url: data.url || "/" },
+    })
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const targetUrl = event.notification.data?.url || "/";
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then((clients) => {
+      for (const client of clients) {
+        if ("focus" in client) {
+          client.postMessage({ type: "navigate", url: targetUrl });
+          return client.focus();
+        }
+      }
+      if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
+    })
+  );
 });
 
 self.addEventListener("fetch", (event) => {

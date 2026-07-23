@@ -59,6 +59,26 @@ async function forgotPin(email) {
   return apiFetch("/api/auth/forgot-pin", { method: "POST", body: { email } });
 }
 
+async function getMySchedule(start, end) {
+  const params = new URLSearchParams();
+  if (start) params.set("start", start);
+  if (end) params.set("end", end);
+  const qs = params.toString();
+  return apiFetch(`/api/schedule/me${qs ? `?${qs}` : ""}`);
+}
+
+async function getVapidPublicKey() {
+  return apiFetch("/api/push/vapid-public-key");
+}
+
+async function subscribePush(subscription) {
+  return apiFetch("/api/push/subscribe", { method: "POST", body: subscription });
+}
+
+async function unsubscribePush(endpoint) {
+  return apiFetch("/api/push/unsubscribe", { method: "POST", body: { endpoint } });
+}
+
 function logout() {
   clearSession();
 }
@@ -88,4 +108,17 @@ function startAutoSync() {
   trySync(); // also try once on load in case actions queued during a previous session
 }
 
-export { login, restoreSession, logout, getSavedEmployee, clockAction, startAutoSync, apiFetch, forgotPin };
+export {
+  login,
+  restoreSession,
+  logout,
+  getSavedEmployee,
+  clockAction,
+  startAutoSync,
+  apiFetch,
+  forgotPin,
+  getMySchedule,
+  getVapidPublicKey,
+  subscribePush,
+  unsubscribePush,
+};

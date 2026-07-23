@@ -1,7 +1,66 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail } from "lucide-react";
-import { login, restoreSession, logout, clockAction, startAutoSync, apiFetch, forgotPin } from "./api.js";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer } from "lucide-react";
+import {
+  login,
+  restoreSession,
+  logout,
+  clockAction,
+  startAutoSync,
+  apiFetch,
+  forgotPin,
+  getMySchedule,
+  getVapidPublicKey,
+  subscribePush,
+} from "./api.js";
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
+
+const JOB_COLORS = {
+  rust: "#C1502E",
+  amber: "#F2A93B",
+  teal: "#3D5A50",
+  blue: "#3B6FA9",
+  purple: "#7B4F9E",
+  rose: "#B8547A",
+  charcoal: "#5C6660",
+};
+
+// Converts the VAPID public key (base64url) into the Uint8Array format the
+// browser's Push API expects.
+function urlBase64ToUint8Array(base64String) {
+  const padding = "=".repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, "+").replace(/_/g, "/");
+  const rawData = atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; i++) outputArray[i] = rawData.charCodeAt(i);
+  return outputArray;
+}
+
+// Best-effort: registers this device for job-scheduling push notifications.
+// Silently does nothing if the browser doesn't support it, permission is
+// denied, or the backend hasn't configured VAPID keys yet -- none of that
+// should block the employee from using the time clock itself.
+async function setupPushNotifications() {
+  try {
+    if (!("serviceWorker" in navigator) || !("PushManager" in window)) return;
+    const registration = await navigator.serviceWorker.ready;
+    const existing = await registration.pushManager.getSubscription();
+    if (existing) {
+      await subscribePush(existing.toJSON());
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if (permission !== "granted") return;
+    const { publicKey } = await getVapidPublicKey();
+    if (!publicKey) return;
+    const subscription = await registration.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: urlBase64ToUint8Array(publicKey),
+    });
+    await subscribePush(subscription.toJSON());
+  } catch {
+    // Non-fatal -- the employee just won't get push notifications on this device.
+  }
+}
 
 const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`;
 
@@ -49,6 +108,59 @@ function formatDateShort(d) {
   return new Date(d).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function ScheduleView({ schedule, loading }) {
+  if (loading) {
+    return (
+      <p className="text-sm" style={{ color: "#8A8578", fontFamily: "'IBM Plex Mono', monospace" }}>
+        Loading your schedule…
+      </p>
+    );
+  }
+
+  return (
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+          Upcoming Jobs
+        </h2>
+        <span className="text-xs" style={{ color: "#8A8578" }}>Next 30 days</span>
+      </div>
+
+      {schedule.length === 0 ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>Nothing scheduled for you right now.</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {schedule.map((job) => {
+            const dateLabel =
+              job.start_date === job.end_date
+                ? formatDateShort(job.start_date)
+                : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
+            return (
+              <div key={job.id} style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
+                <div className="flex items-start gap-2 mb-1">
+                  <span
+                    style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10, marginTop: 4 }}
+                    className="rounded-full flex-shrink-0"
+                  />
+                  <div className="flex-1">
+                    <div className="text-sm font-medium">{job.title}</div>
+                    <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
+                  </div>
+                </div>
+                {job.notes && (
+                  <p className="text-xs mt-2 pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
+                    {job.notes}
+                  </p>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TimeClock() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -68,6 +180,9 @@ const [emailInput, setEmailInput] = useState("");
   const [breakStartedAt, setBreakStartedAt] = useState(null);
 
   const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
+  const [view, setView] = useState("clock"); // clock | schedule
+  const [schedule, setSchedule] = useState([]);
+  const [scheduleLoading, setScheduleLoading] = useState(false);
   const [now, setNow] = useState(new Date());
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -182,11 +297,42 @@ const [emailInput, setEmailInput] = useState("");
         setEmployee(emp);
         setLoggedIn(true);
         await refreshFromServer();
+        setupPushNotifications();
       }
       setCheckingSession(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // If a job notification is tapped while the app is in the background,
+  // the service worker posts a message asking us to jump to the Schedule tab.
+  useEffect(() => {
+    if (!("serviceWorker" in navigator)) return;
+    function handleMessage(event) {
+      if (event.data?.type === "navigate" && event.data.url?.includes("/schedule")) {
+        setView("schedule");
+      }
+    }
+    navigator.serviceWorker.addEventListener("message", handleMessage);
+    return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
+  }, []);
+
+  async function loadSchedule() {
+    setScheduleLoading(true);
+    try {
+      const rows = await getMySchedule();
+      setSchedule(rows);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setScheduleLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (view === "schedule" && loggedIn) loadSchedule();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view, loggedIn]);
 
   async function refreshFromServer() {
     try {
@@ -227,6 +373,7 @@ const [emailInput, setEmailInput] = useState("");
       setLoggedIn(true);
       setPinInput("");
       await refreshFromServer();
+      setupPushNotifications();
     } catch (err) {
       setLoginError(err.message || "Login failed.");
     }
@@ -417,6 +564,10 @@ const [emailInput, setEmailInput] = useState("");
         </div>
         <div className="h-px w-full mb-6" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
 
+        {view === "schedule" ? (
+          <ScheduleView schedule={schedule} loading={scheduleLoading} />
+        ) : (
+        <>
         {actionError && (
           <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
             {actionError}
@@ -571,6 +722,32 @@ const [emailInput, setEmailInput] = useState("");
             ))}
           </div>
         )}
+        </>
+        )}
+      </div>
+
+      <div
+        style={{ background: "#fff", borderTop: `1.5px solid ${CHARCOAL}` }}
+        className="fixed bottom-0 left-0 right-0 flex"
+      >
+        <div className="max-w-md mx-auto w-full flex">
+          <button
+            onClick={() => setView("clock")}
+            style={{ color: view === "clock" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+            className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
+          >
+            <Timer size={18} style={{ color: view === "clock" ? AMBER : "#8A8578" }} />
+            Clock
+          </button>
+          <button
+            onClick={() => setView("schedule")}
+            style={{ color: view === "schedule" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+            className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
+          >
+            <CalendarDays size={18} style={{ color: view === "schedule" ? AMBER : "#8A8578" }} />
+            Schedule
+          </button>
+        </div>
       </div>
     </div>
   );
