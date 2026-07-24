@@ -16,9 +16,12 @@
   :root {
     --charcoal: #1F2421;
     --paper: #F4F2ED;
-    --amber: #F2A93B;
-    --teal: #3D5A50;
-    --rust: #C1502E;
+    --amber: #F4B04C;
+    --amber-deep: #DB8A16;
+    --teal: #46705F;
+    --teal-deep: #2B453C;
+    --rust: #D35A34;
+    --rust-deep: #A63D20;
     --line: #D8D3C4;
   }
   * { box-sizing: border-box; }
@@ -34,35 +37,43 @@
     width: 100%;
     padding: 11px 12px;
     border: 1.5px solid var(--line);
-    border-radius: 6px;
+    border-radius: 12px;
     font-size: 16px; /* 16px avoids iOS Safari zoom-on-focus */
     margin-bottom: 10px;
-    background: #fff;
+    background: #FBFAF7;
     color: var(--charcoal);
     font-family: inherit;
+    transition: border-color .15s ease, box-shadow .15s ease;
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(244,176,76,0.25);
   }
   label { font-size: 11px; color: #8A8578; display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
   button { cursor: pointer; font-family: inherit; }
   .btn-primary {
-    width: 100%; background: var(--amber); color: var(--charcoal); border: none;
-    border-radius: 6px; font-weight: 700; padding: 13px; font-size: 15px; margin-top: 4px;
+    width: 100%; color: var(--charcoal); border: none;
+    border-radius: 12px; font-weight: 700; padding: 13px; font-size: 15px; margin-top: 4px;
+    background: linear-gradient(180deg, #F9C978 0%, var(--amber) 55%, var(--amber-deep) 100%);
+    box-shadow: 0 4px 10px rgba(219,138,22,0.35), inset 0 1px 0 rgba(255,255,255,0.5);
   }
-  .btn-primary:disabled { opacity: 0.5; }
+  .btn-primary:disabled { opacity: 0.5; box-shadow: none; }
   .btn-secondary {
-    width: 100%; background: transparent; color: var(--charcoal); border: 1.5px solid var(--charcoal);
-    border-radius: 6px; font-weight: 600; padding: 11px; font-size: 14px;
+    width: 100%; background: #fff; color: var(--charcoal); border: 1.5px solid var(--charcoal);
+    border-radius: 12px; font-weight: 600; padding: 11px; font-size: 14px;
   }
   .btn-small {
-    border: none; border-radius: 5px; padding: 8px 12px; font-size: 12.5px; color: #fff; font-weight: 600;
+    border: none; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; color: #fff; font-weight: 600;
+    box-shadow: 0 2px 6px rgba(31,36,33,0.2);
   }
   .error { color: var(--rust); font-size: 13px; margin: 8px 0; display: none; }
   .success-msg { color: var(--teal); font-size: 13px; margin: 8px 0; display: none; }
   .card {
-    background: #fff; border: 1.5px solid var(--line); border-radius: 8px;
-    padding: 16px; margin-bottom: 12px;
+    background: #fff; border: 1px solid rgba(31,36,33,0.05); border-radius: 18px;
+    padding: 18px; margin-bottom: 14px;
+    box-shadow: 0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05);
   }
   .badge {
-    display: inline-block; font-size: 11px; padding: 3px 9px; border-radius: 20px; font-weight: 600;
+    display: inline-block; font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: 700;
   }
   .chip {
     display: inline-block; background: var(--line); color: var(--charcoal);
@@ -70,7 +81,7 @@
   }
   .type-badge {
     display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
-    padding: 2px 7px; border-radius: 3px; background: var(--line); color: var(--charcoal); margin-left: 6px;
+    padding: 2px 7px; border-radius: 6px; background: var(--line); color: var(--charcoal); margin-left: 6px;
     vertical-align: middle;
   }
   .job-color-dot {
@@ -84,7 +95,11 @@
     display: none; min-height: 100vh; align-items: center; justify-content: center; padding: 24px;
   }
   #login-screen.visible { display: flex; }
-  .login-box { background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px; padding: 28px; width: 100%; max-width: 360px; }
+  .login-box {
+    background: #fff; border: 1px solid rgba(31,36,33,0.06); border-radius: 20px; padding: 28px;
+    width: 100%; max-width: 360px;
+    box-shadow: 0 20px 45px rgba(31,36,33,0.14), 0 4px 12px rgba(31,36,33,0.08);
+  }
   .login-box h1 { margin: 0 0 4px; font-size: 22px; }
   .login-box p.sub { margin: 0 0 20px; color: #8A8578; font-size: 13.5px; }
   .login-box .fine-link { text-align: center; margin-top: 12px; }
@@ -95,13 +110,13 @@
   #app.visible { display: block; }
   .top-bar {
     position: fixed; top: 0; left: 0; right: 0; height: 54px; z-index: 40;
-    background: var(--charcoal); color: var(--paper);
+    background: linear-gradient(165deg, #2b322e 0%, var(--charcoal) 65%); color: var(--paper);
     display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
   }
   .top-bar h1 { font-size: 17px; margin: 0; font-weight: 700; }
   .top-bar button {
-    background: transparent; border: 1.5px solid rgba(244,242,237,0.4); color: var(--paper);
-    border-radius: 5px; padding: 6px 10px; font-size: 12px;
+    background: rgba(244,242,237,0.12); border: none; color: var(--paper);
+    border-radius: 10px; padding: 7px 12px; font-size: 12px; font-weight: 600;
   }
   main.content {
     padding: 68px 14px 78px;
@@ -117,7 +132,7 @@
 
   .bottom-nav {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-    background: #fff; border-top: 1.5px solid var(--line);
+    background: #fff; border-top: 1px solid var(--line);
     display: flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
   }
   .nav-btn {
@@ -127,7 +142,10 @@
   }
   .nav-btn .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--line); }
   .nav-btn.active { color: var(--rust); }
-  .nav-btn.active .dot { background: var(--rust); }
+  .nav-btn.active .dot {
+    background: linear-gradient(135deg, #E4794F, var(--rust));
+    box-shadow: 0 3px 8px rgba(211,90,52,0.45);
+  }
 
   /* ---------- Full-screen sheets ---------- */
   .sheet {
@@ -152,9 +170,20 @@
   .emp-card .actions button { margin-left: 6px; }
   .stat-row { display: flex; gap: 22px; margin: 12px 0 16px; }
   .stat-label { font-size: 10.5px; color: #8A8578; text-transform: uppercase; letter-spacing: 0.03em; }
-  .stat-value { font-size: 21px; font-weight: 700; }
+  .stat-value {
+    font-size: 22px; font-weight: 800;
+    background: linear-gradient(135deg, var(--charcoal), #3a4440);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
+  .stat-value.accent {
+    background: linear-gradient(135deg, var(--rust), var(--rust-deep));
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
 
-  .entry-card { border: 1.5px solid var(--line); border-radius: 8px; padding: 12px; margin-bottom: 10px; background: #fff; }
+  .entry-card {
+    border: 1px solid rgba(31,36,33,0.05); border-radius: 16px; padding: 14px; margin-bottom: 12px; background: #fff;
+    box-shadow: 0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04);
+  }
   .entry-field { margin-bottom: 8px; }
   .entry-field label { margin-bottom: 3px; }
   .entry-meta { display: flex; gap: 18px; font-size: 13px; margin: 6px 0 10px; }
@@ -162,26 +191,26 @@
 
   /* ---------- Calendar ---------- */
   .cal-toolbar { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
-  .cal-nav-btn { background: transparent; border: 1.5px solid var(--charcoal); border-radius: 5px; padding: 6px 12px; font-size: 14px; }
+  .cal-nav-btn { background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px; padding: 6px 12px; font-size: 14px; }
   .cal-month-label { font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.03em; }
-  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 3px; }
+  .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; }
   .cal-dow { font-size: 9.5px; text-transform: uppercase; color: #8A8578; text-align: center; padding-bottom: 3px; }
   .cal-day {
-    min-height: 44px; border: 1px solid var(--line); border-radius: 5px; background: #fff;
+    min-height: 44px; border: 1px solid var(--line); border-radius: 10px; background: #fff;
     display: flex; flex-direction: column; align-items: center; padding: 3px 0; cursor: pointer;
   }
   .cal-day.cal-day-empty { background: transparent; border: none; }
-  .cal-day.cal-day-today { border-color: var(--amber); border-width: 2px; }
+  .cal-day.cal-day-today { border-color: var(--amber); border-width: 2px; box-shadow: 0 0 0 3px rgba(244,176,76,0.18); }
   .cal-day-num { font-size: 11px; color: #8A8578; }
   .cal-dots { display: flex; gap: 2px; margin-top: 3px; flex-wrap: wrap; justify-content: center; }
   .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
 
   .checkbox-list {
-    max-height: 160px; overflow-y: auto; border: 1.5px solid var(--line); border-radius: 6px; padding: 8px; margin-bottom: 10px;
+    max-height: 160px; overflow-y: auto; border: 1.5px solid var(--line); border-radius: 12px; padding: 8px; margin-bottom: 10px;
   }
   .checkbox-list label { display: block; text-transform: none; font-size: 14px; color: var(--charcoal); margin-bottom: 6px; }
   .color-swatches { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
-  .color-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; }
+  .color-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; box-shadow: 0 2px 6px rgba(31,36,33,0.15); }
   .color-swatch.selected { border-color: var(--charcoal); }
 </style>
 </head>
@@ -664,7 +693,7 @@ function formatAddressParts(street, city, state, zip) {
 }
 function formatAddress(c) { return formatAddressParts(c.street, c.city, c.state, c.zip); }
 
-const JOB_COLORS = { rust: "#C1502E", amber: "#F2A93B", teal: "#3D5A50", blue: "#3B6FA9", purple: "#7B4F9E", rose: "#B8547A", charcoal: "#5C6660" };
+const JOB_COLORS = { rust: "#D35A34", amber: "#F4B04C", teal: "#46705F", blue: "#3B6FA9", purple: "#7B4F9E", rose: "#B8547A", charcoal: "#5C6660" };
 const EVENT_TYPE_LABELS = { job: "Job", personal: "Personal", other: "Other" };
 
 const DOW_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -697,10 +726,10 @@ async function loadOverview() {
     const shiftTooLong = isClockedIn && shiftHours > 10;
 
     const statusBadge = isClockedIn
-      ? '<span class="badge" style="background:#3D5A50; color:#fff;">Clocked In</span>'
-      : '<span class="badge" style="background:#D8D3C4; color:#1F2421;">Off the Clock</span>';
+      ? '<span class="badge" style="color:#fff; background:linear-gradient(135deg, #5C9481, var(--teal-deep)); box-shadow:0 3px 8px rgba(43,69,60,0.4);">Clocked In</span>'
+      : '<span class="badge" style="background:#EDEAE1; color:#6b6759;">Off the Clock</span>';
     const longShiftBadge = shiftTooLong
-      ? '<span class="badge" style="background:#C1502E; color:#fff; margin-left:6px;">Over 10h</span>'
+      ? '<span class="badge" style="color:#fff; margin-left:6px; background:linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow:0 3px 8px rgba(166,61,32,0.4);">Over 10h</span>'
       : '';
 
     const currentJob = isClockedIn
@@ -710,15 +739,17 @@ async function loadOverview() {
         '</div>'
       : "";
 
-    return '<div class="card" style="' + (shiftTooLong ? "border-color:#C1502E;" : "") + '" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', ' + isClockedIn + ')">' +
+    const statValueClass = isClockedIn ? "stat-value accent" : "stat-value";
+
+    return '<div class="card" style="' + (shiftTooLong ? "border-color:var(--rust);" : "") + '" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', ' + isClockedIn + ')">' +
         '<div style="display:flex; justify-content:space-between; align-items:center;">' +
           '<strong style="font-size:15.5px;">' + e.name + '</strong>' +
           statusBadge + longShiftBadge +
         '</div>' +
         currentJob +
         '<div class="stat-row">' +
-          '<div><div class="stat-label">Regular</div><div class="stat-value">' + fmtDurationShort(e.regular_seconds) + '</div></div>' +
-          '<div><div class="stat-label">Travel</div><div class="stat-value">' + fmtDurationShort(e.travel_seconds) + '</div></div>' +
+          '<div><div class="stat-label">Regular</div><div class="' + statValueClass + '">' + fmtDurationShort(e.regular_seconds) + '</div></div>' +
+          '<div><div class="stat-label">Travel</div><div class="' + statValueClass + '">' + fmtDurationShort(e.travel_seconds) + '</div></div>' +
         '</div>' +
       '</div>';
   }).join("") || '<p style="color:#8A8578; font-size:13px;">No active employees yet.</p>';
