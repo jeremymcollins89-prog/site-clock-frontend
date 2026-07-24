@@ -1946,10 +1946,19 @@ function fmtHours(hours) {
   return (Math.round(hours * 10) / 10) + "h";
 }
 
-function pctChange(current, previous) {
-  if (!previous) return current ? "+100%" : "—";
-  const pct = ((current - previous) / previous) * 100;
-  return (pct >= 0 ? "+" : "") + pct.toFixed(0) + "%";
+function pctChangeParts(current, previous) {
+  if (!previous) return current ? { text: "+100%", direction: "up" } : { text: "—", direction: "flat" };
+  const rounded = Math.round(((current - previous) / previous) * 100);
+  const direction = rounded > 0 ? "up" : rounded < 0 ? "down" : "flat";
+  return { text: (rounded > 0 ? "+" : "") + rounded + "%", direction: direction };
+}
+
+// Green when up, rust-red when down, matching the same color language as
+// the paid/overdue invoice badges elsewhere in the app.
+function pctChangeHtml(current, previous) {
+  const parts = pctChangeParts(current, previous);
+  const color = parts.direction === "up" ? "var(--teal-deep)" : parts.direction === "down" ? "var(--rust)" : "#8A8578";
+  return '<span style="color:' + color + '; font-weight:700;">' + parts.text + '</span>';
 }
 
 function renderReportStatCard(label, value, sub) {
@@ -1999,9 +2008,9 @@ async function loadReportSummary() {
           '</div>' +
         '</div>' +
         '<div style="margin-top:14px; font-size:12px; color:#8A8578;">' +
-          'Change vs. last year: Labor hours ' + pctChange(thisYearData.labor_hours, lastYearData.labor_hours) +
-          ' &middot; Invoiced ' + pctChange(thisYearData.invoice_total, lastYearData.invoice_total) +
-          ' &middot; Paid ' + pctChange(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total) +
+          'Change vs. last year: Labor hours ' + pctChangeHtml(thisYearData.labor_hours, lastYearData.labor_hours) +
+          ' &middot; Invoiced ' + pctChangeHtml(thisYearData.invoice_total, lastYearData.invoice_total) +
+          ' &middot; Paid ' + pctChangeHtml(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total) +
         '</div>';
       return;
     }
