@@ -610,6 +610,7 @@
 
     <p id="invoice-save-hint" style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">Saving emails this invoice to the customer right away, unless they don't have an email on file.</p>
     <button class="btn-primary" id="invoice-save-btn" onclick="submitInvoice()">Save &amp; send to customer</button>
+    <button class="btn-small" id="invoice-viewpdf-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="viewInvoicePdf(editingInvoiceId)">View PDF</button>
     <button class="btn-small" id="invoice-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendInvoiceConfirm()">Send to customer</button>
     <button class="btn-small" id="invoice-markpaid-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="openMarkPaidSheet()">Mark paid</button>
     <button class="btn-small" id="invoice-void-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="voidInvoiceConfirm()">Void</button>
@@ -742,6 +743,29 @@ const admin = {
   markInvoicePaid: (id, paymentMethod) =>
     apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod } }),
   voidInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/void`, { method: "PATCH" }),
+  // Fetches the PDF with the auth header attached (a plain link can't send
+  // one), then opens it as a blob URL in a new tab so the browser's own
+  // PDF viewer displays it.
+  viewInvoicePdf: async (id) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/api/admin/invoices/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let message = "Couldn't load invoice PDF";
+      try {
+        const data = await res.json();
+        message = data.error || message;
+      } catch (parseErr) {
+        // response wasn't JSON -- keep the generic message
+      }
+      throw new Error(message);
+    }
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank");
+    return true;
+  },
 
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
@@ -1578,6 +1602,7 @@ function renderInvoicesList() {
     let action = inv.status === "draft"
       ? '<button class="btn-small" style="background: var(--teal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">Edit</button>'
       : '<button class="btn-small" style="background: var(--charcoal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">View</button>';
+    action += '<button class="btn-small" style="background: var(--charcoal); margin-left:6px;" onclick="viewInvoicePdf(\'' + inv.id + '\')">View PDF</button>';
     if (inv.status === "sent") {
       action += '<button class="btn-small" style="background: var(--teal); margin-left:6px;" onclick="openMarkPaidSheet(\'' + inv.id + '\')">Mark paid</button>';
     }
@@ -1719,6 +1744,7 @@ async function openInvoiceSheet(invoiceId) {
 
   document.getElementById("invoice-save-btn").style.display = isDraft ? "" : "none";
   document.getElementById("invoice-save-hint").style.display = isDraft ? "" : "none";
+  document.getElementById("invoice-viewpdf-btn").style.display = invoice ? "" : "none";
   document.getElementById("invoice-send-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
   document.getElementById("invoice-send-btn").textContent = invoice && invoice.status !== "draft" ? "Resend to customer" : "Send to customer";
   document.getElementById("invoice-markpaid-btn").style.display = invoice && invoice.status === "sent" ? "" : "none";
@@ -1781,6 +1807,15 @@ async function deleteInvoiceConfirm(id) {
   if (!confirm("Delete this draft invoice? This can't be undone.")) return;
   await admin.deleteInvoice(id);
   await loadInvoices();
+}
+
+async function viewInvoicePdf(id) {
+  if (!id) return;
+  try {
+    await admin.viewInvoicePdf(id);
+  } catch (err) {
+    alert(err.message || "Couldn't open invoice PDF.");
+  }
 }
 
 async function sendInvoiceConfirm() {
