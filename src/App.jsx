@@ -284,7 +284,7 @@ function JobDetailSheet({ job, onClose }) {
             className="text-sm mt-1 block underline"
             style={{ color: RUST }}
           >
-            {jobAddress} (get directions)
+            {jobAddress}
           </a>
         )}
         {job.notes && (
@@ -510,7 +510,7 @@ function CustomersView({ customers, loading }) {
                     className="text-xs block underline mt-0.5"
                     style={{ color: RUST }}
                   >
-                    {address} (get directions)
+                    {address}
                   </a>
                 )}
                 {c.notes && (
