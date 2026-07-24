@@ -16,9 +16,9 @@ import {
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
 const JOB_COLORS = {
-  rust: "#C1502E",
-  amber: "#F2A93B",
-  teal: "#3D5A50",
+  rust: "#D35A34",
+  amber: "#F4B04C",
+  teal: "#46705F",
   blue: "#3B6FA9",
   purple: "#7B4F9E",
   rose: "#B8547A",
@@ -67,9 +67,12 @@ const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswal
 
 const CHARCOAL = "#1F2421";
 const PAPER = "#F4F2ED";
-const AMBER = "#F2A93B";
-const TEAL = "#3D5A50";
-const RUST = "#C1502E";
+const AMBER = "#F4B04C";
+const AMBER_DEEP = "#DB8A16";
+const TEAL = "#46705F";
+const TEAL_DEEP = "#2B453C";
+const RUST = "#D35A34";
+const RUST_DEEP = "#A63D20";
 const LINE = "#D8D3C4";
 
 function pad(n) { return n.toString().padStart(2, "0"); }
@@ -160,8 +163,14 @@ function EventCard({ job, onSelect }) {
   return (
     <button
       onClick={() => onSelect(job)}
-      style={{ background: "#fff", border: `1.5px solid ${LINE}`, textAlign: "left", width: "100%" }}
-      className="rounded-md p-4 flex items-center gap-2"
+      style={{
+        background: "#fff",
+        border: `1px solid rgba(31,36,33,0.05)`,
+        boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)",
+        textAlign: "left",
+        width: "100%",
+      }}
+      className="rounded-xl p-4 flex items-center gap-2"
     >
       <span
         style={{ background: JOB_COLORS[job.color] || RUST, width: 10, height: 10 }}
@@ -217,8 +226,9 @@ function JobDetailSheet({ job, onClose }) {
           width: "100%",
           maxHeight: "80vh",
           overflowY: "auto",
-          borderTopLeftRadius: 16,
-          borderTopRightRadius: 16,
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
           padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
         }}
       >
@@ -333,8 +343,8 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={onPrevMonth}
-          style={{ border: `1.5px solid ${CHARCOAL}` }}
-          className="rounded-sm px-3 py-1 text-sm"
+          style={{ border: "none", background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+          className="rounded-xl px-3 py-1 text-sm"
         >
           ‹
         </button>
@@ -343,8 +353,8 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
         </span>
         <button
           onClick={onNextMonth}
-          style={{ border: `1.5px solid ${CHARCOAL}` }}
-          className="rounded-sm px-3 py-1 text-sm"
+          style={{ border: "none", background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+          className="rounded-xl px-3 py-1 text-sm"
         >
           ›
         </button>
@@ -373,12 +383,21 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                   key={i}
                   onClick={() => setSelectedDay(dateStr === selectedDay ? null : dateStr)}
                   style={{
-                    border: `1.5px solid ${isSelected ? RUST : isToday ? AMBER : LINE}`,
-                    background: "#fff",
+                    border: isSelected || isToday ? "none" : `1px solid rgba(31,36,33,0.05)`,
+                    background: isSelected
+                      ? `linear-gradient(135deg, #E06A45, ${RUST})`
+                      : isToday
+                      ? `linear-gradient(135deg, #F9C978, ${AMBER})`
+                      : "#fff",
+                    boxShadow: isSelected
+                      ? "0 3px 8px rgba(211,90,52,0.35)"
+                      : isToday
+                      ? "0 3px 8px rgba(219,138,22,0.3)"
+                      : "0 2px 6px rgba(31,36,33,0.04)",
                   }}
-                  className="rounded-sm py-1.5 flex flex-col items-center gap-0.5"
+                  className="rounded-xl py-1.5 flex flex-col items-center gap-0.5"
                 >
-                  <span className="text-xs">{day}</span>
+                  <span className="text-xs" style={{ color: isSelected ? "#fff" : CHARCOAL, fontWeight: isSelected || isToday ? 700 : 400 }}>{day}</span>
                   {dayJobs.length > 0 && (
                     <span className="flex gap-0.5">
                       {dayJobs.slice(0, 3).map((j, idx) => (
@@ -445,8 +464,8 @@ function CustomersView({ customers, loading }) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by name..."
-        style={{ border: `1.5px solid ${LINE}` }}
-        className="w-full px-3 py-2 text-sm rounded-sm mb-4 outline-none"
+        style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+        className="w-full px-3 py-2 text-sm rounded-xl mb-4 outline-none"
       />
       {loading ? (
         <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
@@ -459,7 +478,15 @@ function CustomersView({ customers, loading }) {
           {filtered.map((c) => {
             const address = formatAddress(c.street, c.city, c.state, c.zip);
             return (
-              <div key={c.id} style={{ background: "#fff", border: `1.5px solid ${LINE}` }} className="rounded-md p-4">
+              <div
+                key={c.id}
+                style={{
+                  background: "#fff",
+                  border: `1px solid rgba(31,36,33,0.05)`,
+                  boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)",
+                }}
+                className="rounded-xl p-4"
+              >
                 <div className="text-sm font-medium mb-1">{c.name}</div>
                 {c.phone && (
                   <a
@@ -835,9 +862,9 @@ const [emailInput, setEmailInput] = useState("");
   const shiftTooLong = (status === "working" || status === "break") && elapsedMs > LONG_SHIFT_MS;
 
   const statusMeta = {
-    off: { label: "OFF THE CLOCK", color: CHARCOAL, bg: LINE },
-    working: { label: "WORKING", color: "#fff", bg: TEAL },
-    break: { label: "ON BREAK", color: "#fff", bg: RUST },
+    off: { label: "OFF THE CLOCK", color: "#6b6759", bg: "#EDEAE1", shadow: "none" },
+    working: { label: "WORKING", color: "#fff", bg: `linear-gradient(135deg, #5C9481, ${TEAL_DEEP})`, shadow: "0 3px 8px rgba(43,69,60,0.4)" },
+    break: { label: "ON BREAK", color: "#fff", bg: `linear-gradient(135deg, #E4794F, ${RUST_DEEP})`, shadow: "0 3px 8px rgba(166,61,32,0.4)" },
   }[status];
 
   const period = getPayPeriod(now);
@@ -868,7 +895,7 @@ const [emailInput, setEmailInput] = useState("");
     return (
       <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL, fontFamily: "'IBM Plex Mono', monospace" }} className="w-full min-h-screen flex items-center justify-center px-4">
         <style>{FONT_IMPORT}</style>
-        <div style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff" }} className="w-full max-w-xs rounded-md p-6">
+        <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: "#fff", boxShadow: "0 20px 45px rgba(31,36,33,0.14), 0 4px 12px rgba(31,36,33,0.08)" }} className="w-full max-w-xs rounded-2xl p-6">
           <h1 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xl font-semibold uppercase mb-1 text-center">
             Site Clock
           </h1>
@@ -879,8 +906,8 @@ const [emailInput, setEmailInput] = useState("");
   value={emailInput}
   onChange={(e) => setEmailInput(e.target.value)}
   placeholder="Your email"
-            style={{ border: `1.5px solid ${LINE}` }}
-            className="w-full px-3 py-2.5 text-sm rounded-sm mb-3 outline-none"
+            style={{ border: `1.5px solid ${LINE}`, background: "#FBFAF7" }}
+            className="w-full px-3 py-2.5 text-sm rounded-xl mb-3 outline-none"
           />
           <input
             value={pinInput}
@@ -889,8 +916,8 @@ const [emailInput, setEmailInput] = useState("");
             placeholder="PIN"
             type="password"
             inputMode="numeric"
-            style={{ border: `1.5px solid ${LINE}` }}
-            className="w-full px-3 py-2.5 text-sm rounded-sm mb-3 outline-none"
+            style={{ border: `1.5px solid ${LINE}`, background: "#FBFAF7" }}
+            className="w-full px-3 py-2.5 text-sm rounded-xl mb-3 outline-none"
           />
           {loginError && (
             <p className="text-xs mb-3" style={{ color: RUST }}>{loginError}</p>
@@ -900,8 +927,12 @@ const [emailInput, setEmailInput] = useState("");
           )}
           <button
             onClick={handleLogin}
-            style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
-            className="w-full py-2.5 rounded-sm text-sm font-semibold"
+            style={{
+              color: CHARCOAL, fontFamily: "'Oswald', sans-serif",
+              background: `linear-gradient(180deg, #F9C978 0%, ${AMBER} 55%, ${AMBER_DEEP} 100%)`,
+              boxShadow: "0 4px 10px rgba(219,138,22,0.35), inset 0 1px 0 rgba(255,255,255,0.5)",
+            }}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold"
           >
             CONTINUE
           </button>
@@ -949,34 +980,43 @@ const [emailInput, setEmailInput] = useState("");
         ) : (
         <>
         {actionError && (
-          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
+          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
             {actionError}
           </div>
         )}
         {savedOffline && (
-          <div style={{ background: "#fff", border: `1.5px dashed ${AMBER}` }} className="rounded-md p-3 mb-4 text-xs">
+          <div style={{ background: "#fff", border: `1.5px dashed ${AMBER}` }} className="rounded-xl p-3 mb-4 text-xs">
             No connection — saved on this device and will sync automatically once you're back online.
           </div>
         )}{geo.configured && geo.permission === "denied" && (
-          <div style={{ background: "#fff", border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
+          <div style={{ background: "#fff", border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-xl p-3 mb-4 text-xs">
             Location access is off, so auto clock-in/out won't work — the manual buttons below still do. To enable it, allow location for this site in your phone's settings.
           </div>
         )}
         {shiftTooLong && (
-          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-md p-3 mb-4 text-xs">
+          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
             You've been clocked in for over 10 hours — did you forget to clock out?
           </div>
         )}
-        <div style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff" }} className="rounded-md p-5 mb-6">
+        <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: "#fff", boxShadow: "0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05)" }} className="rounded-2xl p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
-            <span style={{ background: statusMeta.bg, color: statusMeta.color, fontFamily: "'Oswald', sans-serif" }} className="px-2.5 py-1 text-xs tracking-widest rounded-sm">
+            <span style={{ background: statusMeta.bg, color: statusMeta.color, fontFamily: "'Oswald', sans-serif", boxShadow: statusMeta.shadow, fontWeight: 700 }} className="px-3 py-1.5 text-xs tracking-widest rounded-full">
               {statusMeta.label}
             </span>
             <span className="text-xs" style={{ color: "#8A8578" }}>{now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
           </div>
 
           <div className="text-center mb-4">
-            <div style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em" }} className="text-5xl font-semibold tabular-nums">
+            <div
+              style={{
+                fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em",
+                background: status === "off" ? "none" : `linear-gradient(135deg, ${CHARCOAL}, #3a4440)`,
+                WebkitBackgroundClip: status === "off" ? "unset" : "text",
+                backgroundClip: status === "off" ? "unset" : "text",
+                color: status === "off" ? CHARCOAL : "transparent",
+              }}
+              className="text-5xl font-semibold tabular-nums"
+            >
               {status === "off" ? "00:00:00" : formatElapsed(elapsedMs)}
             </div>
             {status === "break" && (
@@ -991,8 +1031,8 @@ const [emailInput, setEmailInput] = useState("");
               value={jobDraft}
               onChange={(e) => setJobDraft(e.target.value)}
               placeholder="Job / site name"
-              style={{ border: `1.5px solid ${LINE}` }}
-              className="w-full px-3 py-2 text-sm rounded-sm mb-3 outline-none"
+              style={{ border: `1.5px solid ${LINE}`, background: "#FBFAF7" }}
+              className="w-full px-3 py-2 text-sm rounded-xl mb-3 outline-none"
             />
           ) : (
             <div className="flex items-center gap-2 mb-3 text-sm">
@@ -1002,11 +1042,14 @@ const [emailInput, setEmailInput] = useState("");
             </div>
           )}
 
-          <div className="flex mb-4 rounded-sm overflow-hidden" style={{ border: `1.5px solid ${CHARCOAL}` }}>
+          <div className="flex mb-4 rounded-xl overflow-hidden" style={{ border: `1.5px solid ${CHARCOAL}` }}>
             <button
               disabled={status !== "off"}
               onClick={() => setLocation("in_town")}
-              style={{ background: location === "in_town" ? TEAL : "transparent", color: location === "in_town" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
+              style={{
+                background: location === "in_town" ? `linear-gradient(135deg, #5C9481, ${TEAL_DEEP})` : "transparent",
+                color: location === "in_town" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif",
+              }}
               className="flex-1 py-2 text-sm flex items-center justify-center gap-1.5 disabled:opacity-60"
             >
               <MapPin size={14} /> IN TOWN
@@ -1014,7 +1057,10 @@ const [emailInput, setEmailInput] = useState("");
             <button
               disabled={status !== "off"}
               onClick={() => setLocation("traveling")}
-              style={{ background: location === "traveling" ? RUST : "transparent", color: location === "traveling" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
+              style={{
+                background: location === "traveling" ? `linear-gradient(135deg, #E4794F, ${RUST_DEEP})` : "transparent",
+                color: location === "traveling" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif",
+              }}
               className="flex-1 py-2 text-sm flex items-center justify-center gap-1.5 disabled:opacity-60 border-l"
             >
               <Plane size={14} /> TRAVELING
@@ -1023,29 +1069,60 @@ const [emailInput, setEmailInput] = useState("");
 
           <div className="flex gap-2">
             {status === "off" && (
-              <button onClick={clockIn} style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+              <button
+                onClick={clockIn}
+                style={{
+                  color: CHARCOAL, fontFamily: "'Oswald', sans-serif",
+                  background: `linear-gradient(180deg, #F9C978 0%, ${AMBER} 55%, ${AMBER_DEEP} 100%)`,
+                  boxShadow: "0 4px 10px rgba(219,138,22,0.35), inset 0 1px 0 rgba(255,255,255,0.5)",
+                }}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+              >
                 <Play size={16} /> CLOCK IN
               </button>
             )}
             {status === "working" && (
               <>
-                <button onClick={startBreak} style={{ border: `1.5px solid ${CHARCOAL}`, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+                <button onClick={startBreak} style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff", fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
                   <Pause size={16} /> BREAK
                 </button>
-                <button onClick={clockOut} style={{ background: CHARCOAL, color: PAPER, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+                <button
+                  onClick={clockOut}
+                  style={{
+                    color: PAPER, fontFamily: "'Oswald', sans-serif",
+                    background: `linear-gradient(165deg, #2b322e 0%, ${CHARCOAL} 65%)`,
+                    boxShadow: "0 4px 10px rgba(31,36,33,0.35)",
+                  }}
+                  className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+                >
                   <Square size={14} /> CLOCK OUT
                 </button>
               </>
             )}
             {status === "break" && (
-              <button onClick={endBreak} style={{ background: RUST, color: "#fff", fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-sm text-sm font-semibold flex items-center justify-center gap-2">
+              <button
+                onClick={endBreak}
+                style={{
+                  color: "#fff", fontFamily: "'Oswald', sans-serif",
+                  background: `linear-gradient(135deg, #E4794F, ${RUST_DEEP})`,
+                  boxShadow: "0 4px 10px rgba(166,61,32,0.35)",
+                }}
+                className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2"
+              >
                 <Play size={16} /> END BREAK
               </button>
             )}
           </div>
         </div>
 
-        <div style={{ border: `1.5px solid ${CHARCOAL}`, background: CHARCOAL, color: PAPER }} className="rounded-md p-4 mb-6">
+        <div
+          style={{
+            border: `1px solid rgba(31,36,33,0.06)`, color: PAPER,
+            background: `linear-gradient(165deg, #2b322e 0%, ${CHARCOAL} 65%)`,
+            boxShadow: "0 10px 24px rgba(31,36,33,0.18)",
+          }}
+          className="rounded-2xl p-4 mb-6"
+        >
           <div className="flex items-center justify-between mb-1">
             <span style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xs uppercase tracking-widest opacity-80">
               Current pay period
@@ -1058,8 +1135,12 @@ const [emailInput, setEmailInput] = useState("");
           <button
             onClick={submitHours}
             disabled={log.length === 0}
-            style={{ background: AMBER, color: CHARCOAL, fontFamily: "'Oswald', sans-serif" }}
-            className="w-full py-2.5 rounded-sm text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
+            style={{
+              color: CHARCOAL, fontFamily: "'Oswald', sans-serif",
+              background: `linear-gradient(180deg, #F9C978 0%, ${AMBER} 55%, ${AMBER_DEEP} 100%)`,
+              boxShadow: "0 4px 10px rgba(219,138,22,0.35), inset 0 1px 0 rgba(255,255,255,0.5)",
+            }}
+            className="w-full py-2.5 rounded-xl text-sm font-semibold flex items-center justify-center gap-2 disabled:opacity-40"
           >
             <Send size={14} /> SUBMIT HOURS FOR PAYROLL
           </button>
@@ -1082,7 +1163,11 @@ const [emailInput, setEmailInput] = useState("");
         ) : (
           <div className="flex flex-col gap-3">
             {log.map((entry) => (
-              <div key={entry.time_entry_id} style={{ background: "#fff", border: `1.5px dashed ${LINE}` }} className="rounded-md p-4">
+              <div
+                key={entry.time_entry_id}
+                style={{ background: "#fff", border: `1px solid rgba(31,36,33,0.05)`, boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)" }}
+                className="rounded-xl p-4"
+              >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="text-sm font-medium">{entry.job_name}</div>
@@ -1107,7 +1192,7 @@ const [emailInput, setEmailInput] = useState("");
       </div>
 
       <div
-        style={{ background: "#fff", borderTop: `1.5px solid ${CHARCOAL}` }}
+        style={{ background: "#fff", borderTop: `1px solid ${LINE}`, boxShadow: "0 -8px 20px rgba(31,36,33,0.06)" }}
         className="fixed bottom-0 left-0 right-0 flex"
       >
         <div className="max-w-md mx-auto w-full flex">
@@ -1116,7 +1201,15 @@ const [emailInput, setEmailInput] = useState("");
             style={{ color: view === "clock" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
-            <Timer size={18} style={{ color: view === "clock" ? AMBER : "#8A8578" }} />
+            <span
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
+                background: view === "clock" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
+                boxShadow: view === "clock" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
+              }}
+            >
+              <Timer size={16} style={{ color: view === "clock" ? CHARCOAL : "#8A8578" }} />
+            </span>
             Clock
           </button>
           <button
@@ -1124,7 +1217,15 @@ const [emailInput, setEmailInput] = useState("");
             style={{ color: view === "schedule" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
-            <CalendarDays size={18} style={{ color: view === "schedule" ? AMBER : "#8A8578" }} />
+            <span
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
+                background: view === "schedule" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
+                boxShadow: view === "schedule" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
+              }}
+            >
+              <CalendarDays size={16} style={{ color: view === "schedule" ? CHARCOAL : "#8A8578" }} />
+            </span>
             Schedule
           </button>
           <button
@@ -1132,7 +1233,15 @@ const [emailInput, setEmailInput] = useState("");
             style={{ color: view === "customers" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
-            <Users size={18} style={{ color: view === "customers" ? AMBER : "#8A8578" }} />
+            <span
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
+                background: view === "customers" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
+                boxShadow: view === "customers" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
+              }}
+            >
+              <Users size={16} style={{ color: view === "customers" ? CHARCOAL : "#8A8578" }} />
+            </span>
             Customers
           </button>
         </div>
