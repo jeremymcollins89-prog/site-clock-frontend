@@ -313,6 +313,14 @@
     <section id="view-invoices" class="view">
       <div class="view-header"><h2>Invoices</h2></div>
       <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h3 style="margin:0; font-size:15px;">Catalog</h3>
+          <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
+        </div>
+        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into an invoice with one tap.</p>
+        <div id="catalog-items-list"></div>
+      </div>
+      <div class="card">
         <button class="btn-primary" onclick="openInvoiceSheet()">New invoice</button>
       </div>
       <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
@@ -563,7 +571,11 @@
 
     <label>Line items</label>
     <div id="invoice-line-items-list"></div>
-    <button class="btn-secondary" style="margin-bottom:14px;" onclick="addInvoiceLineItemRow()">+ Add line item</button>
+    <label>Add from catalog</label>
+    <select id="invoice-catalog-picker" onchange="addLineItemFromCatalog()">
+      <option value="">+ Add from catalog...</option>
+    </select>
+    <button class="btn-secondary" style="margin-bottom:14px;" onclick="addInvoiceLineItemRow()">+ Blank line item</button>
 
     <label>Tax rate (%, optional)</label>
     <input id="invoice-tax-rate-input" type="number" min="0" step="0.01" placeholder="0" oninput="recalcInvoiceTotals()" />
@@ -597,6 +609,21 @@
     </select>
     <button class="btn-primary" onclick="submitMarkPaid()">Confirm</button>
     <div id="mark-paid-error" class="error"></div>
+  </div>
+</div>
+
+<div class="sheet" id="catalog-item-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeCatalogItemSheet()">&times;</button>
+    <h2 id="catalog-item-sheet-title">New catalog item</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="catalog-item-sheet-error" class="error"></div>
+    <label>Name / description</label>
+    <input id="catalog-item-name-input" placeholder="e.g. Service call fee" />
+    <label>Default unit price</label>
+    <input id="catalog-item-price-input" type="number" min="0" step="0.01" placeholder="0.00" />
+    <button class="btn-primary" onclick="submitCatalogItem()">Save item</button>
   </div>
 </div>
 
@@ -689,6 +716,11 @@ const admin = {
   markInvoicePaid: (id, paymentMethod) =>
     apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod } }),
   voidInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/void`, { method: "PATCH" }),
+
+  listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
+  addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
+  updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
+  deleteCatalogItem: (id) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "DELETE" }),
 };
 
 // ---------- Init / auth ----------
@@ -749,6 +781,7 @@ function showApp() {
   loadCrews();
   loadCustomers();
   loadInvoices();
+  loadCatalogItems();
   renderScheduleCalendar();
   loadShopLocation();
   loadPayrollEmail();
@@ -1751,6 +1784,99 @@ async function voidInvoiceConfirm() {
   } catch (err) {
     alert(err.message || "Couldn't void invoice.");
   }
+}
+
+// ---------- Catalog items ----------
+// A reusable list of recurring invoice line items (name + default price) so
+// common charges don't need to be retyped on every invoice. Picking one
+// just pre-fills a normal, independent line item on the invoice.
+
+window.allCatalogItems = [];
+let editingCatalogItemId = null;
+
+async function loadCatalogItems() {
+  window.allCatalogItems = await admin.listCatalogItems();
+  renderCatalogItemsList();
+  populateInvoiceCatalogPicker();
+}
+
+function renderCatalogItemsList() {
+  const list = document.getElementById("catalog-items-list");
+  const items = window.allCatalogItems || [];
+  if (items.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No catalog items yet.</p>';
+    return;
+  }
+  list.innerHTML = items.map(function(item) {
+    return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
+      '<div><strong>' + item.name + '</strong><div style="font-size:12px; color:#8A8578;">' + fmtMoney(item.unit_price) + '</div></div>' +
+      '<span style="white-space:nowrap;">' +
+        '<button class="btn-small" style="background:var(--teal); margin-right:6px;" onclick="openCatalogItemSheet(\'' + item.id + '\')">Edit</button>' +
+        '<button class="btn-small" style="background:#C1502E;" onclick="deleteCatalogItemConfirm(\'' + item.id + '\')">Delete</button>' +
+      '</span>' +
+    '</div>';
+  }).join("");
+}
+
+function populateInvoiceCatalogPicker() {
+  const picker = document.getElementById("invoice-catalog-picker");
+  if (!picker) return;
+  const items = window.allCatalogItems || [];
+  picker.innerHTML = '<option value="">+ Add from catalog...</option>' +
+    items.map(function(item) { return '<option value="' + item.id + '">' + item.name + ' — ' + fmtMoney(item.unit_price) + '</option>'; }).join("");
+}
+
+function addLineItemFromCatalog() {
+  const picker = document.getElementById("invoice-catalog-picker");
+  if (!picker.value) return;
+  const item = (window.allCatalogItems || []).find(function(i) { return i.id === picker.value; });
+  if (item) addInvoiceLineItemRow({ description: item.name, quantity: 1, unit_price: item.unit_price });
+  picker.value = "";
+}
+
+function openCatalogItemSheet(itemId) {
+  editingCatalogItemId = itemId || null;
+  const item = itemId ? (window.allCatalogItems || []).find(function(i) { return i.id === itemId; }) : null;
+  document.getElementById("catalog-item-sheet-title").textContent = item ? "Edit catalog item" : "New catalog item";
+  document.getElementById("catalog-item-sheet-error").style.display = "none";
+  document.getElementById("catalog-item-name-input").value = item ? item.name : "";
+  document.getElementById("catalog-item-price-input").value = item ? Number(item.unit_price) : "";
+  document.getElementById("catalog-item-sheet").classList.add("visible");
+}
+
+function closeCatalogItemSheet() {
+  document.getElementById("catalog-item-sheet").classList.remove("visible");
+  editingCatalogItemId = null;
+}
+
+async function submitCatalogItem() {
+  const name = document.getElementById("catalog-item-name-input").value.trim();
+  const errEl = document.getElementById("catalog-item-sheet-error");
+  errEl.style.display = "none";
+  if (!name) {
+    errEl.textContent = "Name is required.";
+    errEl.style.display = "block";
+    return;
+  }
+  const payload = { name: name, unit_price: Number(document.getElementById("catalog-item-price-input").value) || 0 };
+  try {
+    if (editingCatalogItemId) {
+      await admin.updateCatalogItem(editingCatalogItemId, payload);
+    } else {
+      await admin.addCatalogItem(payload);
+    }
+    closeCatalogItemSheet();
+    await loadCatalogItems();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save catalog item.";
+    errEl.style.display = "block";
+  }
+}
+
+async function deleteCatalogItemConfirm(id) {
+  if (!confirm("Delete this catalog item? It won't affect any invoice it's already been used on.")) return;
+  await admin.deleteCatalogItem(id);
+  await loadCatalogItems();
 }
 
 // ---------- Settings ----------
