@@ -330,20 +330,6 @@
       <div id="invoices-list"></div>
     </section>
 
-    <section id="view-history" class="view">
-      <div class="view-header"><h2>History</h2></div>
-      <div class="card">
-        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Every appointment and invoice for this company, newest first.</p>
-        <input id="history-search-input" placeholder="Search by customer..." oninput="renderHistoryList()" />
-        <select id="history-type-filter" style="margin-top:8px;" onchange="renderHistoryList()">
-          <option value="all">All</option>
-          <option value="appointment">Appointments</option>
-          <option value="invoice">Invoices</option>
-        </select>
-      </div>
-      <div id="history-list"></div>
-    </section>
-
     <section id="view-settings" class="view">
       <div class="view-header"><h2>Settings</h2></div>
 
@@ -455,7 +441,6 @@
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
     <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Invoices</button>
-    <button class="nav-btn" data-view="history" onclick="showView('history')"><span class="dot"></span>History</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
   </div>
 </div>
@@ -782,8 +767,6 @@ const admin = {
     return true;
   },
 
-  getHistory: () => apiFetch("/api/admin/history"),
-
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
@@ -856,7 +839,6 @@ function showApp() {
   loadCatalogItems();
   loadCompanyLogo();
   loadCompanyTimezone();
-  loadHistory();
   renderScheduleCalendar();
   loadShopLocation();
   loadPayrollEmail();
@@ -1485,7 +1467,7 @@ function renderCustomersList() {
       details +
       (c.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + c.notes + '</div>' : '') +
       '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">' +
-        '<button class="btn-small" style="background:var(--charcoal);" onclick="openCustomerHistorySheet(\'' + c.id + '\')">Events</button>' +
+        '<button class="btn-small" style="background:var(--charcoal);" onclick="openCustomerHistorySheet(\'' + c.id + '\')">History</button>' +
         '<button class="btn-small" style="background:var(--teal);" onclick="openCustomerSheet(\'' + c.id + '\')">Edit</button>' +
         '<button class="btn-small" style="background:#C1502E;" onclick="deleteCustomerConfirm(\'' + c.id + '\')">Delete</button>' +
       '</div>' +
@@ -1554,20 +1536,40 @@ async function openCustomerHistorySheet(id) {
   const customer = (window.allCustomers || []).find(function(c) { return c.id === id; });
   if (!customer) return;
   const events = await admin.getCustomerEvents(id);
-  const rows = events.map(function(ev) {
-    const dateLabel = ev.start_date === ev.end_date ? ev.start_date.slice(0, 10) : ev.start_date.slice(0, 10) + " – " + ev.end_date.slice(0, 10);
-    return '<div class="card" style="margin-bottom:8px;">' +
-      '<span class="job-color-dot" style="background:' + (JOB_COLORS[ev.color] || JOB_COLORS.rust) + ';"></span>' +
-      '<strong>' + ev.title + '</strong>' +
-      '<span class="type-badge">' + (EVENT_TYPE_LABELS[ev.event_type] || "Job") + '</span>' +
+  const invoices = (window.allInvoices || []).filter(function(inv) { return inv.customer_id === id; });
+
+  const items = [
+    ...events.map(function(ev) { return { kind: "appointment", date: ev.start_date, data: ev }; }),
+    ...invoices.map(function(inv) { return { kind: "invoice", date: inv.issue_date || inv.created_at, data: inv }; }),
+  ];
+  items.sort(function(a, b) { return new Date(b.date) - new Date(a.date); });
+
+  const rows = items.map(function(item) {
+    if (item.kind === "appointment") {
+      const ev = item.data;
+      const dateLabel = ev.start_date === ev.end_date ? ev.start_date.slice(0, 10) : ev.start_date.slice(0, 10) + " – " + ev.end_date.slice(0, 10);
+      return '<div class="card" style="margin-bottom:8px;" onclick="closeCustomerHistorySheet(); openJobSheet(\'' + ev.id + '\');">' +
+        '<span class="job-color-dot" style="background:' + (JOB_COLORS[ev.color] || JOB_COLORS.rust) + ';"></span>' +
+        '<strong>' + ev.title + '</strong>' +
+        '<span class="type-badge">' + (EVENT_TYPE_LABELS[ev.event_type] || "Job") + '</span>' +
+        '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + dateLabel + '</div>' +
+      '</div>';
+    }
+    const inv = item.data;
+    const dateLabel = (inv.issue_date || "").slice(0, 10);
+    return '<div class="card" style="margin-bottom:8px;" onclick="closeCustomerHistorySheet(); openInvoiceSheet(\'' + inv.id + '\');">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+        '<div><strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) + '</div>' +
+        '<div class="stat-value" style="font-size:15px;">' + fmtMoney(inv.total) + '</div>' +
+      '</div>' +
       '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + dateLabel + '</div>' +
     '</div>';
   }).join("");
 
   document.getElementById("customer-history-content").innerHTML =
     '<h2 style="margin-top:0; font-size:18px;">' + customer.name + '</h2>' +
-    '<p style="font-size:12px; color:#8A8578; margin-top:-8px;">Job history</p>' +
-    (rows || '<p style="color:#8A8578; font-size:13px;">No jobs linked to this customer yet.</p>');
+    '<p style="font-size:12px; color:#8A8578; margin-top:-8px;">Appointments and invoices</p>' +
+    (rows || '<p style="color:#8A8578; font-size:13px;">Nothing on file for this customer yet.</p>');
 
   document.getElementById("customer-history-sheet").classList.add("visible");
 }
@@ -1830,64 +1832,6 @@ async function viewInvoicePdf(id) {
   } catch (err) {
     alert(err.message || "Couldn't open invoice PDF.");
   }
-}
-
-// History: a combined, newest-first feed of every appointment and invoice,
-// pulled from one endpoint and filtered/searched client-side -- small
-// enough datasets that a round trip to the server per keystroke isn't
-// worth it.
-async function loadHistory() {
-  try {
-    window.allHistory = await admin.getHistory();
-  } catch (err) {
-    window.allHistory = [];
-  }
-  renderHistoryList();
-}
-
-function renderHistoryList() {
-  const list = document.getElementById("history-list");
-  const all = window.allHistory || [];
-  const search = document.getElementById("history-search-input").value.trim().toLowerCase();
-  const typeFilter = document.getElementById("history-type-filter").value;
-
-  const filtered = all.filter(function(item) {
-    if (typeFilter !== "all" && item.type !== typeFilter) return false;
-    if (search && !(item.customer_name || "").toLowerCase().includes(search)) return false;
-    return true;
-  });
-
-  if (filtered.length === 0) {
-    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">Nothing to show yet.</p>';
-    return;
-  }
-
-  list.innerHTML = filtered.map(function(item) {
-    const dateStr = item.date ? String(item.date).slice(0, 10) : "";
-    if (item.type === "appointment") {
-      const typeLabel = EVENT_TYPE_LABELS[item.event_type] || "Job";
-      return '<div class="card invoice-card" onclick="openJobSheet(\'' + item.id + '\')">' +
-        '<div>' +
-          '<span class="type-badge">' + typeLabel + '</span>' +
-          '<strong style="margin-left:6px;">' + item.title + '</strong>' +
-          '<div style="font-size:13px; margin-top:4px;">' + item.customer_name + '</div>' +
-        '</div>' +
-        '<div style="text-align:right;">' +
-          '<div style="font-size:12px; color:#8A8578;">' + dateStr + '</div>' +
-        '</div>' +
-      '</div>';
-    }
-    return '<div class="card invoice-card" onclick="openInvoiceSheet(\'' + item.id + '\')">' +
-      '<div>' +
-        '<strong>Invoice #' + item.invoice_number + '</strong> ' + invoiceStatusBadge(item) +
-        '<div style="font-size:13px; margin-top:4px;">' + item.customer_name + '</div>' +
-      '</div>' +
-      '<div style="text-align:right;">' +
-        '<div class="stat-value" style="font-size:16px;">' + fmtMoney(item.total) + '</div>' +
-        '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' + dateStr + '</div>' +
-      '</div>' +
-    '</div>';
-  }).join("");
 }
 
 async function sendInvoiceConfirm() {
