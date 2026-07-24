@@ -212,6 +212,22 @@
   .color-swatches { display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap; }
   .color-swatch { width: 30px; height: 30px; border-radius: 50%; border: 2px solid transparent; box-shadow: 0 2px 6px rgba(31,36,33,0.15); }
   .color-swatch.selected { border-color: var(--charcoal); }
+
+  /* ---------- Invoices ---------- */
+  .badge-draft { color: var(--charcoal); background: var(--line); }
+  .badge-sent { color: #fff; background: linear-gradient(135deg, #5C9481, var(--teal-deep)); box-shadow: 0 3px 8px rgba(43,69,60,0.35); }
+  .badge-overdue { color: #fff; background: linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow: 0 3px 8px rgba(166,61,32,0.35); }
+  .badge-paid { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
+  .badge-void { color: #8A8578; background: transparent; border: 1.5px solid var(--line); }
+  .invoice-card { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .line-item-row { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; background: #FBFAF7; }
+  .line-item-row input { margin-bottom: 6px; }
+  .line-item-row-foot { display: flex; justify-content: space-between; align-items: center; }
+  .line-item-amount { font-size: 13px; color: #8A8578; }
+  .line-item-remove { background: transparent; border: none; color: var(--rust); font-size: 13px; font-weight: 600; padding: 4px; }
+  .invoice-totals { border-top: 1.5px solid var(--line); margin-top: 10px; padding-top: 10px; font-size: 14px; }
+  .invoice-totals-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
+  .invoice-totals-row.grand { font-weight: 700; font-size: 16px; }
 </style>
 </head>
 <body>
@@ -292,6 +308,18 @@
       </div>
       <input id="customer-search-input" placeholder="Search by name..." oninput="renderCustomersList()" />
       <div id="customers-list"></div>
+    </section>
+
+    <section id="view-invoices" class="view">
+      <div class="view-header"><h2>Invoices</h2></div>
+      <div class="card">
+        <button class="btn-primary" onclick="openInvoiceSheet()">New invoice</button>
+      </div>
+      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
+        Invoices are created as drafts, then emailed to the customer once you tap Send.
+        Card payments aren't processed in this app yet -- Mark Paid just records how payment came in.
+      </p>
+      <div id="invoices-list"></div>
     </section>
 
     <section id="view-settings" class="view">
@@ -382,6 +410,7 @@
     <button class="nav-btn" data-view="employees" onclick="showView('employees')"><span class="dot"></span>Employees</button>
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
+    <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Invoices</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
   </div>
 </div>
@@ -505,6 +534,72 @@
   <div class="sheet-body" id="customer-history-content"></div>
 </div>
 
+<div class="sheet" id="invoice-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeInvoiceSheet()">&times;</button>
+    <h2 id="invoice-sheet-title">New invoice</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="invoice-sheet-status" style="display:none; margin-bottom:10px;"></div>
+    <div id="invoice-sheet-error" class="error"></div>
+
+    <label>Customer</label>
+    <select id="invoice-customer-input" onchange="recalcInvoiceTotals()"></select>
+
+    <label>Payment terms</label>
+    <select id="invoice-terms-input" onchange="renderInvoiceDueDatePreview()">
+      <option value="due_on_receipt">Due on receipt</option>
+      <option value="net_15">Net 15</option>
+      <option value="net_30">Net 30</option>
+      <option value="net_60">Net 60</option>
+      <option value="net_90">Net 90</option>
+    </select>
+    <label>Issue date</label>
+    <input id="invoice-issue-date-input" type="date" onchange="renderInvoiceDueDatePreview()" />
+    <p id="invoice-due-date-preview" style="font-size:12px; color:#8A8578; margin-top:-6px;"></p>
+
+    <label>Notes (optional)</label>
+    <input id="invoice-notes-input" placeholder="Payment instructions, job reference, etc." />
+
+    <label>Line items</label>
+    <div id="invoice-line-items-list"></div>
+    <button class="btn-secondary" style="margin-bottom:14px;" onclick="addInvoiceLineItemRow()">+ Add line item</button>
+
+    <label>Tax rate (%, optional)</label>
+    <input id="invoice-tax-rate-input" type="number" min="0" step="0.01" placeholder="0" oninput="recalcInvoiceTotals()" />
+
+    <div class="invoice-totals">
+      <div class="invoice-totals-row"><span>Subtotal</span><span id="invoice-subtotal-display">$0.00</span></div>
+      <div class="invoice-totals-row"><span id="invoice-tax-label-display">Tax</span><span id="invoice-tax-display">$0.00</span></div>
+      <div class="invoice-totals-row grand"><span>Total due</span><span id="invoice-total-display">$0.00</span></div>
+    </div>
+
+    <button class="btn-primary" id="invoice-save-btn" onclick="submitInvoice()">Save draft</button>
+    <button class="btn-small" id="invoice-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendInvoiceConfirm()">Send to customer</button>
+    <button class="btn-small" id="invoice-markpaid-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="openMarkPaidSheet()">Mark paid</button>
+    <button class="btn-small" id="invoice-void-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="voidInvoiceConfirm()">Void</button>
+  </div>
+</div>
+
+<div class="sheet" id="mark-paid-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeMarkPaidSheet()">&times;</button>
+    <h2>Mark as paid</h2>
+  </div>
+  <div class="sheet-body">
+    <p style="font-size:12px; color:#8A8578; margin-top:-4px;">This doesn't process a payment -- it just records how the customer paid.</p>
+    <label>Payment method</label>
+    <select id="mark-paid-method-input">
+      <option value="check">Check</option>
+      <option value="cash">Cash</option>
+      <option value="card">Card</option>
+      <option value="other">Other</option>
+    </select>
+    <button class="btn-primary" onclick="submitMarkPaid()">Confirm</button>
+    <div id="mark-paid-error" class="error"></div>
+  </div>
+</div>
+
 <script>
 const API_BASE_URL = "https://site-clock-backend-production.up.railway.app";
 const TOKEN_KEY = "coll-admin-token";
@@ -584,6 +679,16 @@ const admin = {
   updateCustomer: (id, patch) => apiFetch(`/api/admin/customers/${id}`, { method: "PATCH", body: patch }),
   deleteCustomer: (id) => apiFetch(`/api/admin/customers/${id}`, { method: "DELETE" }),
   getCustomerEvents: (id) => apiFetch(`/api/admin/customers/${id}/events`),
+
+  listInvoices: () => apiFetch("/api/admin/invoices"),
+  getInvoice: (id) => apiFetch(`/api/admin/invoices/${id}`),
+  addInvoice: (invoice) => apiFetch("/api/admin/invoices", { method: "POST", body: invoice }),
+  updateInvoice: (id, patch) => apiFetch(`/api/admin/invoices/${id}`, { method: "PATCH", body: patch }),
+  deleteInvoice: (id) => apiFetch(`/api/admin/invoices/${id}`, { method: "DELETE" }),
+  sendInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/send`, { method: "POST" }),
+  markInvoicePaid: (id, paymentMethod) =>
+    apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod } }),
+  voidInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/void`, { method: "PATCH" }),
 };
 
 // ---------- Init / auth ----------
@@ -643,6 +748,7 @@ function showApp() {
   loadEmployees();
   loadCrews();
   loadCustomers();
+  loadInvoices();
   renderScheduleCalendar();
   loadShopLocation();
   loadPayrollEmail();
@@ -1359,6 +1465,292 @@ async function openCustomerHistorySheet(id) {
 }
 function closeCustomerHistorySheet() {
   document.getElementById("customer-history-sheet").classList.remove("visible");
+}
+
+// ---------- Invoices ----------
+// Invoices bill a customer with line items, configurable payment terms,
+// and an emailed PDF. Card/check payments aren't processed in this app --
+// "Mark paid" just records how payment came in, so nothing here talks to
+// a payment processor.
+
+window.allInvoices = [];
+let editingInvoiceId = null;
+let markPaidInvoiceId = null;
+const PAYMENT_TERMS_LABELS = {
+  due_on_receipt: "Due on receipt",
+  net_15: "Net 15",
+  net_30: "Net 30",
+  net_60: "Net 60",
+  net_90: "Net 90",
+};
+
+function fmtMoney(n) {
+  return "$" + Number(n || 0).toFixed(2);
+}
+
+function invoiceStatusBadge(inv) {
+  if (inv.status === "paid") return '<span class="badge badge-paid">Paid</span>';
+  if (inv.status === "void") return '<span class="badge badge-void">Void</span>';
+  if (inv.status === "sent" && inv.is_overdue) return '<span class="badge badge-overdue">Overdue</span>';
+  if (inv.status === "sent") return '<span class="badge badge-sent">Sent</span>';
+  return '<span class="badge badge-draft">Draft</span>';
+}
+
+async function loadInvoices() {
+  window.allInvoices = await admin.listInvoices();
+  renderInvoicesList();
+}
+
+function renderInvoicesList() {
+  const list = document.getElementById("invoices-list");
+  const invoices = window.allInvoices || [];
+  if (invoices.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No invoices yet.</p>';
+    return;
+  }
+  list.innerHTML = invoices.map(function(inv) {
+    const action = inv.status === "draft"
+      ? '<button class="btn-small" style="background: var(--teal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">Edit</button>'
+      : '<button class="btn-small" style="background: var(--charcoal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">View</button>';
+    return '<div class="card invoice-card">' +
+      '<div>' +
+        '<strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) +
+        '<div style="font-size:13px; margin-top:4px;">' + inv.customer_name + '</div>' +
+        '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
+          PAYMENT_TERMS_LABELS[inv.payment_terms] + ' &middot; Due ' + inv.due_date.slice(0, 10) +
+        '</div>' +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<div class="stat-value" style="font-size:17px;">' + fmtMoney(inv.total) + '</div>' +
+        '<div style="margin-top:8px;">' + action + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function addInvoiceLineItemRow(item) {
+  const list = document.getElementById("invoice-line-items-list");
+  const row = document.createElement("div");
+  row.className = "line-item-row";
+  row.innerHTML =
+    '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? item.description.replace(/"/g, "&quot;") : "") + '" oninput="recalcInvoiceTotals()" />' +
+    '<div style="display:flex; gap:8px;">' +
+      '<input class="line-item-qty" type="number" min="0" step="0.01" placeholder="Qty" value="' + (item ? item.quantity : 1) + '" oninput="recalcInvoiceTotals()" style="flex:1;" />' +
+      '<input class="line-item-price" type="number" min="0" step="0.01" placeholder="Unit price" value="' + (item ? item.unit_price : "") + '" oninput="recalcInvoiceTotals()" style="flex:1;" />' +
+    '</div>' +
+    '<div class="line-item-row-foot">' +
+      '<span class="line-item-amount">$0.00</span>' +
+      '<button type="button" class="line-item-remove" onclick="removeInvoiceLineItemRow(this)">Remove</button>' +
+    '</div>';
+  list.appendChild(row);
+  recalcInvoiceTotals();
+}
+
+function removeInvoiceLineItemRow(btn) {
+  btn.closest(".line-item-row").remove();
+  recalcInvoiceTotals();
+}
+
+function readInvoiceLineItems() {
+  return Array.from(document.querySelectorAll("#invoice-line-items-list .line-item-row")).map(function(row) {
+    return {
+      description: row.querySelector(".line-item-desc").value.trim(),
+      quantity: Number(row.querySelector(".line-item-qty").value) || 0,
+      unit_price: Number(row.querySelector(".line-item-price").value) || 0,
+    };
+  });
+}
+
+function recalcInvoiceTotals() {
+  const items = readInvoiceLineItems();
+  const rows = document.querySelectorAll("#invoice-line-items-list .line-item-row");
+  rows.forEach(function(row, i) {
+    const amount = items[i].quantity * items[i].unit_price;
+    row.querySelector(".line-item-amount").textContent = fmtMoney(amount);
+  });
+  const subtotal = items.reduce(function(sum, it) { return sum + it.quantity * it.unit_price; }, 0);
+  const taxRate = Number(document.getElementById("invoice-tax-rate-input").value) || 0;
+  const taxAmount = subtotal * (taxRate / 100);
+  const total = subtotal + taxAmount;
+  document.getElementById("invoice-subtotal-display").textContent = fmtMoney(subtotal);
+  document.getElementById("invoice-tax-label-display").textContent = "Tax" + (taxRate ? " (" + taxRate + "%)" : "");
+  document.getElementById("invoice-tax-display").textContent = fmtMoney(taxAmount);
+  document.getElementById("invoice-total-display").textContent = fmtMoney(total);
+}
+
+function renderInvoiceDueDatePreview() {
+  const issueDateVal = document.getElementById("invoice-issue-date-input").value;
+  const terms = document.getElementById("invoice-terms-input").value;
+  const days = { due_on_receipt: 0, net_15: 15, net_30: 30, net_60: 60, net_90: 90 }[terms] || 0;
+  if (!issueDateVal) { document.getElementById("invoice-due-date-preview").textContent = ""; return; }
+  const d = new Date(issueDateVal + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + days);
+  document.getElementById("invoice-due-date-preview").textContent = "Due date: " + d.toISOString().slice(0, 10);
+}
+
+async function openInvoiceSheet(invoiceId) {
+  editingInvoiceId = invoiceId || null;
+  const errEl = document.getElementById("invoice-sheet-error");
+  errEl.style.display = "none";
+
+  let invoice = null;
+  if (invoiceId) {
+    invoice = await admin.getInvoice(invoiceId);
+  }
+  const isDraft = !invoice || invoice.status === "draft";
+
+  document.getElementById("invoice-sheet-title").textContent = invoice ? "Invoice #" + invoice.invoice_number : "New invoice";
+  const statusEl = document.getElementById("invoice-sheet-status");
+  if (invoice) {
+    statusEl.style.display = "block";
+    statusEl.innerHTML = invoiceStatusBadge(Object.assign({}, invoice, {
+      is_overdue: invoice.status === "sent" && invoice.due_date.slice(0, 10) < todayStr(),
+    }));
+  } else {
+    statusEl.style.display = "none";
+  }
+
+  const customers = window.allCustomers || [];
+  document.getElementById("invoice-customer-input").innerHTML =
+    customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join("");
+  document.getElementById("invoice-customer-input").value = invoice ? invoice.customer_id : (customers[0] ? customers[0].id : "");
+
+  document.getElementById("invoice-terms-input").value = invoice ? invoice.payment_terms : "due_on_receipt";
+  document.getElementById("invoice-issue-date-input").value = invoice ? invoice.issue_date.slice(0, 10) : todayStr();
+  document.getElementById("invoice-notes-input").value = invoice ? (invoice.notes || "") : "";
+  document.getElementById("invoice-tax-rate-input").value = invoice ? Number(invoice.tax_rate) || "" : "";
+
+  document.getElementById("invoice-line-items-list").innerHTML = "";
+  const items = invoice ? invoice.line_items : [];
+  if (items.length > 0) {
+    items.forEach(function(item) { addInvoiceLineItemRow(item); });
+  } else {
+    addInvoiceLineItemRow();
+  }
+  renderInvoiceDueDatePreview();
+  recalcInvoiceTotals();
+
+  const fieldIds = [
+    "invoice-customer-input", "invoice-terms-input", "invoice-issue-date-input",
+    "invoice-notes-input", "invoice-tax-rate-input",
+  ];
+  fieldIds.forEach(function(id) { document.getElementById(id).disabled = !isDraft; });
+  document.querySelectorAll("#invoice-line-items-list input").forEach(function(el) { el.disabled = !isDraft; });
+  document.querySelectorAll("#invoice-line-items-list .line-item-remove").forEach(function(el) { el.style.display = isDraft ? "" : "none"; });
+
+  document.getElementById("invoice-save-btn").style.display = isDraft ? "" : "none";
+  document.getElementById("invoice-send-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
+  document.getElementById("invoice-send-btn").textContent = invoice && invoice.status !== "draft" ? "Resend to customer" : "Send to customer";
+  document.getElementById("invoice-markpaid-btn").style.display = invoice && invoice.status === "sent" ? "" : "none";
+  document.getElementById("invoice-void-btn").style.display = invoice && invoice.status !== "void" && invoice.status !== "paid" ? "" : "none";
+
+  document.getElementById("invoice-sheet").classList.add("visible");
+}
+
+function closeInvoiceSheet() {
+  document.getElementById("invoice-sheet").classList.remove("visible");
+  editingInvoiceId = null;
+}
+
+async function submitInvoice() {
+  const errEl = document.getElementById("invoice-sheet-error");
+  errEl.style.display = "none";
+
+  const customerId = document.getElementById("invoice-customer-input").value;
+  const lineItems = readInvoiceLineItems();
+
+  if (!customerId) {
+    errEl.textContent = "Add a customer first (Customers tab) before creating an invoice.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (lineItems.length === 0 || lineItems.some(function(it) { return !it.description; })) {
+    errEl.textContent = "Every line item needs a description.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  const payload = {
+    customer_id: customerId,
+    payment_terms: document.getElementById("invoice-terms-input").value,
+    issue_date: document.getElementById("invoice-issue-date-input").value,
+    tax_rate: Number(document.getElementById("invoice-tax-rate-input").value) || 0,
+    notes: document.getElementById("invoice-notes-input").value.trim(),
+    line_items: lineItems,
+  };
+
+  try {
+    if (editingInvoiceId) {
+      await admin.updateInvoice(editingInvoiceId, payload);
+    } else {
+      await admin.addInvoice(payload);
+    }
+    closeInvoiceSheet();
+    await loadInvoices();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save invoice.";
+    errEl.style.display = "block";
+  }
+}
+
+async function deleteInvoiceConfirm(id) {
+  if (!confirm("Delete this draft invoice? This can't be undone.")) return;
+  await admin.deleteInvoice(id);
+  await loadInvoices();
+}
+
+async function sendInvoiceConfirm() {
+  const errEl = document.getElementById("invoice-sheet-error");
+  errEl.style.display = "none";
+  if (!editingInvoiceId) {
+    errEl.textContent = "Save the invoice as a draft first.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.sendInvoice(editingInvoiceId);
+    await loadInvoices();
+    await openInvoiceSheet(editingInvoiceId);
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't send invoice.";
+    errEl.style.display = "block";
+  }
+}
+
+function openMarkPaidSheet() {
+  markPaidInvoiceId = editingInvoiceId;
+  document.getElementById("mark-paid-error").style.display = "none";
+  document.getElementById("mark-paid-sheet").classList.add("visible");
+}
+
+function closeMarkPaidSheet() {
+  document.getElementById("mark-paid-sheet").classList.remove("visible");
+  markPaidInvoiceId = null;
+}
+
+async function submitMarkPaid() {
+  const method = document.getElementById("mark-paid-method-input").value;
+  const errEl = document.getElementById("mark-paid-error");
+  try {
+    await admin.markInvoicePaid(markPaidInvoiceId, method);
+    closeMarkPaidSheet();
+    closeInvoiceSheet();
+    await loadInvoices();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't mark invoice as paid.";
+    errEl.style.display = "block";
+  }
+}
+
+async function voidInvoiceConfirm() {
+  if (!confirm("Void this invoice? It'll stay on record but can no longer be sent or paid.")) return;
+  try {
+    await admin.voidInvoice(editingInvoiceId);
+    closeInvoiceSheet();
+    await loadInvoices();
+  } catch (err) {
+    alert(err.message || "Couldn't void invoice.");
+  }
 }
 
 // ---------- Settings ----------
