@@ -330,6 +330,20 @@
       <div id="invoices-list"></div>
     </section>
 
+    <section id="view-history" class="view">
+      <div class="view-header"><h2>History</h2></div>
+      <div class="card">
+        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Every appointment and invoice for this company, newest first.</p>
+        <input id="history-search-input" placeholder="Search by customer..." oninput="renderHistoryList()" />
+        <select id="history-type-filter" style="margin-top:8px;" onchange="renderHistoryList()">
+          <option value="all">All</option>
+          <option value="appointment">Appointments</option>
+          <option value="invoice">Invoices</option>
+        </select>
+      </div>
+      <div id="history-list"></div>
+    </section>
+
     <section id="view-settings" class="view">
       <div class="view-header"><h2>Settings</h2></div>
 
@@ -441,6 +455,7 @@
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
     <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Invoices</button>
+    <button class="nav-btn" data-view="history" onclick="showView('history')"><span class="dot"></span>History</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
   </div>
 </div>
@@ -767,6 +782,8 @@ const admin = {
     return true;
   },
 
+  getHistory: () => apiFetch("/api/admin/history"),
+
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
@@ -839,6 +856,7 @@ function showApp() {
   loadCatalogItems();
   loadCompanyLogo();
   loadCompanyTimezone();
+  loadHistory();
   renderScheduleCalendar();
   loadShopLocation();
   loadPayrollEmail();
@@ -1726,11 +1744,7 @@ async function openInvoiceSheet(invoiceId) {
 
   document.getElementById("invoice-line-items-list").innerHTML = "";
   const items = invoice ? invoice.line_items : [];
-  if (items.length > 0) {
-    items.forEach(function(item) { addInvoiceLineItemRow(item); });
-  } else {
-    addInvoiceLineItemRow();
-  }
+  items.forEach(function(item) { addInvoiceLineItemRow(item); });
   renderInvoiceDueDatePreview();
   recalcInvoiceTotals();
 
@@ -1816,6 +1830,64 @@ async function viewInvoicePdf(id) {
   } catch (err) {
     alert(err.message || "Couldn't open invoice PDF.");
   }
+}
+
+// History: a combined, newest-first feed of every appointment and invoice,
+// pulled from one endpoint and filtered/searched client-side -- small
+// enough datasets that a round trip to the server per keystroke isn't
+// worth it.
+async function loadHistory() {
+  try {
+    window.allHistory = await admin.getHistory();
+  } catch (err) {
+    window.allHistory = [];
+  }
+  renderHistoryList();
+}
+
+function renderHistoryList() {
+  const list = document.getElementById("history-list");
+  const all = window.allHistory || [];
+  const search = document.getElementById("history-search-input").value.trim().toLowerCase();
+  const typeFilter = document.getElementById("history-type-filter").value;
+
+  const filtered = all.filter(function(item) {
+    if (typeFilter !== "all" && item.type !== typeFilter) return false;
+    if (search && !(item.customer_name || "").toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">Nothing to show yet.</p>';
+    return;
+  }
+
+  list.innerHTML = filtered.map(function(item) {
+    const dateStr = item.date ? String(item.date).slice(0, 10) : "";
+    if (item.type === "appointment") {
+      const typeLabel = EVENT_TYPE_LABELS[item.event_type] || "Job";
+      return '<div class="card invoice-card" onclick="openJobSheet(\'' + item.id + '\')">' +
+        '<div>' +
+          '<span class="type-badge">' + typeLabel + '</span>' +
+          '<strong style="margin-left:6px;">' + item.title + '</strong>' +
+          '<div style="font-size:13px; margin-top:4px;">' + item.customer_name + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;">' +
+          '<div style="font-size:12px; color:#8A8578;">' + dateStr + '</div>' +
+        '</div>' +
+      '</div>';
+    }
+    return '<div class="card invoice-card" onclick="openInvoiceSheet(\'' + item.id + '\')">' +
+      '<div>' +
+        '<strong>Invoice #' + item.invoice_number + '</strong> ' + invoiceStatusBadge(item) +
+        '<div style="font-size:13px; margin-top:4px;">' + item.customer_name + '</div>' +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<div class="stat-value" style="font-size:16px;">' + fmtMoney(item.total) + '</div>' +
+        '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' + dateStr + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
 }
 
 async function sendInvoiceConfirm() {
