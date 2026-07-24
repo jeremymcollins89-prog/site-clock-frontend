@@ -220,6 +220,15 @@
   .badge-paid { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
   .badge-void { color: #8A8578; background: transparent; border: 1.5px solid var(--line); }
   .invoice-card { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
+  .range-btn {
+    background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px;
+    padding: 6px 12px; font-size: 12.5px; color: var(--charcoal);
+  }
+  .range-btn.active { background: var(--charcoal); color: #fff; }
+  .report-stat-card {
+    flex: 1; min-width: 130px; background: #fff; border: 1px solid var(--line);
+    border-radius: 12px; padding: 12px;
+  }
   .line-item-row { border: 1px solid var(--line); border-radius: 12px; padding: 10px; margin-bottom: 8px; background: #FBFAF7; }
   .line-item-row input { margin-bottom: 6px; }
   .line-item-row-foot { display: flex; justify-content: space-between; align-items: center; }
@@ -328,6 +337,22 @@
         Card payments aren't processed in this app yet -- Mark Paid just records how payment came in.
       </p>
       <div id="invoices-list"></div>
+    </section>
+
+    <section id="view-reports" class="view">
+      <div class="view-header"><h2>Reports</h2></div>
+      <div class="card">
+        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Labor hours, invoiced totals, and paid totals for a time range.</p>
+        <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
+          <button class="range-btn active" data-range="1w" onclick="selectReportRange('1w')">1 Week</button>
+          <button class="range-btn" data-range="1m" onclick="selectReportRange('1m')">1 Month</button>
+          <button class="range-btn" data-range="3m" onclick="selectReportRange('3m')">3 Months</button>
+          <button class="range-btn" data-range="6m" onclick="selectReportRange('6m')">6 Months</button>
+          <button class="range-btn" data-range="12m" onclick="selectReportRange('12m')">12 Months</button>
+          <button class="range-btn" data-range="yoy" onclick="selectReportRange('yoy')">This Year vs Last Year</button>
+        </div>
+      </div>
+      <div id="reports-content"></div>
     </section>
 
     <section id="view-settings" class="view">
@@ -441,6 +466,7 @@
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
     <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Invoices</button>
+    <button class="nav-btn" data-view="reports" onclick="showView('reports')"><span class="dot"></span>Reports</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
   </div>
 </div>
@@ -767,6 +793,8 @@ const admin = {
     return true;
   },
 
+  getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
+
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
@@ -839,6 +867,7 @@ function showApp() {
   loadCatalogItems();
   loadCompanyLogo();
   loadCompanyTimezone();
+  loadReportSummary();
   renderScheduleCalendar();
   loadShopLocation();
   loadPayrollEmail();
@@ -1885,6 +1914,109 @@ async function voidInvoiceConfirm() {
     await loadInvoices();
   } catch (err) {
     alert(err.message || "Couldn't void invoice.");
+  }
+}
+
+// ---------- Reports ----------
+// Preset time ranges (rolling, ending today) plus a this-year-vs-last-year
+// comparison, pulling labor hours + invoice totals from one backend
+// endpoint. "Invoiced" and "Paid" are deliberately different numbers -- see
+// the backend route's comment.
+let currentReportRange = "1w";
+
+function addMonths(date, n) {
+  const d = new Date(date);
+  d.setMonth(d.getMonth() + n);
+  return d;
+}
+
+function reportRangeBounds(range) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  if (range === "1w") {
+    const start = new Date(today);
+    start.setDate(start.getDate() - 6);
+    return { start: start, end: today };
+  }
+  const monthsBack = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 }[range] || 1;
+  return { start: addMonths(today, -monthsBack), end: today };
+}
+
+function fmtHours(hours) {
+  return (Math.round(hours * 10) / 10) + "h";
+}
+
+function pctChange(current, previous) {
+  if (!previous) return current ? "+100%" : "—";
+  const pct = ((current - previous) / previous) * 100;
+  return (pct >= 0 ? "+" : "") + pct.toFixed(0) + "%";
+}
+
+function renderReportStatCard(label, value, sub) {
+  return '<div class="report-stat-card">' +
+    '<div style="font-size:12px; color:#8A8578;">' + label + '</div>' +
+    '<div class="stat-value" style="font-size:20px;">' + value + '</div>' +
+    (sub ? '<div style="font-size:11px; color:#8A8578; margin-top:2px;">' + sub + '</div>' : '') +
+  '</div>';
+}
+
+function selectReportRange(range) {
+  currentReportRange = range;
+  document.querySelectorAll(".range-btn").forEach(function(b) { b.classList.toggle("active", b.dataset.range === range); });
+  loadReportSummary();
+}
+
+async function loadReportSummary() {
+  const content = document.getElementById("reports-content");
+  content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
+
+  try {
+    if (currentReportRange === "yoy") {
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const janThisYear = new Date(today.getFullYear(), 0, 1);
+      const janLastYear = new Date(today.getFullYear() - 1, 0, 1);
+      const sameDayLastYear = new Date(today.getFullYear() - 1, today.getMonth(), today.getDate());
+
+      const thisYearData = await admin.getReportSummary(dateToStr(janThisYear), dateToStr(today));
+      const lastYearData = await admin.getReportSummary(dateToStr(janLastYear), dateToStr(sameDayLastYear));
+
+      content.innerHTML =
+        '<div style="margin-bottom:16px;">' +
+          '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">This year (' + dateToStr(janThisYear) + ' – ' + dateToStr(today) + ')</div>' +
+          '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours)) +
+            renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices") +
+            renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices") +
+          '</div>' +
+        '</div>' +
+        '<div>' +
+          '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">Last year (' + dateToStr(janLastYear) + ' – ' + dateToStr(sameDayLastYear) + ')</div>' +
+          '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+            renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours)) +
+            renderReportStatCard("Invoiced", fmtMoney(lastYearData.invoice_total), lastYearData.invoice_count + " invoices") +
+            renderReportStatCard("Paid", fmtMoney(lastYearData.paid_invoice_total), lastYearData.paid_invoice_count + " invoices") +
+          '</div>' +
+        '</div>' +
+        '<div style="margin-top:14px; font-size:12px; color:#8A8578;">' +
+          'Change vs. last year: Labor hours ' + pctChange(thisYearData.labor_hours, lastYearData.labor_hours) +
+          ' &middot; Invoiced ' + pctChange(thisYearData.invoice_total, lastYearData.invoice_total) +
+          ' &middot; Paid ' + pctChange(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total) +
+        '</div>';
+      return;
+    }
+
+    const bounds = reportRangeBounds(currentReportRange);
+    const data = await admin.getReportSummary(dateToStr(bounds.start), dateToStr(bounds.end));
+    content.innerHTML =
+      '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
+        renderReportStatCard("Labor hours", fmtHours(data.labor_hours)) +
+        renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices") +
+        renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices") +
+      '</div>' +
+      '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + dateToStr(bounds.start) + ' – ' + dateToStr(bounds.end) + '</div>';
+  } catch (err) {
+    content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load report data.</p>';
   }
 }
 
