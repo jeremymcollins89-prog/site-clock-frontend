@@ -334,6 +334,18 @@
       <div class="view-header"><h2>Settings</h2></div>
 
       <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Company logo</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Shown at the top of every invoice PDF. PNG, JPEG, or WebP, up to 3MB.</p>
+        <div id="company-logo-preview-wrap" style="display:none; margin-bottom:10px;">
+          <img id="company-logo-preview" style="max-width:160px; max-height:70px; display:block; border:1px solid var(--line); border-radius:10px; padding:6px; background:#fff;" />
+        </div>
+        <input id="company-logo-input" type="file" accept="image/png,image/jpeg,image/webp" onchange="handleLogoFileSelected(event)" />
+        <button class="btn-secondary" id="remove-logo-btn" style="display:none;" onclick="removeCompanyLogo()">Remove logo</button>
+        <div id="company-logo-error" class="error"></div>
+        <div id="company-logo-success" class="success-msg"></div>
+      </div>
+
+      <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Payroll email</h3>
         <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Where "Submit Hours for Payroll" sends timesheets. Required before employees can submit hours.</p>
         <label>Payroll email</label>
@@ -722,6 +734,11 @@ const admin = {
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
   deleteCatalogItem: (id) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "DELETE" }),
+
+  getCompanyLogo: () => apiFetch("/api/admin/company-logo"),
+  updateCompanyLogo: (logoBase64, mimeType) =>
+    apiFetch("/api/admin/company-logo", { method: "PUT", body: { logo_base64: logoBase64, mime_type: mimeType } }),
+  deleteCompanyLogo: () => apiFetch("/api/admin/company-logo", { method: "DELETE" }),
 };
 
 // ---------- Init / auth ----------
@@ -783,6 +800,7 @@ function showApp() {
   loadCustomers();
   loadInvoices();
   loadCatalogItems();
+  loadCompanyLogo();
   renderScheduleCalendar();
   loadShopLocation();
   loadPayrollEmail();
@@ -1976,6 +1994,76 @@ async function saveShopLocation() {
     successEl.style.display = "block";
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save shop location.";
+    errEl.style.display = "block";
+  }
+}
+
+// ---------- Company logo ----------
+async function loadCompanyLogo() {
+  try {
+    const data = await admin.getCompanyLogo();
+    renderCompanyLogoPreview(data.logo);
+  } catch (err) {
+    // non-fatal — leave the preview empty if this fails
+  }
+}
+
+function renderCompanyLogoPreview(dataUrl) {
+  const wrap = document.getElementById("company-logo-preview-wrap");
+  const img = document.getElementById("company-logo-preview");
+  const removeBtn = document.getElementById("remove-logo-btn");
+  if (dataUrl) {
+    img.src = dataUrl;
+    wrap.style.display = "block";
+    removeBtn.style.display = "";
+  } else {
+    wrap.style.display = "none";
+    removeBtn.style.display = "none";
+  }
+}
+
+function handleLogoFileSelected(event) {
+  const file = event.target.files && event.target.files[0];
+  const errEl = document.getElementById("company-logo-error");
+  const successEl = document.getElementById("company-logo-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+  if (!file) return;
+
+  if (file.size > 3 * 1024 * 1024) {
+    errEl.textContent = "Logo must be 3MB or smaller.";
+    errEl.style.display = "block";
+    event.target.value = "";
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function() {
+    const dataUrl = reader.result;
+    const base64 = dataUrl.split(",")[1];
+    try {
+      await admin.updateCompanyLogo(base64, file.type);
+      renderCompanyLogoPreview(dataUrl);
+      successEl.textContent = "Logo saved.";
+      successEl.style.display = "block";
+    } catch (err) {
+      errEl.textContent = err.message || "Couldn't save logo.";
+      errEl.style.display = "block";
+    }
+    event.target.value = "";
+  };
+  reader.readAsDataURL(file);
+}
+
+async function removeCompanyLogo() {
+  if (!confirm("Remove the company logo from invoices?")) return;
+  const errEl = document.getElementById("company-logo-error");
+  errEl.style.display = "none";
+  try {
+    await admin.deleteCompanyLogo();
+    renderCompanyLogoPreview(null);
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't remove logo.";
     errEl.style.display = "block";
   }
 }
