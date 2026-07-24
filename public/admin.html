@@ -1574,6 +1574,9 @@ function renderInvoicesList() {
         '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
           PAYMENT_TERMS_LABELS[inv.payment_terms] + ' &middot; Due ' + inv.due_date.slice(0, 10) +
         '</div>' +
+        (inv.reminder_count > 0
+          ? '<div style="font-size:11px; color:#8A8578; margin-top:2px;">Reminders sent: ' + inv.reminder_count + ' of 5</div>'
+          : '') +
       '</div>' +
       '<div style="text-align:right;">' +
         '<div class="stat-value" style="font-size:17px;">' + fmtMoney(inv.total) + '</div>' +
@@ -1658,9 +1661,16 @@ async function openInvoiceSheet(invoiceId) {
   const statusEl = document.getElementById("invoice-sheet-status");
   if (invoice) {
     statusEl.style.display = "block";
-    statusEl.innerHTML = invoiceStatusBadge(Object.assign({}, invoice, {
+    let statusHtml = invoiceStatusBadge(Object.assign({}, invoice, {
       is_overdue: invoice.status === "sent" && invoice.due_date.slice(0, 10) < todayStr(),
     }));
+    if (invoice.reminder_count > 0) {
+      statusHtml += '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
+        'Reminders sent: ' + invoice.reminder_count + ' of 5' +
+        (invoice.last_reminder_sent_at ? ' &middot; last sent ' + invoice.last_reminder_sent_at.slice(0, 10) : '') +
+      '</div>';
+    }
+    statusEl.innerHTML = statusHtml;
   } else {
     statusEl.style.display = "none";
   }
