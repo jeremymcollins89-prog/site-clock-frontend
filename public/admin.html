@@ -586,7 +586,8 @@
       <div class="invoice-totals-row grand"><span>Total due</span><span id="invoice-total-display">$0.00</span></div>
     </div>
 
-    <button class="btn-primary" id="invoice-save-btn" onclick="submitInvoice()">Save draft</button>
+    <p id="invoice-save-hint" style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">Saving emails this invoice to the customer right away, unless they don't have an email on file.</p>
+    <button class="btn-primary" id="invoice-save-btn" onclick="submitInvoice()">Save &amp; send to customer</button>
     <button class="btn-small" id="invoice-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendInvoiceConfirm()">Send to customer</button>
     <button class="btn-small" id="invoice-markpaid-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="openMarkPaidSheet()">Mark paid</button>
     <button class="btn-small" id="invoice-void-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="voidInvoiceConfirm()">Void</button>
@@ -1542,9 +1543,12 @@ function renderInvoicesList() {
     return;
   }
   list.innerHTML = invoices.map(function(inv) {
-    const action = inv.status === "draft"
+    let action = inv.status === "draft"
       ? '<button class="btn-small" style="background: var(--teal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">Edit</button>'
       : '<button class="btn-small" style="background: var(--charcoal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">View</button>';
+    if (inv.status === "sent") {
+      action += '<button class="btn-small" style="background: var(--teal); margin-left:6px;" onclick="openMarkPaidSheet(\'' + inv.id + '\')">Mark paid</button>';
+    }
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) +
@@ -1672,6 +1676,7 @@ async function openInvoiceSheet(invoiceId) {
   document.querySelectorAll("#invoice-line-items-list .line-item-remove").forEach(function(el) { el.style.display = isDraft ? "" : "none"; });
 
   document.getElementById("invoice-save-btn").style.display = isDraft ? "" : "none";
+  document.getElementById("invoice-save-hint").style.display = isDraft ? "" : "none";
   document.getElementById("invoice-send-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
   document.getElementById("invoice-send-btn").textContent = invoice && invoice.status !== "draft" ? "Resend to customer" : "Send to customer";
   document.getElementById("invoice-markpaid-btn").style.display = invoice && invoice.status === "sent" ? "" : "none";
@@ -1713,13 +1718,17 @@ async function submitInvoice() {
   };
 
   try {
+    let result;
     if (editingInvoiceId) {
-      await admin.updateInvoice(editingInvoiceId, payload);
+      result = await admin.updateInvoice(editingInvoiceId, payload);
     } else {
-      await admin.addInvoice(payload);
+      result = await admin.addInvoice(payload);
     }
     closeInvoiceSheet();
     await loadInvoices();
+    if (result.send_warning) {
+      alert("Invoice saved as a draft, but wasn't emailed: " + result.send_warning);
+    }
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save invoice.";
     errEl.style.display = "block";
@@ -1750,8 +1759,8 @@ async function sendInvoiceConfirm() {
   }
 }
 
-function openMarkPaidSheet() {
-  markPaidInvoiceId = editingInvoiceId;
+function openMarkPaidSheet(id) {
+  markPaidInvoiceId = id || editingInvoiceId;
   document.getElementById("mark-paid-error").style.display = "none";
   document.getElementById("mark-paid-sheet").classList.add("visible");
 }
