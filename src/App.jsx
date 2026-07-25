@@ -650,21 +650,22 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                   className="rounded-xl py-1.5 flex flex-col items-center gap-0.5"
                 >
                   <span className="text-xs" style={{ color: isSelected ? "#fff" : CHARCOAL, fontWeight: isSelected || isToday ? 700 : 400 }}>{day}</span>
-                  {dayJobs.length > 0 && (
-                    <span className="flex gap-0.5">
-                      {dayJobs.slice(0, 3).map((j, idx) => (
-                        <span
-                          key={idx}
-                          style={{
-                            width: 4,
-                            height: 4,
-                            borderRadius: "50%",
-                            background: JOB_COLORS[j.color] || RUST,
-                          }}
-                        />
-                      ))}
-                    </span>
-                  )}
+                  {/* Always reserve this row's height (4px), whether or not there
+                      are dots to show, so days with events aren't taller than
+                      days without -- keeps every week the same height. */}
+                  <span className="flex gap-0.5" style={{ height: 4 }}>
+                    {dayJobs.slice(0, 3).map((j, idx) => (
+                      <span
+                        key={idx}
+                        style={{
+                          width: 4,
+                          height: 4,
+                          borderRadius: "50%",
+                          background: JOB_COLORS[j.color] || RUST,
+                        }}
+                      />
+                    ))}
+                  </span>
                 </button>
               );
             })}
