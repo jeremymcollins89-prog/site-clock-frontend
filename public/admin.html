@@ -837,9 +837,17 @@
     <select id="quote-customer-input"></select>
 
     <label>Issue date</label>
-    <input id="quote-issue-date-input" type="date" />
-    <label>Valid until (optional)</label>
-    <input id="quote-expiration-date-input" type="date" />
+    <input id="quote-issue-date-input" type="date" onchange="renderQuoteExpirationPreview()" />
+    <label>Valid for</label>
+    <select id="quote-validity-input" onchange="renderQuoteExpirationPreview()">
+      <option value="">No expiration</option>
+      <option value="30">30 days</option>
+      <option value="60">60 days</option>
+      <option value="90">90 days</option>
+      <option value="180">6 months</option>
+      <option value="365">1 year</option>
+    </select>
+    <p id="quote-expiration-preview" style="font-size:12px; color:#8A8578; margin-top:-6px;"></p>
 
     <label>Notes (optional)</label>
     <input id="quote-notes-input" placeholder="Scope of work, exclusions, etc." />
@@ -2816,6 +2824,46 @@ function recalcQuoteTotals() {
   document.getElementById("quote-total-display").textContent = fmtMoney(total);
 }
 
+// "Valid until" is picked as a duration (30/60/90 days, 6 months, 1 year)
+// rather than a raw date -- see the desktop app's identical comment for why.
+function computeQuoteExpirationDate(issueDateVal, validityDays) {
+  if (!issueDateVal || !validityDays) return null;
+  const d = new Date(issueDateVal + "T00:00:00Z");
+  d.setUTCDate(d.getUTCDate() + Number(validityDays));
+  return d.toISOString().slice(0, 10);
+}
+
+function setQuoteValidityInput(quote) {
+  const select = document.getElementById("quote-validity-input");
+  Array.from(select.querySelectorAll('option[data-custom="1"]')).forEach(function(opt) { opt.remove(); });
+  if (!quote || !quote.expiration_date) {
+    select.value = "";
+    return;
+  }
+  const issueMs = new Date(quote.issue_date.slice(0, 10) + "T00:00:00Z").getTime();
+  const expMs = new Date(quote.expiration_date.slice(0, 10) + "T00:00:00Z").getTime();
+  const days = Math.round((expMs - issueMs) / 86400000);
+  const presetValues = Array.from(select.options).map(function(o) { return o.value; }).filter(Boolean);
+  if (presetValues.indexOf(String(days)) !== -1) {
+    select.value = String(days);
+  } else {
+    const opt = document.createElement("option");
+    opt.value = String(days);
+    opt.dataset.custom = "1";
+    opt.textContent = "Custom (" + days + " days)";
+    select.appendChild(opt);
+    select.value = String(days);
+  }
+}
+
+function renderQuoteExpirationPreview() {
+  const issueDateVal = document.getElementById("quote-issue-date-input").value;
+  const validityDays = document.getElementById("quote-validity-input").value;
+  const preview = document.getElementById("quote-expiration-preview");
+  const expDate = computeQuoteExpirationDate(issueDateVal, validityDays);
+  preview.textContent = expDate ? "Valid until: " + expDate : "";
+}
+
 function populateQuoteCatalogPicker() {
   const picker = document.getElementById("quote-catalog-picker");
   if (!picker) return;
@@ -2861,7 +2909,7 @@ async function openQuoteSheet(quoteId) {
   document.getElementById("quote-customer-input").value = quote ? quote.customer_id : (customers[0] ? customers[0].id : "");
 
   document.getElementById("quote-issue-date-input").value = quote ? quote.issue_date.slice(0, 10) : todayStr();
-  document.getElementById("quote-expiration-date-input").value = quote && quote.expiration_date ? quote.expiration_date.slice(0, 10) : "";
+  setQuoteValidityInput(quote);
   document.getElementById("quote-notes-input").value = quote ? (quote.notes || "") : "";
   document.getElementById("quote-tax-rate-input").value = quote ? Number(quote.tax_rate) || "" : "";
 
@@ -2870,9 +2918,10 @@ async function openQuoteSheet(quoteId) {
   const items = quote ? quote.line_items : [];
   items.forEach(function(item) { addQuoteLineItemRow(item); });
   recalcQuoteTotals();
+  renderQuoteExpirationPreview();
 
   const fieldIds = [
-    "quote-customer-input", "quote-issue-date-input", "quote-expiration-date-input",
+    "quote-customer-input", "quote-issue-date-input", "quote-validity-input",
     "quote-notes-input", "quote-tax-rate-input",
   ];
   fieldIds.forEach(function(id) { document.getElementById(id).disabled = !isEditable; });
@@ -2922,10 +2971,11 @@ async function submitQuote() {
     return;
   }
 
+  const issueDateVal = document.getElementById("quote-issue-date-input").value;
   const payload = {
     customer_id: customerId,
-    issue_date: document.getElementById("quote-issue-date-input").value,
-    expiration_date: document.getElementById("quote-expiration-date-input").value || null,
+    issue_date: issueDateVal,
+    expiration_date: computeQuoteExpirationDate(issueDateVal, document.getElementById("quote-validity-input").value),
     tax_rate: Number(document.getElementById("quote-tax-rate-input").value) || 0,
     notes: document.getElementById("quote-notes-input").value.trim(),
     line_items: lineItems,
