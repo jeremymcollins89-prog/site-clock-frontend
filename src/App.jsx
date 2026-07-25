@@ -78,8 +78,16 @@ const LINE = "#D8D3C4";
 // Full-screen fireworks celebration, shown briefly after a clock-in when the
 // employee has "celebrate_clock_in" turned on (set per-person in the admin
 // app's employee section). Pure canvas particle animation, no dependencies.
+const FIREWORKS_DURATION_MS = 15000;
+
 function FireworksOverlay({ onDone }) {
   const canvasRef = useRef(null);
+  // The parent re-renders every second (its clock ticker), which would hand
+  // us a brand-new onDone function each time. Stashing it in a ref (instead
+  // of putting it in the effect's dependency array) means the animation
+  // below starts exactly once and isn't restarted by unrelated re-renders.
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -115,19 +123,20 @@ function FireworksOverlay({ onDone }) {
       }
     }
 
-    let frame = 0;
+    const startedAt = performance.now();
+    const burstIntervalMs = 900; // roughly one new burst per ~0.9s
+    let lastBurstAt = -Infinity;
     let raf;
-    const totalBursts = 5;
-    let burstsSpawned = 0;
-    const burstInterval = 22; // frames between bursts
+    let stopped = false;
 
-    function tick() {
-      frame++;
+    function tick(now) {
+      const elapsed = now - startedAt;
       ctx.clearRect(0, 0, width, height);
 
-      if (frame % burstInterval === 0 && burstsSpawned < totalBursts) {
+      // Keep launching new bursts until the 15-second window is up.
+      if (elapsed < FIREWORKS_DURATION_MS && now - lastBurstAt >= burstIntervalMs) {
         spawnBurst();
-        burstsSpawned++;
+        lastBurstAt = now;
       }
 
       particles.forEach((p) => {
@@ -147,9 +156,14 @@ function FireworksOverlay({ onDone }) {
       });
       ctx.globalAlpha = 1;
 
-      if (burstsSpawned >= totalBursts && particles.length === 0) {
-        window.removeEventListener("resize", handleResize);
-        onDone && onDone();
+      // Hard stop at 15 seconds even if particles are still fading, so it
+      // never appears to run indefinitely.
+      if (elapsed >= FIREWORKS_DURATION_MS && (particles.length === 0 || elapsed >= FIREWORKS_DURATION_MS + 1200)) {
+        if (!stopped) {
+          stopped = true;
+          window.removeEventListener("resize", handleResize);
+          onDoneRef.current && onDoneRef.current();
+        }
         return;
       }
       raf = requestAnimationFrame(tick);
@@ -160,7 +174,7 @@ function FireworksOverlay({ onDone }) {
       cancelAnimationFrame(raf);
       window.removeEventListener("resize", handleResize);
     };
-  }, [onDone]);
+  }, []);
 
   return (
     <canvas
