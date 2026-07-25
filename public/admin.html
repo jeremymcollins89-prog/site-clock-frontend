@@ -401,20 +401,8 @@
       <div id="customers-list"></div>
     </section>
 
-    <section id="view-quotes" class="view">
-      <div class="view-header"><h2>Quotes</h2></div>
-      <div class="card">
-        <button class="btn-primary" onclick="openQuoteSheet()">New quote</button>
-      </div>
-      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
-        Quotes are estimates for work that hasn't been booked yet. Once a customer accepts, convert the quote into a
-        scheduled job and/or an invoice.
-      </p>
-      <div id="quotes-list"></div>
-    </section>
-
     <section id="view-invoices" class="view">
-      <div class="view-header"><h2>Invoices</h2></div>
+      <div class="view-header"><h2>Billing</h2></div>
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleCatalogSection()">
@@ -429,11 +417,23 @@
           <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
         </div>
         <div id="catalog-section-body" style="display:none; margin-top:8px;">
-          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into an invoice with one tap.</p>
+          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
           <div id="catalog-items-list"></div>
         </div>
       </div>
+
       <div class="card">
+        <h3 style="margin:0 0 6px;">Quotes</h3>
+        <button class="btn-primary" onclick="openQuoteSheet()">New quote</button>
+      </div>
+      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
+        Quotes are estimates for work that hasn't been booked yet. Once a customer accepts, convert the quote into a
+        scheduled job and/or an invoice.
+      </p>
+      <div id="quotes-list"></div>
+
+      <div class="card">
+        <h3 style="margin:0 0 6px;">Invoices</h3>
         <button class="btn-primary" onclick="openInvoiceSheet()">New invoice</button>
       </div>
       <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
@@ -576,8 +576,7 @@
     <button class="nav-btn" data-view="employees" onclick="showView('employees')"><span class="dot"></span>Employees</button>
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
-    <button class="nav-btn" data-view="quotes" onclick="showView('quotes')"><span class="dot"></span>Quotes</button>
-    <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Invoices</button>
+    <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Billing</button>
     <button class="nav-btn" data-view="reports" onclick="showView('reports')"><span class="dot"></span>Reports</button>
     <button class="nav-btn" data-view="chat" onclick="showView('chat')"><span class="nav-badge" id="chat-nav-badge" style="display:none;"></span><span class="dot"></span>Chat</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
