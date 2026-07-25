@@ -221,6 +221,19 @@ function formatDateShort(d) {
   return new Date(d).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+// "14:30:00" / "14:30" -> "2:30 PM". Returns "" for null/undefined, so it's
+// safe to use directly wherever a job's start_time might not be set (the
+// admin app's "No specific time" toggle leaves it null).
+function formatTimeLabel(timeStr) {
+  if (!timeStr) return "";
+  const [hStr, mStr] = timeStr.split(":");
+  const h = Number(hStr);
+  const m = Number(mStr);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return `${hour12}:${String(m).padStart(2, "0")} ${period}`;
+}
+
 function googleMapsDirectionsUrl(address) {
   return `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(address)}`;
 }
@@ -269,6 +282,7 @@ function EventCard({ job, onSelect }) {
     job.start_date === job.end_date
       ? formatDateShort(job.start_date)
       : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
+  const timeLabel = formatTimeLabel(job.start_time);
   return (
     <button
       onClick={() => onSelect(job)}
@@ -304,7 +318,10 @@ function EventCard({ job, onSelect }) {
             </span>
           )}
         </div>
-        <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{dateLabel}</div>
+        <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>
+          {dateLabel}
+          {timeLabel && ` · ${timeLabel}`}
+        </div>
       </div>
       <span style={{ color: "#8A8578", fontSize: 18, flexShrink: 0 }}>&rsaquo;</span>
     </button>
@@ -321,6 +338,7 @@ function JobDetailSheet({ job, onClose }) {
     job.start_date === job.end_date
       ? formatDateShort(job.start_date)
       : `${formatDateShort(job.start_date)} – ${formatDateShort(job.end_date)}`;
+  const timeLabel = formatTimeLabel(job.start_time);
 
   return (
     <div
@@ -371,7 +389,10 @@ function JobDetailSheet({ job, onClose }) {
             &times;
           </button>
         </div>
-        <div className="text-xs mb-3" style={{ color: "#8A8578" }}>{dateLabel}</div>
+        <div className="text-xs mb-3" style={{ color: "#8A8578" }}>
+          {dateLabel}
+          {timeLabel && ` · ${timeLabel}`}
+        </div>
 
         {job.customer_name && (
           <div className="text-sm font-medium mt-2" style={{ color: CHARCOAL }}>{job.customer_name}</div>

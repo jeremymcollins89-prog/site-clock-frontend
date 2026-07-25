@@ -87,6 +87,21 @@
   .job-color-dot {
     display: inline-block; width: 9px; height: 9px; border-radius: 50%; margin-right: 6px; vertical-align: middle;
   }
+  .day-untimed-section { margin-bottom: 14px; }
+  .day-untimed-label {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #8A8578; margin-bottom: 6px;
+  }
+  .day-hour-grid { border-top: 1.5px solid var(--line); margin-top: 4px; }
+  .day-hour-row { display: flex; border-bottom: 1px solid var(--line); min-height: 42px; }
+  .day-hour-label {
+    width: 58px; flex-shrink: 0; padding: 7px 8px 7px 0;
+    font-size: 10.5px; color: #8A8578; text-align: right;
+  }
+  .day-hour-slot {
+    flex: 1; padding: 5px 0 5px 10px; border-left: 1.5px solid var(--line);
+    display: flex; flex-direction: column; gap: 5px;
+  }
   a.link { color: var(--rust); text-decoration: none; }
   a.link:active { opacity: 0.7; }
 
@@ -548,6 +563,14 @@
     <input id="job-start-input" type="date" />
     <label>End date</label>
     <input id="job-end-input" type="date" />
+    <label>Time</label>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
+      <input id="job-time-input" type="time" style="flex:1; margin-bottom:0;" />
+      <label style="font-size:12px; color:#8A8578; display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer;">
+        <input id="job-no-time-input" type="checkbox" style="width:15px; height:15px; margin:0;" onchange="toggleJobTimeInput()" />
+        No specific time
+      </label>
+    </div>
     <label>Color</label>
     <div class="color-swatches" id="job-color-swatches"></div>
     <label>Assign a crew (optional)</label>
@@ -938,6 +961,23 @@ const MONTH_LABELS = ["January", "February", "March", "April", "May", "June", "J
 function todayStr() { return dateToStr(new Date()); }
 function dateToStr(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 
+// "14:30:00" / "14:30" -> "2:30 PM". Returns "" for null/undefined so it's
+// safe to splice straight into template strings for untimed events.
+function formatTimeLabel(timeStr) {
+  if (!timeStr) return "";
+  const parts = timeStr.split(":");
+  const h = Number(parts[0]);
+  const m = Number(parts[1]);
+  const period = h >= 12 ? "PM" : "AM";
+  const hour12 = h % 12 === 0 ? 12 : h % 12;
+  return hour12 + ":" + String(m).padStart(2, "0") + " " + period;
+}
+
+// Which hour row (0-23) a "HH:MM[:SS]" time string belongs in.
+function timeHourOf(timeStr) {
+  return Number(timeStr.split(":")[0]);
+}
+
 function eachDateStrInRange(startStr, endStr, cb) {
   const [sy, sm, sd] = startStr.slice(0, 10).split("-").map(Number);
   const [ey, em, ed] = endStr.slice(0, 10).split("-").map(Number);
@@ -1306,37 +1346,75 @@ function formatDayHeading(dateStr) {
   return local.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
 }
 
+// One event's full detail card -- same content whether it's shown in the
+// "No specific time" section or slotted into an hour row below.
+function renderDayJobCard(j) {
+  const assigned = j.assigned_employees.map(function(e) { return '<span class="chip">' + e.name + '</span>'; }).join("");
+  const jobAddress = formatAddressParts(j.customer_street, j.customer_city, j.customer_state, j.customer_zip);
+  return '<div class="card" style="margin-bottom:0;">' +
+    '<div>' +
+      '<span class="job-color-dot" style="background:' + (JOB_COLORS[j.color] || JOB_COLORS.rust) + ';"></span>' +
+      '<strong>' + j.title + '</strong>' +
+      '<span class="type-badge">' + (EVENT_TYPE_LABELS[j.event_type] || "Job") + '</span>' +
+    '</div>' +
+    (j.customer_name ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
+      '<strong>' + j.customer_name + '</strong>' +
+      (j.customer_phone ? '<br/><a class="link" href="' + telUrl(j.customer_phone) + '">' + j.customer_phone + '</a>' : "") +
+      (jobAddress ? '<br/><a class="link" href="' + mapsUrl(jobAddress) + '" target="_blank">' + jobAddress + ' (directions)</a>' : "") +
+    '</div>' : '') +
+    (j.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' + j.notes + '</div>' : '') +
+    '<div style="margin-top:8px;">' + (assigned || '<span style="color:#8A8578; font-size:12px;">Nobody assigned yet</span>') + '</div>' +
+    '<div style="margin-top:10px; display:flex; gap:8px;">' +
+      '<button class="btn-small" style="background:var(--teal); flex:1;" onclick="closeDaySheet(); openJobSheet(\'' + j.id + '\');">Edit</button>' +
+      '<button class="btn-small" style="background:#C1502E; flex:1;" onclick="deleteJobConfirm(\'' + j.id + '\')">Delete</button>' +
+    '</div>' +
+  '</div>';
+}
+
+// Splits the day into a "No specific time" section (for events left with no
+// time set -- the clickable toggle in the job form) and an hourly grid
+// below it. Default range is 6 AM to 9 PM, widened automatically if
+// something's scheduled outside that window.
 function openDaySheet(dateStr) {
   currentDaySheetDate = dateStr;
   const dayJobs = (window.lastJobsByDate && window.lastJobsByDate[dateStr]) || [];
 
-  const rows = dayJobs.map(function(j) {
-    const assigned = j.assigned_employees.map(function(e) { return '<span class="chip">' + e.name + '</span>'; }).join("");
-    const jobAddress = formatAddressParts(j.customer_street, j.customer_city, j.customer_state, j.customer_zip);
-    return '<div class="card" style="margin-bottom:8px;">' +
-      '<div>' +
-        '<span class="job-color-dot" style="background:' + (JOB_COLORS[j.color] || JOB_COLORS.rust) + ';"></span>' +
-        '<strong>' + j.title + '</strong>' +
-        '<span class="type-badge">' + (EVENT_TYPE_LABELS[j.event_type] || "Job") + '</span>' +
-      '</div>' +
-      (j.customer_name ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
-        '<strong>' + j.customer_name + '</strong>' +
-        (j.customer_phone ? '<br/><a class="link" href="' + telUrl(j.customer_phone) + '">' + j.customer_phone + '</a>' : "") +
-        (jobAddress ? '<br/><a class="link" href="' + mapsUrl(jobAddress) + '" target="_blank">' + jobAddress + ' (directions)</a>' : "") +
-      '</div>' : '') +
-      (j.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' + j.notes + '</div>' : '') +
-      '<div style="margin-top:8px;">' + (assigned || '<span style="color:#8A8578; font-size:12px;">Nobody assigned yet</span>') + '</div>' +
-      '<div style="margin-top:10px; display:flex; gap:8px;">' +
-        '<button class="btn-small" style="background:var(--teal); flex:1;" onclick="closeDaySheet(); openJobSheet(\'' + j.id + '\');">Edit</button>' +
-        '<button class="btn-small" style="background:#C1502E; flex:1;" onclick="deleteJobConfirm(\'' + j.id + '\')">Delete</button>' +
-      '</div>' +
-    '</div>';
-  }).join("");
+  const untimedJobs = dayJobs.filter(function(j) { return !j.start_time; });
+  const timedJobs = dayJobs.filter(function(j) { return j.start_time; })
+    .sort(function(a, b) { return a.start_time.localeCompare(b.start_time); });
+
+  const untimedHtml = untimedJobs.length > 0
+    ? '<div class="day-untimed-section"><div class="day-untimed-label">No specific time</div>' +
+        untimedJobs.map(renderDayJobCard).join('<div style="height:8px;"></div>') +
+      '</div>'
+    : '';
+
+  let hourGridHtml = '';
+  if (timedJobs.length > 0 || untimedJobs.length === 0) {
+    let minHour = 6, maxHour = 21;
+    timedJobs.forEach(function(j) {
+      const h = timeHourOf(j.start_time);
+      if (h < minHour) minHour = h;
+      if (h > maxHour) maxHour = h;
+    });
+    hourGridHtml = '<div class="day-hour-grid">';
+    for (let hour = minHour; hour <= maxHour; hour++) {
+      const hourJobs = timedJobs.filter(function(j) { return timeHourOf(j.start_time) === hour; });
+      const label = formatTimeLabel(String(hour).padStart(2, "0") + ":00");
+      hourGridHtml += '<div class="day-hour-row">' +
+        '<div class="day-hour-label">' + label + '</div>' +
+        '<div class="day-hour-slot">' + hourJobs.map(renderDayJobCard).join('') + '</div>' +
+      '</div>';
+    }
+    hourGridHtml += '</div>';
+  }
+
+  const nothingAtAll = dayJobs.length === 0;
 
   document.getElementById("day-sheet-content").innerHTML =
     '<h2 style="margin-top:0; font-size:18px;">' + formatDayHeading(dateStr) + '</h2>' +
-    (rows || '<p style="color:#8A8578; font-size:13px;">Nothing scheduled for this day.</p>') +
-    '<button class="btn-primary" onclick="closeDaySheet(); openJobSheet(null, \'' + dateStr + '\');">New job on this day</button>';
+    (nothingAtAll ? '<p style="color:#8A8578; font-size:13px;">Nothing scheduled for this day.</p>' : (untimedHtml + hourGridHtml)) +
+    '<button class="btn-primary" style="margin-top:14px;" onclick="closeDaySheet(); openJobSheet(null, \'' + dateStr + '\');">New job on this day</button>';
 
   document.getElementById("day-sheet").classList.add("visible");
 }
@@ -1363,6 +1441,13 @@ function selectJobColor(name) {
   renderJobColorSwatches();
 }
 
+function toggleJobTimeInput() {
+  const noTime = document.getElementById("job-no-time-input").checked;
+  const timeInput = document.getElementById("job-time-input");
+  timeInput.disabled = noTime;
+  if (noTime) timeInput.value = "";
+}
+
 function openJobSheet(jobId, prefillDateStr) {
   editingJobId = jobId || null;
   const job = jobId ? (window.lastJobRows || []).find(function(j) { return j.id === jobId; }) : null;
@@ -1381,6 +1466,10 @@ function openJobSheet(jobId, prefillDateStr) {
   document.getElementById("job-notes-input").value = job ? (job.notes || "") : "";
   document.getElementById("job-start-input").value = job ? job.start_date.slice(0, 10) : defaultDate;
   document.getElementById("job-end-input").value = job ? job.end_date.slice(0, 10) : defaultDate;
+  const hasTime = job && job.start_time;
+  document.getElementById("job-no-time-input").checked = !hasTime;
+  document.getElementById("job-time-input").disabled = !hasTime;
+  document.getElementById("job-time-input").value = hasTime ? job.start_time.slice(0, 5) : "";
   selectedJobColor = job ? job.color : "rust";
   renderJobColorSwatches();
 
@@ -1439,12 +1528,15 @@ async function submitJob() {
 
   const employeeIds = Array.from(document.querySelectorAll('#job-employees-list input:checked')).map(function(el) { return el.value; });
   const crewIds = Array.from(document.querySelectorAll('#job-crews-list input:checked')).map(function(el) { return el.value; });
+  const noTime = document.getElementById("job-no-time-input").checked;
+  const startTime = noTime ? null : (document.getElementById("job-time-input").value || null);
 
   const payload = {
     title: title,
     notes: notes,
     start_date: startDate,
     end_date: endDate,
+    start_time: startTime,
     color: selectedJobColor,
     event_type: document.getElementById("job-type-input").value,
     customer_id: document.getElementById("job-customer-input").value || null,
