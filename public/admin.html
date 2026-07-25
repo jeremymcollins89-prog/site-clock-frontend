@@ -317,7 +317,10 @@
 
 <div id="app">
   <div class="top-bar">
-    <h1>Coll Admin</h1>
+    <div style="display:flex; align-items:center; gap:8px;">
+      <img id="header-logo" src="" style="display:none; max-height:26px; max-width:100px; border-radius:5px; background:#fff; padding:2px; object-fit:contain;" />
+      <h1>Coll Admin</h1>
+    </div>
     <button onclick="doLogout()">Log out</button>
   </div>
 
@@ -434,7 +437,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Company logo</h3>
-        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Shown at the top of every invoice PDF. PNG, JPEG, or WebP, up to 3MB.</p>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Shown at the top of every invoice PDF, and next to "Coll Admin" up top. PNG, JPEG, or WebP, up to 3MB.</p>
         <div id="company-logo-preview-wrap" style="display:none; margin-bottom:10px;">
           <img id="company-logo-preview" style="max-width:160px; max-height:70px; display:block; border:1px solid var(--line); border-radius:10px; padding:6px; background:#fff;" />
         </div>
@@ -2813,13 +2816,19 @@ function renderCompanyLogoPreview(dataUrl) {
   const wrap = document.getElementById("company-logo-preview-wrap");
   const img = document.getElementById("company-logo-preview");
   const removeBtn = document.getElementById("remove-logo-btn");
+  const headerLogo = document.getElementById("header-logo");
   if (dataUrl) {
     img.src = dataUrl;
     wrap.style.display = "block";
     removeBtn.style.display = "";
+    if (headerLogo) {
+      headerLogo.src = dataUrl;
+      headerLogo.style.display = "block";
+    }
   } else {
     wrap.style.display = "none";
     removeBtn.style.display = "none";
+    if (headerLogo) headerLogo.style.display = "none";
   }
 }
 

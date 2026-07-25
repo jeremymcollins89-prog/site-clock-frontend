@@ -1148,6 +1148,20 @@ const [emailInput, setEmailInput] = useState("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [loggedIn, view]);
 
+  // Periodically re-sync clock status from the server. Without this, an
+  // admin force-clocking someone out (forgotten shift) never reaches the
+  // employee's screen until they happen to log out and back in -- the timer
+  // just keeps ticking on a shift the server already closed. This catches
+  // that within a few seconds instead.
+  useEffect(() => {
+    if (!loggedIn) return;
+    const interval = setInterval(() => {
+      refreshFromServer();
+    }, 20000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedIn]);
+
   async function refreshFromServer() {
     try {
       const period = getPayPeriod(new Date());
@@ -1168,6 +1182,16 @@ const [emailInput, setEmailInput] = useState("");
           setStatus("working");
           setBreakStartedAt(null);
         }
+      } else {
+        // Server has no open shift -- covers being force clocked out by an
+        // admin (or any other server-side close) while the app was just
+        // sitting idle on screen. Setting the same "off" value when we're
+        // already off is a harmless no-op re-render.
+        setStatus("off");
+        setEntryId(null);
+        setJobName("");
+        setClockInTime(null);
+        setBreakStartedAt(null);
       }
     } catch (err) {
       setActionError("Couldn't reach the server — showing your last known status.");
