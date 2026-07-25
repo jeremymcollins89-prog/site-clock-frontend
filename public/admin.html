@@ -1633,7 +1633,7 @@ function openDaySheet(dateStr) {
   // specific time, not just via the generic "New job" button.
   let hourGridHtml = '';
   {
-    let minHour = 6, maxHour = 21;
+    let minHour = 0, maxHour = 23;
     timedJobs.forEach(function(j) {
       const h = timeHourOf(j.start_time);
       if (h < minHour) minHour = h;
