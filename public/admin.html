@@ -350,12 +350,18 @@
     <section id="view-schedule" class="view">
       <div class="view-header"><h2>Schedule</h2></div>
       <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <h3 style="margin:0; font-size:15px;">Crews</h3>
-          <button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet()">New crew</button>
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; cursor:pointer;" onclick="toggleCrewsSection()">
+          <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px;">
+            <span id="crews-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
+            Crews <span id="crews-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
+          </h3>
+          <button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openCrewSheet()">New crew</button>
         </div>
-        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">A reusable group you can assign to a job all at once.</p>
-        <div id="crews-list"></div>
+        <div id="crews-section-body" style="display:none;">
+          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">A reusable group you can assign to a job all at once.</p>
+          <input id="crew-search-input" type="text" placeholder="Search crews..." oninput="renderCrewsList()" style="margin-bottom:8px;" />
+          <div id="crews-list"></div>
+        </div>
       </div>
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
@@ -1495,15 +1501,55 @@ async function requestPing(employeeId) {
 // ---------- Crews ----------
 let editingCrewId = null;
 window.allCrews = [];
+let crewsSectionExpanded = false;
+
+// Collapsed by default so the crew list doesn't push the Jobs section down
+// every time this tab is opened, with a search box (crew name or any
+// member's name) once expanded so it stays usable as the list grows.
+function toggleCrewsSection() {
+  crewsSectionExpanded = !crewsSectionExpanded;
+  applyCrewsSectionState();
+}
+
+function expandCrewsSection() {
+  crewsSectionExpanded = true;
+  applyCrewsSectionState();
+}
+
+function applyCrewsSectionState() {
+  const body = document.getElementById("crews-section-body");
+  const icon = document.getElementById("crews-toggle-icon");
+  if (body) body.style.display = crewsSectionExpanded ? "block" : "none";
+  if (icon) icon.style.transform = crewsSectionExpanded ? "rotate(90deg)" : "rotate(0deg)";
+}
 
 async function loadCrews() {
   window.allCrews = await admin.listCrews();
+  const badge = document.getElementById("crews-count-badge");
+  if (badge) badge.textContent = window.allCrews.length ? "(" + window.allCrews.length + ")" : "";
+  renderCrewsList();
+}
+
+function renderCrewsList() {
   const list = document.getElementById("crews-list");
-  if (window.allCrews.length === 0) {
+  if (!list) return;
+  const searchInput = document.getElementById("crew-search-input");
+  const term = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  const allCrews = window.allCrews || [];
+  const crews = !term ? allCrews : allCrews.filter(function(c) {
+    if (c.name.toLowerCase().indexOf(term) !== -1) return true;
+    return c.members.some(function(m) { return m.name.toLowerCase().indexOf(term) !== -1; });
+  });
+
+  if (allCrews.length === 0) {
     list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No crews yet.</p>';
     return;
   }
-  list.innerHTML = window.allCrews.map(function(c) {
+  if (crews.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No crews match "' + term + '".</p>';
+    return;
+  }
+  list.innerHTML = crews.map(function(c) {
     const members = c.members.map(function(m) { return '<span class="chip">' + m.name + '</span>'; }).join("");
     return '<div class="card" style="margin-bottom:8px;">' +
       '<div style="display:flex; justify-content:space-between; align-items:center;">' +
@@ -1556,6 +1602,7 @@ async function submitCrew() {
     }
     closeCrewSheet();
     loadCrews();
+    expandCrewsSection();
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save crew.";
     errEl.style.display = "block";
