@@ -75,6 +75,101 @@ const RUST = "#D35A34";
 const RUST_DEEP = "#A63D20";
 const LINE = "#D8D3C4";
 
+// Full-screen fireworks celebration, shown briefly after a clock-in when the
+// employee has "celebrate_clock_in" turned on (set per-person in the admin
+// app's employee section). Pure canvas particle animation, no dependencies.
+function FireworksOverlay({ onDone }) {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+    function handleResize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", handleResize);
+
+    const colors = ["#F4B04C", "#D35A34", "#46705F", "#3B6FA9", "#B8547A", "#F9C978"];
+    let particles = [];
+
+    function spawnBurst() {
+      const cx = width * (0.2 + Math.random() * 0.6);
+      const cy = height * (0.2 + Math.random() * 0.4);
+      const color = colors[Math.floor(Math.random() * colors.length)];
+      const count = 32;
+      for (let i = 0; i < count; i++) {
+        const angle = (Math.PI * 2 * i) / count;
+        const speed = 2 + Math.random() * 3;
+        particles.push({
+          x: cx,
+          y: cy,
+          vx: Math.cos(angle) * speed,
+          vy: Math.sin(angle) * speed,
+          life: 1,
+          color,
+        });
+      }
+    }
+
+    let frame = 0;
+    let raf;
+    const totalBursts = 5;
+    let burstsSpawned = 0;
+    const burstInterval = 22; // frames between bursts
+
+    function tick() {
+      frame++;
+      ctx.clearRect(0, 0, width, height);
+
+      if (frame % burstInterval === 0 && burstsSpawned < totalBursts) {
+        spawnBurst();
+        burstsSpawned++;
+      }
+
+      particles.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.vy += 0.045; // gravity
+        p.life -= 0.014;
+      });
+      particles = particles.filter((p) => p.life > 0);
+
+      particles.forEach((p) => {
+        ctx.globalAlpha = Math.max(p.life, 0);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, 2.6, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.globalAlpha = 1;
+
+      if (burstsSpawned >= totalBursts && particles.length === 0) {
+        window.removeEventListener("resize", handleResize);
+        onDone && onDone();
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, [onDone]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}
+    />
+  );
+}
+
 function pad(n) { return n.toString().padStart(2, "0"); }
 
 function formatElapsed(ms) {
@@ -559,6 +654,7 @@ const [emailInput, setEmailInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
   const [savedOffline, setSavedOffline] = useState(false);
+  const [showFireworks, setShowFireworks] = useState(false);
   // Geolocation-based auto clock in/out — each company sets its own shop
   // location (Settings tab in the admin app); the backend sends it back on
   // login and on session restore, attached to the employee object.
@@ -581,6 +677,7 @@ const [emailInput, setEmailInput] = useState("");
     }
     setJobName("Shop");
     setStatus("working");
+    if (employee?.celebrate_clock_in) setShowFireworks(true);
   }
 
   async function autoClockOut() {
@@ -821,6 +918,7 @@ const [emailInput, setEmailInput] = useState("");
     // A fresh manual clock-in means any earlier "don't auto clock-in" flag
     // (from a previous manual clock-out) is stale — clear it.
     clearAutoClockInSuppression();
+    if (employee?.celebrate_clock_in) setShowFireworks(true);
   }
 
   async function startBreak() {
@@ -955,6 +1053,7 @@ const [emailInput, setEmailInput] = useState("");
   return (
     <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL }} className="w-full min-h-screen pb-16">
       <style>{FONT_IMPORT}</style>
+      {showFireworks && <FireworksOverlay onDone={() => setShowFireworks(false)} />}
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
         <div className="flex items-baseline justify-between mb-1">
           <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
