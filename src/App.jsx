@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -10,6 +10,9 @@ import {
   forgotPin,
   getMySchedule,
   getCustomers,
+  getChatUnreadCount,
+  getChatMessages,
+  sendChatMessage,
   getVapidPublicKey,
   subscribePush,
 } from "./api.js";
@@ -657,6 +660,98 @@ function CustomersView({ customers, loading }) {
   );
 }
 
+// Direct chat with the office (there's one thread per employee). Stays
+// visible after clocking out so history isn't lost, but the composer is
+// disabled until the next clock-in -- messages can only be sent while on
+// the clock.
+function ChatView({ messages, loading, onClock, onSend }) {
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+
+  async function handleSend() {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      await onSend(text);
+      setDraft("");
+    } catch {
+      // onSend already surfaces the error via actionError upstream
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+          Chat
+        </h2>
+      </div>
+
+      {loading ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+      ) : messages.length === 0 ? (
+        <p className="text-sm mb-4" style={{ color: "#8A8578" }}>No messages yet.</p>
+      ) : (
+        <div className="flex flex-col gap-2 mb-4">
+          {messages.map((m) => (
+            <div
+              key={m.id}
+              style={{
+                alignSelf: m.sender === "employee" ? "flex-end" : "flex-start",
+                maxWidth: "78%",
+                background: m.sender === "employee" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "#F1EDE3",
+                color: CHARCOAL,
+                borderBottomRightRadius: m.sender === "employee" ? 4 : 14,
+                borderBottomLeftRadius: m.sender === "employee" ? 14 : 4,
+              }}
+              className="rounded-2xl px-3 py-2 text-sm"
+            >
+              {m.body}
+              <div className="text-[10px] mt-0.5" style={{ color: "#8A8578" }}>
+                {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+              </div>
+            </div>
+          ))}
+          <div ref={bottomRef} />
+        </div>
+      )}
+
+      {onClock ? (
+        <div className="flex gap-2 mt-auto pt-2">
+          <input
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleSend()}
+            placeholder="Type a message..."
+            style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+            className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
+          />
+          <button
+            onClick={handleSend}
+            disabled={sending}
+            style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
+            className="rounded-xl px-4 text-sm font-medium flex items-center justify-center"
+          >
+            <Send size={16} />
+          </button>
+        </div>
+      ) : (
+        <p className="text-xs mt-auto pt-2" style={{ color: "#8A8578" }}>
+          Clock in to send a message.
+        </p>
+      )}
+    </div>
+  );
+}
+
 export default function TimeClock() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -685,6 +780,9 @@ const [emailInput, setEmailInput] = useState("");
   });
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [chatMessages, setChatMessages] = useState([]);
+  const [chatLoading, setChatLoading] = useState(false);
+  const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [now, setNow] = useState(new Date());
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -813,9 +911,9 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     if (!("serviceWorker" in navigator)) return;
     function handleMessage(event) {
-      if (event.data?.type === "navigate" && event.data.url?.includes("/schedule")) {
-        setView("schedule");
-      }
+      if (event.data?.type !== "navigate") return;
+      if (event.data.url?.includes("/schedule")) setView("schedule");
+      if (event.data.url?.includes("/chat")) setView("chat");
     }
     navigator.serviceWorker.addEventListener("message", handleMessage);
     return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
@@ -847,6 +945,36 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  // Full fetch -- marks the office's messages as read. Only call this when
+  // the Chat tab is actually open; use refreshChatUnreadCount for background
+  // polling so the badge doesn't get silently cleared before it's seen.
+  async function loadChatMessages() {
+    setChatLoading(true);
+    try {
+      const rows = await getChatMessages();
+      setChatMessages(rows);
+      setChatUnreadCount(0);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setChatLoading(false);
+    }
+  }
+
+  async function refreshChatUnreadCount() {
+    try {
+      const { count } = await getChatUnreadCount();
+      setChatUnreadCount(count);
+    } catch {
+      // non-fatal — badge just won't update this cycle
+    }
+  }
+
+  async function handleSendChatMessage(body) {
+    const saved = await sendChatMessage(body);
+    setChatMessages((prev) => [...prev, saved]);
+  }
+
   function goPrevMonth() {
     setScheduleMonthAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1));
   }
@@ -861,8 +989,24 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     if (view === "schedule" && loggedIn) loadSchedule(scheduleMonthAnchor);
     if (view === "customers" && loggedIn) loadCustomers();
+    if (view === "chat" && loggedIn) loadChatMessages();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, loggedIn, scheduleMonthAnchor]);
+
+  // Background poll for the Chat tab's unread badge -- deliberately uses
+  // the lightweight /unread-count endpoint (not the full message fetch) so
+  // it never silently marks messages read before the tab is actually
+  // opened. Skipped while the Chat tab itself is open since loadChatMessages
+  // already keeps the count at 0 there.
+  useEffect(() => {
+    if (!loggedIn) return;
+    refreshChatUnreadCount();
+    const interval = setInterval(() => {
+      if (view !== "chat") refreshChatUnreadCount();
+    }, 15000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loggedIn, view]);
 
   async function refreshFromServer() {
     try {
@@ -1111,6 +1255,13 @@ const [emailInput, setEmailInput] = useState("");
           />
         ) : view === "customers" ? (
           <CustomersView customers={customers} loading={customersLoading} />
+        ) : view === "chat" ? (
+          <ChatView
+            messages={chatMessages}
+            loading={chatLoading}
+            onClock={status !== "off"}
+            onSend={handleSendChatMessage}
+          />
         ) : (
         <>
         {actionError && (
@@ -1377,6 +1528,33 @@ const [emailInput, setEmailInput] = useState("");
               <Users size={16} style={{ color: view === "customers" ? CHARCOAL : "#8A8578" }} />
             </span>
             Customers
+          </button>
+          <button
+            onClick={() => setView("chat")}
+            style={{ color: view === "chat" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif", position: "relative" }}
+            className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
+          >
+            <span
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
+                background: view === "chat" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
+                boxShadow: view === "chat" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
+              }}
+            >
+              <MessageCircle size={16} style={{ color: view === "chat" ? CHARCOAL : "#8A8578" }} />
+            </span>
+            Chat
+            {chatUnreadCount > 0 && (
+              <span
+                style={{
+                  position: "absolute", top: 2, right: "22%",
+                  background: RUST, color: "#fff", fontSize: 9, fontWeight: 800,
+                  borderRadius: 20, padding: "1px 5px", minWidth: 14, textAlign: "center", lineHeight: 1.3,
+                }}
+              >
+                {chatUnreadCount}
+              </span>
+            )}
           </button>
         </div>
       </div>

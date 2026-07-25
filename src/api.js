@@ -71,6 +71,18 @@ async function getCustomers() {
   return apiFetch("/api/schedule/customers");
 }
 
+async function getChatUnreadCount() {
+  return apiFetch("/api/chat/unread-count");
+}
+
+async function getChatMessages() {
+  return apiFetch("/api/chat/messages");
+}
+
+async function sendChatMessage(body) {
+  return apiFetch("/api/chat/messages", { method: "POST", body: { body } });
+}
+
 async function getVapidPublicKey() {
   return apiFetch("/api/push/vapid-public-key");
 }
@@ -123,6 +135,9 @@ export {
   forgotPin,
   getMySchedule,
   getCustomers,
+  getChatUnreadCount,
+  getChatMessages,
+  sendChatMessage,
   getVapidPublicKey,
   subscribePush,
   unsubscribePush,
