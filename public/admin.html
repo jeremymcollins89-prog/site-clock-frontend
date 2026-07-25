@@ -363,6 +363,14 @@
       <div class="view-header"><h2>Customers</h2></div>
       <div class="card">
         <button class="btn-primary" onclick="openCustomerSheet()">New customer</button>
+        <div style="display:flex; gap:8px; margin-top:8px;">
+          <button class="btn-small" style="background:var(--teal); flex:1;" onclick="document.getElementById('customer-import-input').click()">Import CSV</button>
+          <button class="btn-small" style="background:var(--teal); flex:1;" onclick="exportCustomersCsv()">Export CSV</button>
+        </div>
+        <input type="file" id="customer-import-input" accept=".csv,text/csv" style="display:none;" onchange="handleCustomerImportFile(event)" />
+        <p style="font-size:11px; color:#8A8578; margin:8px 0 0;">
+          Import expects a CSV with a Name column (Phone, Email, Street, City, State, Zip, Notes are optional). Rows matching an existing customer's name are skipped.
+        </p>
       </div>
       <input id="customer-search-input" placeholder="Search by name..." oninput="renderCustomersList()" />
       <div id="customers-list"></div>
@@ -857,6 +865,7 @@ const admin = {
   updateCustomer: (id, patch) => apiFetch(`/api/admin/customers/${id}`, { method: "PATCH", body: patch }),
   deleteCustomer: (id) => apiFetch(`/api/admin/customers/${id}`, { method: "DELETE" }),
   getCustomerEvents: (id) => apiFetch(`/api/admin/customers/${id}/events`),
+  importCustomers: (customers) => apiFetch("/api/admin/customers/import", { method: "POST", body: { customers } }),
 
   listInvoices: () => apiFetch("/api/admin/invoices"),
   getInvoice: (id) => apiFetch(`/api/admin/invoices/${id}`),
@@ -1703,6 +1712,141 @@ window.allCustomers = [];
 async function loadCustomers() {
   window.allCustomers = await admin.listCustomers();
   renderCustomersList();
+}
+
+// ---------- Customer CSV import/export ----------
+const CUSTOMER_CSV_FIELD_ALIASES = {
+  name: ["name", "full name", "customer", "customer name", "company", "company name"],
+  phone: ["phone", "phone number", "mobile", "cell", "cell phone"],
+  email: ["email", "email address"],
+  street: ["street", "address", "address1", "address 1", "street address"],
+  city: ["city"],
+  state: ["state", "province"],
+  zip: ["zip", "zip code", "zipcode", "postal", "postal code"],
+  notes: ["notes", "note", "comments", "description"],
+};
+
+function normalizeCsvHeader(h) {
+  return String(h == null ? "" : h).trim().toLowerCase().replace(/[_-]/g, " ").replace(/\s+/g, " ");
+}
+
+// Minimal RFC4180-ish CSV parser -- handles quoted fields with embedded
+// commas, quotes ("") and newlines, which is enough for exports from
+// Excel/Google Sheets/most CRMs.
+function parseCsv(text) {
+  const rows = [];
+  let row = [], field = "", inQuotes = false;
+  for (let i = 0; i < text.length; i++) {
+    const c = text[i];
+    if (inQuotes) {
+      if (c === '"') {
+        if (text[i + 1] === '"') { field += '"'; i++; }
+        else { inQuotes = false; }
+      } else {
+        field += c;
+      }
+    } else if (c === '"') {
+      inQuotes = true;
+    } else if (c === ",") {
+      row.push(field); field = "";
+    } else if (c === "\n") {
+      row.push(field); rows.push(row); row = []; field = "";
+    } else if (c === "\r") {
+      // skip -- \n (if present) handles the line break
+    } else {
+      field += c;
+    }
+  }
+  if (field.length > 0 || row.length > 0) { row.push(field); rows.push(row); }
+  return rows.filter(function(r) { return r.length > 1 || (r.length === 1 && r[0] !== ""); });
+}
+
+function csvEscape(value) {
+  const s = value == null ? "" : String(value);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function mapCsvToCustomerRows(text) {
+  const rows = parseCsv(text);
+  if (rows.length === 0) return [];
+  const headerRow = rows[0].map(normalizeCsvHeader);
+  const fieldIndex = {};
+  Object.keys(CUSTOMER_CSV_FIELD_ALIASES).forEach(function(field) {
+    const aliases = CUSTOMER_CSV_FIELD_ALIASES[field];
+    const idx = headerRow.findIndex(function(h) { return aliases.indexOf(h) !== -1; });
+    if (idx !== -1) fieldIndex[field] = idx;
+  });
+  return rows.slice(1).map(function(r) {
+    const obj = {};
+    Object.keys(fieldIndex).forEach(function(field) {
+      obj[field] = (r[fieldIndex[field]] || "").trim();
+    });
+    return obj;
+  }).filter(function(o) {
+    return Object.keys(o).some(function(k) { return o[k]; });
+  });
+}
+
+function fieldWasFound(text, field) {
+  const rows = parseCsv(text);
+  if (rows.length === 0) return false;
+  const headerRow = rows[0].map(normalizeCsvHeader);
+  const aliases = CUSTOMER_CSV_FIELD_ALIASES[field];
+  return headerRow.some(function(h) { return aliases.indexOf(h) !== -1; });
+}
+
+async function handleCustomerImportFile(event) {
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+
+  const text = await file.text();
+  const rows = mapCsvToCustomerRows(text);
+  if (rows.length === 0) {
+    alert("Couldn't find any rows in that file, or it's missing a Name column.");
+    return;
+  }
+  if (!fieldWasFound(text, "name")) {
+    alert("That file doesn't have a Name column, so nothing can be imported.");
+    return;
+  }
+  if (!confirm("Import " + rows.length + " row(s) from this file?")) return;
+
+  try {
+    const result = await admin.importCustomers(rows);
+    const skippedDup = result.skipped.filter(function(s) { return s.reason === "duplicate"; }).length;
+    const skippedNoName = result.skipped.filter(function(s) { return s.reason === "missing_name"; }).length;
+    let msg = "Imported " + result.imported + " customer(s).";
+    if (skippedDup > 0) msg += "\nSkipped " + skippedDup + " that already exist.";
+    if (skippedNoName > 0) msg += "\nSkipped " + skippedNoName + " with no name.";
+    alert(msg);
+    loadCustomers();
+  } catch (err) {
+    alert(err.message || "Couldn't import that file.");
+  }
+}
+
+function exportCustomersCsv() {
+  const customers = window.allCustomers || [];
+  if (customers.length === 0) {
+    alert("No customers to export yet.");
+    return;
+  }
+  const headers = ["Name", "Phone", "Email", "Street", "City", "State", "Zip", "Notes"];
+  const lines = [headers.join(",")];
+  customers.forEach(function(c) {
+    lines.push([
+      csvEscape(c.name), csvEscape(c.phone), csvEscape(c.email), csvEscape(c.street),
+      csvEscape(c.city), csvEscape(c.state), csvEscape(c.zip), csvEscape(c.notes),
+    ].join(","));
+  });
+  const blob = new Blob([lines.join("\r\n")], { type: "text/csv" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "customers-" + todayStr() + ".csv";
+  a.click();
+  URL.revokeObjectURL(url);
 }
 
 function renderCustomersList() {
