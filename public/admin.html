@@ -2473,16 +2473,28 @@ function addMonths(date, n) {
   return d;
 }
 
+// Returns the current period's bounds plus the immediately preceding
+// period of the same length (non-overlapping -- it ends the day before the
+// current period starts), so callers can show "up/down vs last period"
+// percentage pills the same way the This Year vs Last Year view already does.
 function reportRangeBounds(range) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   if (range === "1w") {
     const start = new Date(today);
     start.setDate(start.getDate() - 6);
-    return { start: start, end: today };
+    const prevEnd = new Date(start);
+    prevEnd.setDate(prevEnd.getDate() - 1);
+    const prevStart = new Date(prevEnd);
+    prevStart.setDate(prevStart.getDate() - 6);
+    return { start: start, end: today, prevStart: prevStart, prevEnd: prevEnd };
   }
   const monthsBack = { "1m": 1, "3m": 3, "6m": 6, "12m": 12 }[range] || 1;
-  return { start: addMonths(today, -monthsBack), end: today };
+  const start = addMonths(today, -monthsBack);
+  const prevEnd = new Date(start);
+  prevEnd.setDate(prevEnd.getDate() - 1);
+  const prevStart = addMonths(prevEnd, -monthsBack);
+  return { start: start, end: today, prevStart: prevStart, prevEnd: prevEnd };
 }
 
 function fmtHours(hours) {
@@ -2552,14 +2564,18 @@ async function loadReportSummary() {
     }
 
     const bounds = reportRangeBounds(currentReportRange);
-    const data = await admin.getReportSummary(dateToStr(bounds.start), dateToStr(bounds.end));
+    const [data, prevData] = await Promise.all([
+      admin.getReportSummary(dateToStr(bounds.start), dateToStr(bounds.end)),
+      admin.getReportSummary(dateToStr(bounds.prevStart), dateToStr(bounds.prevEnd)),
+    ]);
     content.innerHTML =
       '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-        renderReportStatCard("Labor hours", fmtHours(data.labor_hours)) +
-        renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices") +
-        renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices") +
+        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), null, pctChangeParts(data.labor_hours, prevData.labor_hours)) +
+        renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total)) +
+        renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total)) +
       '</div>' +
-      '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + dateToStr(bounds.start) + ' – ' + dateToStr(bounds.end) + '</div>';
+      '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + dateToStr(bounds.start) + ' – ' + dateToStr(bounds.end) +
+        ' vs. ' + dateToStr(bounds.prevStart) + ' – ' + dateToStr(bounds.prevEnd) + '</div>';
   } catch (err) {
     content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load report data.</p>';
   }
