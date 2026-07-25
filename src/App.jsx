@@ -10,6 +10,7 @@ import {
   forgotPin,
   getMySchedule,
   getCustomers,
+  getScheduleUnseenCount,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
@@ -783,6 +784,7 @@ const [emailInput, setEmailInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  const [scheduleUnseenCount, setScheduleUnseenCount] = useState(0);
   const [now, setNow] = useState(new Date());
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -926,10 +928,23 @@ const [emailInput, setEmailInput] = useState("");
       const monthEnd = new Date(anchor.getFullYear(), anchor.getMonth() + 1, 0);
       const rows = await getMySchedule(dateToStr(monthStart), dateToStr(monthEnd));
       setSchedule(rows);
+      // GET /schedule/me marks this employee's job assignments seen
+      // server-side as a side effect of loading -- reflect that locally
+      // right away instead of waiting for the next unseen-count poll.
+      setScheduleUnseenCount(0);
     } catch {
       // non-fatal — leave whatever was last loaded
     } finally {
       setScheduleLoading(false);
+    }
+  }
+
+  async function refreshScheduleUnseenCount() {
+    try {
+      const { count } = await getScheduleUnseenCount();
+      setScheduleUnseenCount(count);
+    } catch {
+      // non-fatal — badge just won't update this cycle
     }
   }
 
@@ -993,16 +1008,18 @@ const [emailInput, setEmailInput] = useState("");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, loggedIn, scheduleMonthAnchor]);
 
-  // Background poll for the Chat tab's unread badge -- deliberately uses
-  // the lightweight /unread-count endpoint (not the full message fetch) so
-  // it never silently marks messages read before the tab is actually
-  // opened. Skipped while the Chat tab itself is open since loadChatMessages
-  // already keeps the count at 0 there.
+  // Background poll for the Chat and Schedule tabs' badges -- deliberately
+  // uses the lightweight count-only endpoints (not the full fetches) so
+  // neither one silently marks things seen/read before the tab is actually
+  // opened. Each is skipped while its own tab is open, since the full
+  // fetch there already keeps its count at 0.
   useEffect(() => {
     if (!loggedIn) return;
     refreshChatUnreadCount();
+    refreshScheduleUnseenCount();
     const interval = setInterval(() => {
       if (view !== "chat") refreshChatUnreadCount();
+      if (view !== "schedule") refreshScheduleUnseenCount();
     }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1499,7 +1516,7 @@ const [emailInput, setEmailInput] = useState("");
           </button>
           <button
             onClick={() => setView("schedule")}
-            style={{ color: view === "schedule" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+            style={{ color: view === "schedule" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif", position: "relative" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
             <span
@@ -1512,6 +1529,17 @@ const [emailInput, setEmailInput] = useState("");
               <CalendarDays size={16} style={{ color: view === "schedule" ? CHARCOAL : "#8A8578" }} />
             </span>
             Schedule
+            {scheduleUnseenCount > 0 && (
+              <span
+                style={{
+                  position: "absolute", top: 2, right: "22%",
+                  background: RUST, color: "#fff", fontSize: 9, fontWeight: 800,
+                  borderRadius: 20, padding: "1px 5px", minWidth: 14, textAlign: "center", lineHeight: 1.3,
+                }}
+              >
+                {scheduleUnseenCount}
+              </span>
+            )}
           </button>
           <button
             onClick={() => setView("customers")}

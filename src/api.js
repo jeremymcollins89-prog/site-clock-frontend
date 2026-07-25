@@ -71,6 +71,10 @@ async function getCustomers() {
   return apiFetch("/api/schedule/customers");
 }
 
+async function getScheduleUnseenCount() {
+  return apiFetch("/api/schedule/unseen-count");
+}
+
 async function getChatUnreadCount() {
   return apiFetch("/api/chat/unread-count");
 }
@@ -135,6 +139,7 @@ export {
   forgotPin,
   getMySchedule,
   getCustomers,
+  getScheduleUnseenCount,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
