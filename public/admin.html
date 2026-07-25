@@ -403,11 +403,21 @@
       <div class="view-header"><h2>Invoices</h2></div>
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <h3 style="margin:0; font-size:15px;">Catalog</h3>
+          <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleCatalogSection()">
+            <span id="catalog-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
+            Catalog <span id="catalog-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
+          </h3>
           <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
         </div>
-        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into an invoice with one tap.</p>
-        <div id="catalog-items-list"></div>
+        <div style="position:relative;">
+          <input id="catalog-search-input" type="text" placeholder="Search catalog items..." autocomplete="off"
+            oninput="onCatalogSearchInput()" onfocus="onCatalogSearchInput()" style="margin-bottom:0;" />
+          <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
+        </div>
+        <div id="catalog-section-body" style="display:none; margin-top:8px;">
+          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into an invoice with one tap.</p>
+          <div id="catalog-items-list"></div>
+        </div>
       </div>
       <div class="card">
         <button class="btn-primary" onclick="openInvoiceSheet()">New invoice</button>
@@ -2692,18 +2702,99 @@ async function loadReportSummary() {
 
 window.allCatalogItems = [];
 let editingCatalogItemId = null;
+let catalogSectionExpanded = false;
+
+// Same pattern as the Crews list on the Schedule tab: collapsed by default
+// with a header search box + dropdown for quick lookup, and the full list
+// (with Edit/Delete) available on demand.
+function toggleCatalogSection() {
+  catalogSectionExpanded = !catalogSectionExpanded;
+  applyCatalogSectionState();
+}
+
+function expandCatalogSection() {
+  catalogSectionExpanded = true;
+  applyCatalogSectionState();
+}
+
+function applyCatalogSectionState() {
+  const body = document.getElementById("catalog-section-body");
+  const icon = document.getElementById("catalog-toggle-icon");
+  if (body) body.style.display = catalogSectionExpanded ? "block" : "none";
+  if (icon) icon.style.transform = catalogSectionExpanded ? "rotate(90deg)" : "rotate(0deg)";
+}
 
 async function loadCatalogItems() {
   window.allCatalogItems = await admin.listCatalogItems();
+  const badge = document.getElementById("catalog-count-badge");
+  if (badge) badge.textContent = window.allCatalogItems.length ? "(" + window.allCatalogItems.length + ")" : "";
   renderCatalogItemsList();
   populateInvoiceCatalogPicker();
 }
 
+function onCatalogSearchInput() {
+  renderCatalogSearchDropdown();
+  renderCatalogItemsList();
+}
+
+function renderCatalogSearchDropdown() {
+  const dropdown = document.getElementById("catalog-search-dropdown");
+  const searchInput = document.getElementById("catalog-search-input");
+  if (!dropdown || !searchInput) return;
+  const term = searchInput.value.trim().toLowerCase();
+  const allItems = window.allCatalogItems || [];
+  const matches = !term ? allItems : allItems.filter(function(i) {
+    return i.name.toLowerCase().indexOf(term) !== -1;
+  });
+
+  if (allItems.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No catalog items yet.</div>';
+  } else if (matches.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No items match "' + term + '".</div>';
+  } else {
+    dropdown.innerHTML = matches.map(function(i) {
+      return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
+        'onclick="selectCatalogSearchResult(\'' + i.id + '\')">' +
+        '<div style="font-weight:600; font-size:13px;">' + i.name + '</div>' +
+        '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(i.unit_price) + '</div>' +
+      '</div>';
+    }).join("");
+  }
+  dropdown.style.display = "block";
+}
+
+function selectCatalogSearchResult(itemId) {
+  document.getElementById("catalog-search-dropdown").style.display = "none";
+  document.getElementById("catalog-search-input").value = "";
+  renderCatalogItemsList();
+  openCatalogItemSheet(itemId);
+}
+
+document.addEventListener("click", function(e) {
+  const dropdown = document.getElementById("catalog-search-dropdown");
+  const input = document.getElementById("catalog-search-input");
+  if (!dropdown || !input || dropdown.style.display === "none") return;
+  if (e.target !== input && !dropdown.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
+
 function renderCatalogItemsList() {
   const list = document.getElementById("catalog-items-list");
-  const items = window.allCatalogItems || [];
-  if (items.length === 0) {
+  if (!list) return;
+  const searchInput = document.getElementById("catalog-search-input");
+  const term = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  const allItems = window.allCatalogItems || [];
+  const items = !term ? allItems : allItems.filter(function(i) {
+    return i.name.toLowerCase().indexOf(term) !== -1;
+  });
+
+  if (allItems.length === 0) {
     list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No catalog items yet.</p>';
+    return;
+  }
+  if (items.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No items match "' + term + '".</p>';
     return;
   }
   list.innerHTML = items.map(function(item) {
@@ -2766,6 +2857,7 @@ async function submitCatalogItem() {
     }
     closeCatalogItemSheet();
     await loadCatalogItems();
+    expandCatalogSection();
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save catalog item.";
     errEl.style.display = "block";
