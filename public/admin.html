@@ -1377,6 +1377,11 @@ async function renderEmployeeDetail(start, end) {
   const regularSeconds = rows.reduce((s, r) => s + (r.location_type === "in_town" ? Number(r.worked_seconds || 0) : 0), 0);
   const travelSeconds = rows.reduce((s, r) => s + (r.location_type === "traveling" ? Number(r.worked_seconds || 0) : 0), 0);
 
+  // An open shift (clock_out still null) may exist even if the entry point
+  // that opened this sheet didn't know it -- deriving it from the loaded
+  // rows means the button always shows up when it should.
+  const openRow = rows.find(function(r) { return !r.clock_out; });
+
   const cardsHtml = rows.map(function(r) {
     return '<div class="entry-card">' +
       '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" /></div>' +
@@ -1403,9 +1408,11 @@ async function renderEmployeeDetail(start, end) {
       '<div style="flex:1;"><label>To</label><input id="emp-detail-end" type="date" value="' + end + '" onchange="onEmployeeDetailRangeChange()" /></div>' +
     '</div>' +
     (cardsHtml || '<p style="color:#8A8578; font-size:13px; text-align:center; padding:16px 0;">No hours in this date range.</p>') +
-    (ed.isClockedIn
-      ? '<button class="btn-primary" onclick="requestPing(\'' + ed.id + '\')">Ping now</button><p id="ping-status-msg" style="font-size:12px; color:#8A8578; margin-top:8px;"></p>'
-      : '');
+    '<div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:10px;">' +
+      (ed.isClockedIn ? '<button class="btn-primary" style="width:auto; margin:0;" onclick="requestPing(\'' + ed.id + '\')">Ping now</button>' : '') +
+      (openRow ? '<button class="btn-secondary" style="width:auto; margin:0; background:#C1502E; color:#fff; border-color:#C1502E;" onclick="forceClockOutConfirm(\'' + openRow.time_entry_id + '\')">Force clock out now</button>' : '') +
+    '</div>' +
+    (ed.isClockedIn ? '<p id="ping-status-msg" style="font-size:12px; color:#8A8578; margin-top:8px;"></p>' : '');
 }
 
 function onEmployeeDetailRangeChange() {
@@ -1427,6 +1434,22 @@ async function saveEmployeeDetailRow(id) {
   const start = document.getElementById("emp-detail-start").value;
   const end = document.getElementById("emp-detail-end").value;
   await renderEmployeeDetail(start, end);
+}
+
+// For when someone forgets to clock out -- ends their open shift right now
+// using the current time, so hours don't keep silently piling up.
+async function forceClockOutConfirm(timeEntryId) {
+  if (!confirm("Clock this employee out right now? This ends their current shift immediately, using the current time as their clock-out.")) return;
+  try {
+    await admin.updateTimeEntry(timeEntryId, { clock_out: new Date().toISOString() });
+    const start = document.getElementById("emp-detail-start").value;
+    const end = document.getElementById("emp-detail-end").value;
+    await renderEmployeeDetail(start, end);
+    if (document.getElementById("overview-list")) loadOverview();
+    if (document.getElementById("employees-list")) loadEmployees();
+  } catch (err) {
+    alert(err.message || "Couldn't clock out.");
+  }
 }
 
 async function requestPing(employeeId) {
