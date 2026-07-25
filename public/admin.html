@@ -1202,9 +1202,21 @@ async function loadOverview() {
 
 // ---------- Employees + hours ----------
 async function loadEmployees() {
-  window.allEmployees = await admin.listEmployees();
+  const [rows, overview] = await Promise.all([
+    admin.listEmployees(),
+    admin.getOverview(),
+  ]);
+  window.allEmployees = rows;
+  const openEntryByEmployee = {};
+  (overview.employees || []).forEach(function(oe) {
+    if (oe.open_entry_id) openEntryByEmployee[oe.id] = oe.open_entry_id;
+  });
   const body = document.getElementById("employees-list");
-  body.innerHTML = window.allEmployees.map(function(e) {
+  body.innerHTML = rows.map(function(e) {
+    const openEntryId = openEntryByEmployee[e.id];
+    const forceClockOutBtn = openEntryId
+      ? '<button class="btn-small" style="background:#C1502E;" onclick="event.stopPropagation(); forceClockOutRowConfirm(\'' + openEntryId + '\', \'' + e.name.replace(/'/g, "\\'") + '\')">Force clock out</button>'
+      : '';
     return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', false)">' +
       '<div>' +
         '<strong>' + e.name + '</strong>' +
@@ -1213,9 +1225,23 @@ async function loadEmployees() {
       '<span class="actions" style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email.replace(/'/g, "\\'") + '\', \'' + e.name.replace(/'/g, "\\'") + '\', ' + !!e.active + ')">Edit</button>' +
         '<button class="btn-small" style="background:' + (e.active ? "#C1502E" : "#3D5A50") + ';" onclick="event.stopPropagation(); toggleActive(\'' + e.id + '\', ' + (!e.active) + ')">' + (e.active ? "Deactivate" : "Reactivate") + '</button>' +
+        forceClockOutBtn +
       '</span>' +
     '</div>';
   }).join("") || '<p style="color:#8A8578; font-size:13px;">No employees yet.</p>';
+}
+
+// For when someone forgets to clock out -- lets the admin end an open shift
+// right from the Employees list, without needing to open the detail sheet.
+async function forceClockOutRowConfirm(timeEntryId, employeeName) {
+  if (!confirm("Clock " + employeeName + " out right now? This ends their current shift immediately, using the current time as their clock-out.")) return;
+  try {
+    await admin.updateTimeEntry(timeEntryId, { clock_out: new Date().toISOString() });
+    await loadEmployees();
+    if (document.getElementById("overview-list")) loadOverview();
+  } catch (err) {
+    alert(err.message || "Couldn't clock out.");
+  }
 }
 
 async function addEmployee() {
