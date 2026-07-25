@@ -262,6 +262,8 @@
   .badge-overdue { color: #fff; background: linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow: 0 3px 8px rgba(166,61,32,0.35); }
   .badge-paid { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
   .badge-void { color: #8A8578; background: transparent; border: 1.5px solid var(--line); }
+  .badge-accepted { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
+  .badge-declined { color: #fff; background: linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow: 0 3px 8px rgba(166,61,32,0.35); }
   .invoice-card { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .range-btn {
     background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px;
@@ -397,6 +399,18 @@
       </div>
       <input id="customer-search-input" placeholder="Search by name..." oninput="renderCustomersList()" />
       <div id="customers-list"></div>
+    </section>
+
+    <section id="view-quotes" class="view">
+      <div class="view-header"><h2>Quotes</h2></div>
+      <div class="card">
+        <button class="btn-primary" onclick="openQuoteSheet()">New quote</button>
+      </div>
+      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
+        Quotes are estimates for work that hasn't been booked yet. Once a customer accepts, convert the quote into a
+        scheduled job and/or an invoice.
+      </p>
+      <div id="quotes-list"></div>
     </section>
 
     <section id="view-invoices" class="view">
@@ -562,6 +576,7 @@
     <button class="nav-btn" data-view="employees" onclick="showView('employees')"><span class="dot"></span>Employees</button>
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
+    <button class="nav-btn" data-view="quotes" onclick="showView('quotes')"><span class="dot"></span>Quotes</button>
     <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Invoices</button>
     <button class="nav-btn" data-view="reports" onclick="showView('reports')"><span class="dot"></span>Reports</button>
     <button class="nav-btn" data-view="chat" onclick="showView('chat')"><span class="nav-badge" id="chat-nav-badge" style="display:none;"></span><span class="dot"></span>Chat</button>
@@ -809,6 +824,83 @@
   </div>
 </div>
 
+<div class="sheet" id="quote-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeQuoteSheet()">&times;</button>
+    <h2 id="quote-sheet-title">New quote</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="quote-sheet-status" style="display:none; margin-bottom:10px;"></div>
+    <div id="quote-sheet-error" class="error"></div>
+
+    <label>Customer</label>
+    <select id="quote-customer-input"></select>
+
+    <label>Issue date</label>
+    <input id="quote-issue-date-input" type="date" />
+    <label>Valid until (optional)</label>
+    <input id="quote-expiration-date-input" type="date" />
+
+    <label>Notes (optional)</label>
+    <input id="quote-notes-input" placeholder="Scope of work, exclusions, etc." />
+
+    <label>Line items</label>
+    <div id="quote-line-items-list"></div>
+    <label>Add from catalog</label>
+    <select id="quote-catalog-picker" onchange="addLineItemFromCatalogToQuote()">
+      <option value="">+ Add from catalog...</option>
+    </select>
+    <button class="btn-secondary" style="margin-bottom:14px;" onclick="addQuoteLineItemRow()">+ Blank line item</button>
+
+    <label>Tax rate (%, optional)</label>
+    <input id="quote-tax-rate-input" type="number" min="0" step="0.01" placeholder="0" oninput="recalcQuoteTotals()" />
+
+    <div class="invoice-totals">
+      <div class="invoice-totals-row"><span>Subtotal</span><span id="quote-subtotal-display">$0.00</span></div>
+      <div class="invoice-totals-row"><span id="quote-tax-label-display">Tax</span><span id="quote-tax-display">$0.00</span></div>
+      <div class="invoice-totals-row grand"><span>Estimate total</span><span id="quote-total-display">$0.00</span></div>
+    </div>
+
+    <button class="btn-primary" id="quote-save-btn" onclick="submitQuote()">Save draft</button>
+    <button class="btn-small" id="quote-viewpdf-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="viewQuotePdf(editingQuoteId)">View PDF</button>
+    <button class="btn-small" id="quote-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendQuoteConfirm()">Send to customer</button>
+    <button class="btn-small" id="quote-accept-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="markQuoteAcceptedConfirm()">Mark accepted</button>
+    <button class="btn-small" id="quote-decline-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="markQuoteDeclinedConfirm()">Mark declined</button>
+    <button class="btn-small" id="quote-delete-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="deleteQuoteConfirm(editingQuoteId)">Delete</button>
+
+    <div id="quote-convert-actions" style="display:none; margin-top:14px; padding-top:14px; border-top:1.5px solid var(--line);">
+      <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Once the customer's on board:</p>
+      <button class="btn-small" style="width:100%; margin-bottom:8px; background: var(--teal-deep);" onclick="openConvertQuoteToJobSheet(editingQuoteId)">Convert to scheduled job&hellip;</button>
+      <button class="btn-small" style="width:100%; background: var(--teal-deep);" onclick="openConvertQuoteToInvoiceSheet(editingQuoteId)">Convert to invoice&hellip;</button>
+      <div id="quote-converted-note" style="font-size:12px; color:#8A8578; margin-top:8px;"></div>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="convert-quote-invoice-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeConvertQuoteToInvoiceSheet()">&times;</button>
+    <h2>Convert to invoice</h2>
+  </div>
+  <div class="sheet-body">
+    <p style="font-size:12px; color:#8A8578; margin-top:-4px;">
+      Creates a draft invoice with the same customer and line items. You'll review and send it from the Invoices tab.
+    </p>
+    <label>Payment terms</label>
+    <select id="convert-invoice-terms-input">
+      <option value="due_on_receipt">Due on receipt</option>
+      <option value="net_15">Net 15</option>
+      <option value="net_30">Net 30</option>
+      <option value="net_60">Net 60</option>
+      <option value="net_90">Net 90</option>
+    </select>
+    <label>Issue date</label>
+    <input id="convert-invoice-issue-date-input" type="date" />
+    <button class="btn-primary" onclick="submitConvertQuoteToInvoice()">Create draft invoice</button>
+    <div id="convert-invoice-error" class="error"></div>
+  </div>
+</div>
+
 <div class="sheet" id="catalog-item-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeCatalogItemSheet()">&times;</button>
@@ -953,6 +1045,38 @@ const admin = {
     return true;
   },
 
+  listQuotes: () => apiFetch("/api/admin/quotes"),
+  getQuote: (id) => apiFetch(`/api/admin/quotes/${id}`),
+  addQuote: (quote) => apiFetch("/api/admin/quotes", { method: "POST", body: quote }),
+  updateQuote: (id, patch) => apiFetch(`/api/admin/quotes/${id}`, { method: "PATCH", body: patch }),
+  deleteQuote: (id) => apiFetch(`/api/admin/quotes/${id}`, { method: "DELETE" }),
+  sendQuote: (id) => apiFetch(`/api/admin/quotes/${id}/send`, { method: "POST" }),
+  markQuoteAccepted: (id) => apiFetch(`/api/admin/quotes/${id}/mark-accepted`, { method: "PATCH" }),
+  markQuoteDeclined: (id) => apiFetch(`/api/admin/quotes/${id}/mark-declined`, { method: "PATCH" }),
+  convertQuoteToJob: (id, jobPatch) => apiFetch(`/api/admin/quotes/${id}/convert-to-job`, { method: "POST", body: jobPatch }),
+  convertQuoteToInvoice: (id, patch) => apiFetch(`/api/admin/quotes/${id}/convert-to-invoice`, { method: "POST", body: patch || {} }),
+  // Same blob-URL pattern as viewInvoicePdf.
+  viewQuotePdf: async (id) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/api/admin/quotes/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let message = "Couldn't load quote PDF";
+      try {
+        const data = await res.json();
+        message = data.error || message;
+      } catch (parseErr) {
+        // response wasn't JSON -- keep the generic message
+      }
+      throw new Error(message);
+    }
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank");
+    return true;
+  },
+
   listChatThreads: () => apiFetch("/api/admin/chat/threads"),
   getChatMessages: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}/messages`),
   sendChatMessage: (employeeId, body) =>
@@ -1031,6 +1155,7 @@ function showApp() {
   loadCrews();
   loadCustomers();
   loadInvoices();
+  loadQuotes();
   loadCatalogItems();
   loadCompanyLogo();
   loadCompanyTimezone();
@@ -1919,6 +2044,7 @@ function onJobCustomerChange() {
 function closeJobSheet() {
   document.getElementById("job-sheet").classList.remove("visible");
   editingJobId = null;
+  convertingQuoteToJobId = null;
 }
 function cancelJobSheet() {
   closeJobSheet();
@@ -1963,12 +2089,19 @@ async function submitJob() {
   };
 
   try {
-    if (editingJobId) {
+    if (convertingQuoteToJobId) {
+      const quoteId = convertingQuoteToJobId;
+      await admin.convertQuoteToJob(quoteId, payload);
+      convertingQuoteToJobId = null;
+      closeJobSheet();
+      await loadQuotes();
+    } else if (editingJobId) {
       await admin.updateJob(editingJobId, payload);
+      closeJobSheet();
     } else {
       await admin.addJob(payload);
+      closeJobSheet();
     }
-    closeJobSheet();
     await renderScheduleCalendar();
     if (currentDaySheetDate) openDaySheet(currentDaySheetDate);
   } catch (err) {
@@ -2574,6 +2707,349 @@ async function voidInvoiceConfirm() {
   }
 }
 
+// ---------- Quotes ----------
+// Same line-item/tax/total UI as invoices (same shared catalog too), but a
+// quote's own status flow is simpler: draft -> sent -> accepted / declined.
+// Sending is always an explicit tap -- unlike invoices, a new quote is never
+// auto-emailed on save. Converting an accepted quote into a scheduled job
+// and/or an invoice re-uses the existing Job sheet and invoice creation
+// instead of duplicating that logic.
+
+window.allQuotes = [];
+let editingQuoteId = null;
+let convertingQuoteToJobId = null;
+let convertingQuoteToInvoiceId = null;
+
+function quoteStatusBadge(q) {
+  if (q.status === "accepted") return '<span class="badge badge-accepted">Accepted</span>';
+  if (q.status === "declined") return '<span class="badge badge-declined">Declined</span>';
+  if (q.status === "sent" && q.is_expired) return '<span class="badge badge-overdue">Expired</span>';
+  if (q.status === "sent") return '<span class="badge badge-sent">Sent</span>';
+  return '<span class="badge badge-draft">Draft</span>';
+}
+
+async function loadQuotes() {
+  window.allQuotes = await admin.listQuotes();
+  renderQuotesList();
+}
+
+function renderQuotesList() {
+  const list = document.getElementById("quotes-list");
+  if (!list) return;
+  const quotes = window.allQuotes || [];
+  if (quotes.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No quotes yet.</p>';
+    return;
+  }
+  list.innerHTML = quotes.map(function(q) {
+    const action = q.status === "draft"
+      ? '<button class="btn-small" style="background: var(--teal);" onclick="openQuoteSheet(\'' + q.id + '\')">Edit</button>'
+      : '<button class="btn-small" style="background: var(--charcoal);" onclick="openQuoteSheet(\'' + q.id + '\')">View</button>';
+    return '<div class="card invoice-card">' +
+      '<div>' +
+        '<strong>Quote #' + q.quote_number + '</strong> ' + quoteStatusBadge(q) +
+        '<div style="font-size:13px; margin-top:4px;">' + q.customer_name + '</div>' +
+        '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
+          (q.expiration_date ? 'Valid until ' + q.expiration_date.slice(0, 10) : 'No expiration set') +
+        '</div>' +
+        (q.converted_job_id || q.converted_invoice_id
+          ? '<div style="font-size:11px; color:#8A8578; margin-top:2px;">' +
+              [q.converted_job_id ? 'Scheduled' : null, q.converted_invoice_id ? 'Invoiced' : null].filter(Boolean).join(' &middot; ') +
+            '</div>'
+          : '') +
+      '</div>' +
+      '<div style="text-align:right;">' +
+        '<div class="stat-value" style="font-size:17px;">' + fmtMoney(q.total) + '</div>' +
+        '<div style="margin-top:8px;">' + action + '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function addQuoteLineItemRow(item) {
+  const list = document.getElementById("quote-line-items-list");
+  const row = document.createElement("div");
+  row.className = "line-item-row";
+  row.innerHTML =
+    '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? item.description.replace(/"/g, "&quot;") : "") + '" oninput="recalcQuoteTotals()" />' +
+    '<div style="display:flex; gap:8px;">' +
+      '<input class="line-item-qty" type="number" min="0" step="0.01" placeholder="Qty" value="' + (item ? item.quantity : 1) + '" oninput="recalcQuoteTotals()" style="flex:1;" />' +
+      '<input class="line-item-price" type="number" min="0" step="0.01" placeholder="Unit price" value="' + (item ? item.unit_price : "") + '" oninput="recalcQuoteTotals()" style="flex:1;" />' +
+    '</div>' +
+    '<div class="line-item-row-foot">' +
+      '<span class="line-item-amount">$0.00</span>' +
+      '<button type="button" class="line-item-remove" onclick="removeQuoteLineItemRow(this)">Remove</button>' +
+    '</div>';
+  list.appendChild(row);
+  recalcQuoteTotals();
+}
+
+function removeQuoteLineItemRow(btn) {
+  btn.closest(".line-item-row").remove();
+  recalcQuoteTotals();
+}
+
+function readQuoteLineItems() {
+  return Array.from(document.querySelectorAll("#quote-line-items-list .line-item-row")).map(function(row) {
+    return {
+      description: row.querySelector(".line-item-desc").value.trim(),
+      quantity: Number(row.querySelector(".line-item-qty").value) || 0,
+      unit_price: Number(row.querySelector(".line-item-price").value) || 0,
+    };
+  });
+}
+
+function recalcQuoteTotals() {
+  const items = readQuoteLineItems();
+  const rows = document.querySelectorAll("#quote-line-items-list .line-item-row");
+  rows.forEach(function(row, i) {
+    const amount = items[i].quantity * items[i].unit_price;
+    row.querySelector(".line-item-amount").textContent = fmtMoney(amount);
+  });
+  const subtotal = items.reduce(function(sum, it) { return sum + it.quantity * it.unit_price; }, 0);
+  const taxRate = Number(document.getElementById("quote-tax-rate-input").value) || 0;
+  const taxAmount = subtotal * (taxRate / 100);
+  const total = subtotal + taxAmount;
+  document.getElementById("quote-subtotal-display").textContent = fmtMoney(subtotal);
+  document.getElementById("quote-tax-label-display").textContent = "Tax" + (taxRate ? " (" + taxRate + "%)" : "");
+  document.getElementById("quote-tax-display").textContent = fmtMoney(taxAmount);
+  document.getElementById("quote-total-display").textContent = fmtMoney(total);
+}
+
+function populateQuoteCatalogPicker() {
+  const picker = document.getElementById("quote-catalog-picker");
+  if (!picker) return;
+  const items = window.allCatalogItems || [];
+  picker.innerHTML = '<option value="">+ Add from catalog...</option>' +
+    items.map(function(item) { return '<option value="' + item.id + '">' + item.name + ' — ' + fmtMoney(item.unit_price) + '</option>'; }).join("");
+}
+
+function addLineItemFromCatalogToQuote() {
+  const picker = document.getElementById("quote-catalog-picker");
+  if (!picker.value) return;
+  const item = (window.allCatalogItems || []).find(function(i) { return i.id === picker.value; });
+  if (item) addQuoteLineItemRow({ description: item.name, quantity: 1, unit_price: item.unit_price });
+  picker.value = "";
+}
+
+async function openQuoteSheet(quoteId) {
+  editingQuoteId = quoteId || null;
+  const errEl = document.getElementById("quote-sheet-error");
+  errEl.style.display = "none";
+
+  let quote = null;
+  if (quoteId) {
+    quote = await admin.getQuote(quoteId);
+  }
+  const isDraft = !quote || quote.status === "draft";
+  const isEditable = !quote || ["draft", "sent"].includes(quote.status);
+
+  document.getElementById("quote-sheet-title").textContent = quote ? "Quote #" + quote.quote_number : "New quote";
+  const statusEl = document.getElementById("quote-sheet-status");
+  if (quote) {
+    statusEl.style.display = "block";
+    statusEl.innerHTML = quoteStatusBadge(Object.assign({}, quote, {
+      is_expired: quote.status === "sent" && quote.expiration_date && quote.expiration_date.slice(0, 10) < todayStr(),
+    }));
+  } else {
+    statusEl.style.display = "none";
+  }
+
+  const customers = window.allCustomers || [];
+  document.getElementById("quote-customer-input").innerHTML =
+    customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join("");
+  document.getElementById("quote-customer-input").value = quote ? quote.customer_id : (customers[0] ? customers[0].id : "");
+
+  document.getElementById("quote-issue-date-input").value = quote ? quote.issue_date.slice(0, 10) : todayStr();
+  document.getElementById("quote-expiration-date-input").value = quote && quote.expiration_date ? quote.expiration_date.slice(0, 10) : "";
+  document.getElementById("quote-notes-input").value = quote ? (quote.notes || "") : "";
+  document.getElementById("quote-tax-rate-input").value = quote ? Number(quote.tax_rate) || "" : "";
+
+  populateQuoteCatalogPicker();
+  document.getElementById("quote-line-items-list").innerHTML = "";
+  const items = quote ? quote.line_items : [];
+  items.forEach(function(item) { addQuoteLineItemRow(item); });
+  recalcQuoteTotals();
+
+  const fieldIds = [
+    "quote-customer-input", "quote-issue-date-input", "quote-expiration-date-input",
+    "quote-notes-input", "quote-tax-rate-input",
+  ];
+  fieldIds.forEach(function(id) { document.getElementById(id).disabled = !isEditable; });
+  document.querySelectorAll("#quote-line-items-list input").forEach(function(el) { el.disabled = !isEditable; });
+  document.querySelectorAll("#quote-line-items-list .line-item-remove").forEach(function(el) { el.style.display = isEditable ? "" : "none"; });
+
+  document.getElementById("quote-save-btn").style.display = isEditable ? "" : "none";
+  document.getElementById("quote-save-btn").textContent = isDraft ? "Save draft" : "Save changes";
+  document.getElementById("quote-viewpdf-btn").style.display = quote ? "" : "none";
+  document.getElementById("quote-send-btn").style.display = quote && isEditable ? "" : "none";
+  document.getElementById("quote-send-btn").textContent = quote && quote.status === "sent" ? "Resend to customer" : "Send to customer";
+  document.getElementById("quote-accept-btn").style.display = quote && ["draft", "sent"].includes(quote.status) ? "" : "none";
+  document.getElementById("quote-decline-btn").style.display = quote && ["draft", "sent"].includes(quote.status) ? "" : "none";
+  document.getElementById("quote-delete-btn").style.display = quote && quote.status === "draft" ? "" : "none";
+
+  const convertWrap = document.getElementById("quote-convert-actions");
+  convertWrap.style.display = quote ? "" : "none";
+  const convertedNote = document.getElementById("quote-converted-note");
+  const notes = [];
+  if (quote && quote.converted_job_id) notes.push("Already converted to a scheduled job.");
+  if (quote && quote.converted_invoice_id) notes.push("Already converted to an invoice.");
+  convertedNote.textContent = notes.join(" ");
+
+  document.getElementById("quote-sheet").classList.add("visible");
+}
+
+function closeQuoteSheet() {
+  document.getElementById("quote-sheet").classList.remove("visible");
+  editingQuoteId = null;
+}
+
+async function submitQuote() {
+  const errEl = document.getElementById("quote-sheet-error");
+  errEl.style.display = "none";
+
+  const customerId = document.getElementById("quote-customer-input").value;
+  const lineItems = readQuoteLineItems();
+
+  if (!customerId) {
+    errEl.textContent = "Add a customer first (Customers tab) before creating a quote.";
+    errEl.style.display = "block";
+    return;
+  }
+  if (lineItems.length === 0 || lineItems.some(function(it) { return !it.description; })) {
+    errEl.textContent = "Every line item needs a description.";
+    errEl.style.display = "block";
+    return;
+  }
+
+  const payload = {
+    customer_id: customerId,
+    issue_date: document.getElementById("quote-issue-date-input").value,
+    expiration_date: document.getElementById("quote-expiration-date-input").value || null,
+    tax_rate: Number(document.getElementById("quote-tax-rate-input").value) || 0,
+    notes: document.getElementById("quote-notes-input").value.trim(),
+    line_items: lineItems,
+  };
+
+  try {
+    if (editingQuoteId) {
+      await admin.updateQuote(editingQuoteId, payload);
+    } else {
+      await admin.addQuote(payload);
+    }
+    closeQuoteSheet();
+    await loadQuotes();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save quote.";
+    errEl.style.display = "block";
+  }
+}
+
+async function deleteQuoteConfirm(id) {
+  if (!confirm("Delete this draft quote? This can't be undone.")) return;
+  await admin.deleteQuote(id);
+  closeQuoteSheet();
+  await loadQuotes();
+}
+
+async function viewQuotePdf(id) {
+  if (!id) return;
+  try {
+    await admin.viewQuotePdf(id);
+  } catch (err) {
+    alert(err.message || "Couldn't open quote PDF.");
+  }
+}
+
+async function sendQuoteConfirm() {
+  const errEl = document.getElementById("quote-sheet-error");
+  errEl.style.display = "none";
+  if (!editingQuoteId) {
+    errEl.textContent = "Save the quote as a draft first.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.sendQuote(editingQuoteId);
+    await loadQuotes();
+    await openQuoteSheet(editingQuoteId);
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't send quote.";
+    errEl.style.display = "block";
+  }
+}
+
+async function markQuoteAcceptedConfirm() {
+  if (!editingQuoteId) return;
+  try {
+    await admin.markQuoteAccepted(editingQuoteId);
+    await loadQuotes();
+    await openQuoteSheet(editingQuoteId);
+  } catch (err) {
+    alert(err.message || "Couldn't mark quote as accepted.");
+  }
+}
+
+async function markQuoteDeclinedConfirm() {
+  if (!editingQuoteId) return;
+  if (!confirm("Mark this quote as declined?")) return;
+  try {
+    await admin.markQuoteDeclined(editingQuoteId);
+    await loadQuotes();
+    await openQuoteSheet(editingQuoteId);
+  } catch (err) {
+    alert(err.message || "Couldn't mark quote as declined.");
+  }
+}
+
+// Reuses the existing Job sheet instead of building a second scheduling UI --
+// convertingQuoteToJobId (checked in submitJob) is what tells submitJob to
+// call convertQuoteToJob instead of the normal addJob.
+async function openConvertQuoteToJobSheet(quoteId) {
+  const quote = (window.allQuotes || []).find(function(q) { return q.id === quoteId; }) || await admin.getQuote(quoteId);
+  convertingQuoteToJobId = quoteId;
+  closeQuoteSheet();
+  openJobSheet(null);
+  document.getElementById("job-sheet-title").textContent = "Schedule job from Quote #" + quote.quote_number;
+  document.getElementById("job-title-input").value = "Quote #" + quote.quote_number + " — " + quote.customer_name;
+  if (quote.customer_id) document.getElementById("job-customer-input").value = quote.customer_id;
+  if (quote.notes) document.getElementById("job-notes-input").value = quote.notes;
+}
+
+function openConvertQuoteToInvoiceSheet(quoteId) {
+  convertingQuoteToInvoiceId = quoteId;
+  document.getElementById("convert-invoice-terms-input").value = "due_on_receipt";
+  document.getElementById("convert-invoice-issue-date-input").value = todayStr();
+  document.getElementById("convert-invoice-error").style.display = "none";
+  closeQuoteSheet();
+  document.getElementById("convert-quote-invoice-sheet").classList.add("visible");
+}
+
+function closeConvertQuoteToInvoiceSheet() {
+  document.getElementById("convert-quote-invoice-sheet").classList.remove("visible");
+  convertingQuoteToInvoiceId = null;
+}
+
+async function submitConvertQuoteToInvoice() {
+  const errEl = document.getElementById("convert-invoice-error");
+  errEl.style.display = "none";
+  if (!convertingQuoteToInvoiceId) return;
+  const payload = {
+    payment_terms: document.getElementById("convert-invoice-terms-input").value,
+    issue_date: document.getElementById("convert-invoice-issue-date-input").value,
+  };
+  try {
+    const result = await admin.convertQuoteToInvoice(convertingQuoteToInvoiceId, payload);
+    closeConvertQuoteToInvoiceSheet();
+    await loadQuotes();
+    await loadInvoices();
+    alert("Created draft Invoice #" + result.invoice.invoice_number + ". Review and send it from the Invoices tab.");
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't convert quote to an invoice.";
+    errEl.style.display = "block";
+  }
+}
+
 // ---------- Reports ----------
 // Preset time ranges (rolling, ending today) plus a this-year-vs-last-year
 // comparison, pulling labor hours + invoice totals from one backend
@@ -2739,6 +3215,7 @@ async function loadCatalogItems() {
   if (badge) badge.textContent = window.allCatalogItems.length ? "(" + window.allCatalogItems.length + ")" : "";
   renderCatalogItemsList();
   populateInvoiceCatalogPicker();
+  populateQuoteCatalogPicker();
 }
 
 function onCatalogSearchInput() {
