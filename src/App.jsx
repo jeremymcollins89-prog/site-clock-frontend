@@ -20,13 +20,13 @@ import {
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
 const JOB_COLORS = {
-  rust: "#D35A34",
-  amber: "#F4B04C",
-  teal: "#46705F",
-  blue: "#3B6FA9",
-  purple: "#7B4F9E",
-  rose: "#B8547A",
-  charcoal: "#5C6660",
+  rust: "#FF4433",
+  amber: "#FFA400",
+  teal: "#00B871",
+  blue: "#1E88FF",
+  purple: "#9B30FF",
+  rose: "#FF2D95",
+  charcoal: "#707B85",
 };
 
 // Converts the VAPID public key (base64url) into the Uint8Array format the
@@ -79,10 +79,13 @@ const RUST = "#D35A34";
 const RUST_DEEP = "#A63D20";
 const LINE = "#D8D3C4";
 
-// Full-screen fireworks celebration, shown briefly after a clock-in when the
-// employee has "celebrate_clock_in" turned on (set per-person in the admin
-// app's employee section). Pure canvas particle animation, no dependencies.
-const FIREWORKS_DURATION_MS = 12000;
+// Full-screen clock-in celebration, shown briefly after a clock-in when the
+// employee has a clock-in animation picked (set per-person in the admin
+// app's employee section, via clock_in_animation: "none" | "fireworks" |
+// "birthday"). Pure canvas animations, no dependencies. Both animations run
+// for exactly the same duration so they feel consistent.
+const ANIMATION_DURATION_MS = 12000;
+const FIREWORKS_DURATION_MS = ANIMATION_DURATION_MS;
 
 function FireworksOverlay({ onDone }) {
   const canvasRef = useRef(null);
@@ -105,7 +108,7 @@ function FireworksOverlay({ onDone }) {
     }
     window.addEventListener("resize", handleResize);
 
-    const colors = ["#F4B04C", "#D35A34", "#46705F", "#3B6FA9", "#B8547A", "#F9C978"];
+    const colors = ["#FF2EC4", "#39FF14", "#00E5FF", "#FFF01F", "#FF6A00", "#B026FF"];
     let particles = [];
 
     function spawnBurst() {
@@ -185,6 +188,121 @@ function FireworksOverlay({ onDone }) {
       ref={canvasRef}
       style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}
     />
+  );
+}
+
+// Full-screen confetti + "Happy Birthday" celebration, shown briefly after a
+// clock-in when the employee's clock_in_animation is "birthday". Mirrors
+// FireworksOverlay's ref-based timing so it isn't restarted by unrelated
+// re-renders, and hard-stops at the same ANIMATION_DURATION_MS.
+function BirthdayOverlay({ name, onDone }) {
+  const canvasRef = useRef(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+    function handleResize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", handleResize);
+
+    const colors = ["#FF2EC4", "#39FF14", "#00E5FF", "#FFF01F", "#FF6A00", "#B026FF"];
+    let pieces = [];
+
+    function spawnConfetti(count) {
+      for (let i = 0; i < count; i++) {
+        pieces.push({
+          x: Math.random() * width,
+          y: -20 - Math.random() * height * 0.3,
+          vx: (Math.random() - 0.5) * 1.6,
+          vy: 2 + Math.random() * 2,
+          size: 6 + Math.random() * 6,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.2,
+          color: colors[Math.floor(Math.random() * colors.length)],
+        });
+      }
+    }
+    spawnConfetti(80);
+
+    const startedAt = performance.now();
+    const spawnIntervalMs = 350;
+    let lastSpawnAt = 0;
+    let raf;
+    let stopped = false;
+
+    function tick(now) {
+      const elapsed = now - startedAt;
+      ctx.clearRect(0, 0, width, height);
+
+      // Keep sprinkling in new confetti until the window is up.
+      if (elapsed < ANIMATION_DURATION_MS && now - lastSpawnAt >= spawnIntervalMs) {
+        spawnConfetti(18);
+        lastSpawnAt = now;
+      }
+
+      pieces.forEach((p) => {
+        p.x += p.vx;
+        p.y += p.vy;
+        p.rotation += p.rotSpeed;
+      });
+      pieces = pieces.filter((p) => p.y < height + 30);
+
+      pieces.forEach((p) => {
+        ctx.save();
+        ctx.translate(p.x, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+        ctx.restore();
+      });
+
+      // Hard stop at the same duration as the fireworks animation, even if
+      // a few pieces are still drifting down, so it never runs indefinitely.
+      if (elapsed >= ANIMATION_DURATION_MS && (pieces.length === 0 || elapsed >= ANIMATION_DURATION_MS + 1200)) {
+        if (!stopped) {
+          stopped = true;
+          window.removeEventListener("resize", handleResize);
+          onDoneRef.current && onDoneRef.current();
+        }
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+      <canvas ref={canvasRef} style={{ position: "absolute", inset: 0 }} />
+      <div
+        style={{
+          position: "absolute",
+          top: "38%",
+          left: "50%",
+          transform: "translate(-50%, -50%)",
+          textAlign: "center",
+          color: "#fff",
+          textShadow: "0 2px 12px rgba(0,0,0,0.45)",
+          fontSize: "clamp(24px, 6vw, 44px)",
+          fontWeight: 800,
+          padding: "0 16px",
+        }}
+      >
+        🎉 Happy Birthday{name ? `, ${name}` : ""}! 🎂
+      </div>
+    </div>
   );
 }
 
@@ -789,7 +907,9 @@ const [emailInput, setEmailInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
   const [savedOffline, setSavedOffline] = useState(false);
-  const [showFireworks, setShowFireworks] = useState(false);
+  // "fireworks" | "birthday" | null -- which clock-in celebration overlay
+  // (if any) is currently showing, based on the employee's clock_in_animation.
+  const [activeAnimation, setActiveAnimation] = useState(null);
   // Geolocation-based auto clock in/out — each company sets its own shop
   // location (Settings tab in the admin app); the backend sends it back on
   // login and on session restore, attached to the employee object.
@@ -812,7 +932,9 @@ const [emailInput, setEmailInput] = useState("");
     }
     setJobName("Shop");
     setStatus("working");
-    if (employee?.celebrate_clock_in) setShowFireworks(true);
+    if (employee?.clock_in_animation === "fireworks" || employee?.clock_in_animation === "birthday") {
+      setActiveAnimation(employee.clock_in_animation);
+    }
   }
 
   async function autoClockOut() {
@@ -1114,7 +1236,9 @@ const [emailInput, setEmailInput] = useState("");
     // A fresh manual clock-in means any earlier "don't auto clock-in" flag
     // (from a previous manual clock-out) is stale — clear it.
     clearAutoClockInSuppression();
-    if (employee?.celebrate_clock_in) setShowFireworks(true);
+    if (employee?.clock_in_animation === "fireworks" || employee?.clock_in_animation === "birthday") {
+      setActiveAnimation(employee.clock_in_animation);
+    }
   }
 
   async function startBreak() {
@@ -1249,7 +1373,8 @@ const [emailInput, setEmailInput] = useState("");
   return (
     <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL }} className="w-full min-h-screen pb-16">
       <style>{FONT_IMPORT}</style>
-      {showFireworks && <FireworksOverlay onDone={() => setShowFireworks(false)} />}
+      {activeAnimation === "fireworks" && <FireworksOverlay onDone={() => setActiveAnimation(null)} />}
+      {activeAnimation === "birthday" && <BirthdayOverlay name={employee?.name} onDone={() => setActiveAnimation(null)} />}
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
         <div className="flex items-baseline justify-between mb-1">
           <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">

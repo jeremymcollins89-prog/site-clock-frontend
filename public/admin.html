@@ -286,6 +286,15 @@
   .invoice-totals { border-top: 1.5px solid var(--line); margin-top: 10px; padding-top: 10px; font-size: 14px; }
   .invoice-totals-row { display: flex; justify-content: space-between; margin-bottom: 6px; }
   .invoice-totals-row.grand { font-weight: 700; font-size: 16px; }
+  .anim-toggle {
+    cursor: pointer; color: var(--teal-deep); text-decoration: underline dotted;
+    text-underline-offset: 3px; font-weight: 600;
+  }
+  .anim-popover {
+    position: fixed; background: #fff; border: 1.5px solid var(--line);
+    border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
+    padding: 14px 16px; z-index: 3000; width: 230px; display: none;
+  }
 </style>
 </head>
 <body>
@@ -581,14 +590,26 @@
     <label>Email</label>
     <input id="edit-emp-email" type="email" />
     <label>New PIN (leave blank to keep current)</label>
-    <input id="edit-emp-pin" placeholder="4-digit PIN" />
-    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#8A8578; margin:18px 0 10px; padding-top:14px; border-top:1.5px solid var(--line);">Clock-in animations</h3>
-    <label style="display:flex; align-items:center; gap:8px;">
-      <input id="edit-emp-celebrate" type="checkbox" style="width:16px; height:16px; margin:0;" />
-      Play a fireworks celebration when this employee clocks in
-    </label>
+    <input id="edit-emp-pin" placeholder="4-digit PIN" style="margin-bottom:16px;" />
     <button class="btn-primary" onclick="submitEditEmployee()">Save changes</button>
   </div>
+</div>
+
+<div class="anim-popover" id="anim-popover">
+  <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#8A8578; font-weight:700; margin-bottom:10px;">Clock-in animations</div>
+  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+    <input type="radio" name="anim-popover-choice" value="none" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
+    No animation
+  </label>
+  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+    <input type="radio" name="anim-popover-choice" value="fireworks" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
+    Fireworks celebration
+  </label>
+  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer;">
+    <input type="radio" name="anim-popover-choice" value="birthday" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
+    Happy Birthday celebration
+  </label>
+  <div id="anim-popover-status" style="font-size:11px; margin-top:8px; display:none;"></div>
 </div>
 
 <div class="sheet" id="crew-sheet">
@@ -1099,7 +1120,7 @@ function formatAddressParts(street, city, state, zip) {
 }
 function formatAddress(c) { return formatAddressParts(c.street, c.city, c.state, c.zip); }
 
-const JOB_COLORS = { rust: "#D35A34", amber: "#F4B04C", teal: "#46705F", blue: "#3B6FA9", purple: "#7B4F9E", rose: "#B8547A", charcoal: "#5C6660" };
+const JOB_COLORS = { rust: "#FF4433", amber: "#FFA400", teal: "#00B871", blue: "#1E88FF", purple: "#9B30FF", rose: "#FF2D95", charcoal: "#707B85" };
 const EVENT_TYPE_LABELS = { job: "Job", personal: "Personal", other: "Other" };
 
 const DOW_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
@@ -1186,10 +1207,10 @@ async function loadEmployees() {
     return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', false)">' +
       '<div>' +
         '<strong>' + e.name + '</strong>' +
-        '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + '</div>' +
+        '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openAnimationsPopover(event, \'' + e.id + '\', \'' + (e.clock_in_animation || "none") + '\')">Animation: ' + animationLabel(e.clock_in_animation) + '</span></div>' +
       '</div>' +
       '<span class="actions" style="white-space:nowrap;">' +
-        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email.replace(/'/g, "\\'") + '\', ' + !!e.celebrate_clock_in + ', \'' + e.name.replace(/'/g, "\\'") + '\', ' + !!e.active + ')">Edit</button>' +
+        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email.replace(/'/g, "\\'") + '\', \'' + e.name.replace(/'/g, "\\'") + '\', ' + !!e.active + ')">Edit</button>' +
         '<button class="btn-small" style="background:' + (e.active ? "#C1502E" : "#3D5A50") + ';" onclick="event.stopPropagation(); toggleActive(\'' + e.id + '\', ' + (!e.active) + ')">' + (e.active ? "Deactivate" : "Reactivate") + '</button>' +
       '</span>' +
     '</div>';
@@ -1220,7 +1241,7 @@ async function addEmployee() {
 }
 
 let editingEmployeeId = null;
-function openEditEmployeeSheet(id, email, celebrateClockIn, name, active) {
+function openEditEmployeeSheet(id, email, name, active) {
   editingEmployeeId = id;
   document.getElementById("edit-emp-name").textContent = name || "";
   document.getElementById("edit-emp-email-display").textContent = email || "";
@@ -1230,7 +1251,6 @@ function openEditEmployeeSheet(id, email, celebrateClockIn, name, active) {
   badge.style.color = active ? "#fff" : "#5C6660";
   document.getElementById("edit-emp-email").value = email;
   document.getElementById("edit-emp-pin").value = "";
-  document.getElementById("edit-emp-celebrate").checked = !!celebrateClockIn;
   document.getElementById("edit-emp-error").style.display = "none";
   document.getElementById("edit-emp-success").style.display = "none";
   document.getElementById("edit-employee-sheet").classList.add("visible");
@@ -1251,7 +1271,7 @@ async function submitEditEmployee() {
     errEl.style.display = "block";
     return;
   }
-  const patch = { email: email, celebrate_clock_in: document.getElementById("edit-emp-celebrate").checked };
+  const patch = { email: email };
   if (pin) patch.pin = pin;
   try {
     await admin.updateEmployee(editingEmployeeId, patch);
@@ -1266,6 +1286,71 @@ async function submitEditEmployee() {
 async function toggleActive(id, newActive) {
   await admin.updateEmployee(id, { active: newActive });
   loadEmployees();
+}
+
+let animPopoverEmployeeId = null;
+
+const ANIMATION_LABELS = { none: "Off", fireworks: "Fireworks", birthday: "Birthday" };
+function animationLabel(value) {
+  return ANIMATION_LABELS[value] || "Off";
+}
+
+function openAnimationsPopover(evt, employeeId, current) {
+  evt.stopPropagation();
+  animPopoverEmployeeId = employeeId;
+  const pop = document.getElementById("anim-popover");
+  const radios = pop.querySelectorAll('input[name="anim-popover-choice"]');
+  radios.forEach(function(r) { r.checked = (r.value === (current || "none")); });
+  const statusEl = document.getElementById("anim-popover-status");
+  statusEl.style.display = "none";
+  const rect = evt.target.getBoundingClientRect();
+  pop.style.display = "block";
+  const popWidth = pop.offsetWidth || 250;
+  const popHeight = pop.offsetHeight || 170;
+  let left = rect.left;
+  if (left + popWidth > window.innerWidth - 12) left = window.innerWidth - popWidth - 12;
+  if (left < 12) left = 12;
+  // Prefer opening below the tapped text, but flip above it when there
+  // isn't enough room left at the bottom of the screen, so the popover
+  // never runs off-screen on smaller phones.
+  let top = rect.bottom + 6;
+  if (top + popHeight > window.innerHeight - 12) {
+    top = rect.top - popHeight - 6;
+    if (top < 12) top = 12;
+  }
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+  setTimeout(function() {
+    document.addEventListener("click", closeAnimationsPopoverOnOutsideClick);
+  }, 0);
+}
+
+function closeAnimationsPopoverOnOutsideClick(evt) {
+  const pop = document.getElementById("anim-popover");
+  if (!pop.contains(evt.target)) {
+    pop.style.display = "none";
+    animPopoverEmployeeId = null;
+    document.removeEventListener("click", closeAnimationsPopoverOnOutsideClick);
+  }
+}
+
+async function submitAnimationsPopover() {
+  if (!animPopoverEmployeeId) return;
+  const pop = document.getElementById("anim-popover");
+  const selected = pop.querySelector('input[name="anim-popover-choice"]:checked');
+  const value = selected ? selected.value : "none";
+  const statusEl = document.getElementById("anim-popover-status");
+  try {
+    await admin.updateEmployee(animPopoverEmployeeId, { clock_in_animation: value });
+    statusEl.textContent = "Saved.";
+    statusEl.style.color = "var(--teal-deep)";
+    statusEl.style.display = "block";
+    loadEmployees();
+  } catch (err) {
+    statusEl.textContent = err.message || "Couldn't save.";
+    statusEl.style.color = "var(--rust)";
+    statusEl.style.display = "block";
+  }
 }
 
 let currentEmployeeDetail = null;
