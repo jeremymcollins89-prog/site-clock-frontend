@@ -78,7 +78,7 @@ const LINE = "#D8D3C4";
 // Full-screen fireworks celebration, shown briefly after a clock-in when the
 // employee has "celebrate_clock_in" turned on (set per-person in the admin
 // app's employee section). Pure canvas particle animation, no dependencies.
-const FIREWORKS_DURATION_MS = 15000;
+const FIREWORKS_DURATION_MS = 12000;
 
 function FireworksOverlay({ onDone }) {
   const canvasRef = useRef(null);
