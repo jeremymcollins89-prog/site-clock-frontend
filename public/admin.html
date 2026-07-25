@@ -100,8 +100,9 @@
   }
   .day-hour-slot {
     flex: 1; padding: 5px 0 5px 10px; border-left: 1.5px solid var(--line);
-    display: flex; flex-direction: column; gap: 5px;
+    display: flex; flex-direction: column; gap: 5px; cursor: pointer; min-height: 20px;
   }
+  .day-hour-slot:active { background: rgba(211,90,52,0.08); }
   a.link { color: var(--rust); text-decoration: none; }
   a.link:active { opacity: 0.7; }
 
@@ -1639,9 +1640,16 @@ function openDaySheet(dateStr) {
     for (let hour = minHour; hour <= maxHour; hour++) {
       const hourJobs = timedJobs.filter(function(j) { return timeHourOf(j.start_time) === hour; });
       const label = formatTimeLabel(String(hour).padStart(2, "0") + ":00");
+      const hourStr = String(hour).padStart(2, "0") + ":00";
+      // Tapping empty space in the slot creates a new job pre-filled to
+      // this date and hour; tapping an existing job card (handled by its
+      // own onclick) is left alone since event.target won't be the slot
+      // itself in that case.
       hourGridHtml += '<div class="day-hour-row">' +
         '<div class="day-hour-label">' + label + '</div>' +
-        '<div class="day-hour-slot">' + hourJobs.map(renderDayJobCard).join('') + '</div>' +
+        '<div class="day-hour-slot" onclick="if(event.target===this) { closeDaySheet(); openJobSheet(null, \'' + dateStr + '\', \'' + hourStr + '\'); }">' +
+          hourJobs.map(renderDayJobCard).join('') +
+        '</div>' +
       '</div>';
     }
     hourGridHtml += '</div>';
@@ -1686,7 +1694,7 @@ function toggleJobTimeInput() {
   if (noTime) timeInput.value = "";
 }
 
-function openJobSheet(jobId, prefillDateStr) {
+function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
   editingJobId = jobId || null;
   const job = jobId ? (window.lastJobRows || []).find(function(j) { return j.id === jobId; }) : null;
   const defaultDate = prefillDateStr || todayStr();
@@ -1704,10 +1712,15 @@ function openJobSheet(jobId, prefillDateStr) {
   document.getElementById("job-notes-input").value = job ? (job.notes || "") : "";
   document.getElementById("job-start-input").value = job ? job.start_date.slice(0, 10) : defaultDate;
   document.getElementById("job-end-input").value = job ? job.end_date.slice(0, 10) : defaultDate;
-  const hasTime = job && job.start_time;
+  // Tapping a specific hour row in the day sheet pre-fills that time for a
+  // brand-new job (jobId is null in that case); editing an existing job
+  // always uses its own saved time instead.
+  const hasTime = job ? Boolean(job.start_time) : Boolean(prefillTimeStr);
   document.getElementById("job-no-time-input").checked = !hasTime;
   document.getElementById("job-time-input").disabled = !hasTime;
-  document.getElementById("job-time-input").value = hasTime ? job.start_time.slice(0, 5) : "";
+  document.getElementById("job-time-input").value = job && job.start_time
+    ? job.start_time.slice(0, 5)
+    : (hasTime ? prefillTimeStr : "");
   selectedJobColor = job ? job.color : "rust";
   renderJobColorSwatches();
 
