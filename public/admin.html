@@ -1628,8 +1628,11 @@ function openDaySheet(dateStr) {
       '</div>'
     : '';
 
+  // Always build the hourly grid -- even on a day with nothing scheduled --
+  // so there's always somewhere to tap and add an appointment at a
+  // specific time, not just via the generic "New job" button.
   let hourGridHtml = '';
-  if (timedJobs.length > 0 || untimedJobs.length === 0) {
+  {
     let minHour = 6, maxHour = 21;
     timedJobs.forEach(function(j) {
       const h = timeHourOf(j.start_time);
@@ -1655,11 +1658,9 @@ function openDaySheet(dateStr) {
     hourGridHtml += '</div>';
   }
 
-  const nothingAtAll = dayJobs.length === 0;
-
   document.getElementById("day-sheet-content").innerHTML =
     '<h2 style="margin-top:0; font-size:18px;">' + formatDayHeading(dateStr) + '</h2>' +
-    (nothingAtAll ? '<p style="color:#8A8578; font-size:13px;">Nothing scheduled for this day.</p>' : (untimedHtml + hourGridHtml)) +
+    untimedHtml + hourGridHtml +
     '<button class="btn-primary" style="margin-top:14px;" onclick="closeDaySheet(); openJobSheet(null, \'' + dateStr + '\');">New job on this day</button>';
 
   document.getElementById("day-sheet").classList.add("visible");
