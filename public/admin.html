@@ -569,12 +569,20 @@
     <h2>Edit employee</h2>
   </div>
   <div class="sheet-body">
+    <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; padding-bottom:14px; border-bottom:1.5px solid var(--line);">
+      <div style="min-width:0;">
+        <div id="edit-emp-name" style="font-size:16px; font-weight:700;"></div>
+        <div id="edit-emp-email-display" style="font-size:12px; color:#8A8578; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+      </div>
+      <span id="edit-emp-status-badge" style="flex-shrink:0; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px;"></span>
+    </div>
     <div id="edit-emp-error" class="error"></div>
     <div id="edit-emp-success" class="success-msg"></div>
     <label>Email</label>
     <input id="edit-emp-email" type="email" />
     <label>New PIN (leave blank to keep current)</label>
     <input id="edit-emp-pin" placeholder="4-digit PIN" />
+    <h3 style="font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:#8A8578; margin:18px 0 10px; padding-top:14px; border-top:1.5px solid var(--line);">Clock-in animations</h3>
     <label style="display:flex; align-items:center; gap:8px;">
       <input id="edit-emp-celebrate" type="checkbox" style="width:16px; height:16px; margin:0;" />
       Play a fireworks celebration when this employee clocks in
@@ -1181,7 +1189,7 @@ async function loadEmployees() {
         '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + '</div>' +
       '</div>' +
       '<span class="actions" style="white-space:nowrap;">' +
-        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email + '\', ' + !!e.celebrate_clock_in + ')">Edit</button>' +
+        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email.replace(/'/g, "\\'") + '\', ' + !!e.celebrate_clock_in + ', \'' + e.name.replace(/'/g, "\\'") + '\', ' + !!e.active + ')">Edit</button>' +
         '<button class="btn-small" style="background:' + (e.active ? "#C1502E" : "#3D5A50") + ';" onclick="event.stopPropagation(); toggleActive(\'' + e.id + '\', ' + (!e.active) + ')">' + (e.active ? "Deactivate" : "Reactivate") + '</button>' +
       '</span>' +
     '</div>';
@@ -1212,8 +1220,14 @@ async function addEmployee() {
 }
 
 let editingEmployeeId = null;
-function openEditEmployeeSheet(id, email, celebrateClockIn) {
+function openEditEmployeeSheet(id, email, celebrateClockIn, name, active) {
   editingEmployeeId = id;
+  document.getElementById("edit-emp-name").textContent = name || "";
+  document.getElementById("edit-emp-email-display").textContent = email || "";
+  const badge = document.getElementById("edit-emp-status-badge");
+  badge.textContent = active ? "Active" : "Inactive";
+  badge.style.background = active ? "var(--teal-deep)" : "#D8D3C4";
+  badge.style.color = active ? "#fff" : "#5C6660";
   document.getElementById("edit-emp-email").value = email;
   document.getElementById("edit-emp-pin").value = "";
   document.getElementById("edit-emp-celebrate").checked = !!celebrateClockIn;
