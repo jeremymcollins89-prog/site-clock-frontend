@@ -2615,10 +2615,19 @@ function fmtHours(hours) {
   return (Math.round(hours * 10) / 10) + "h";
 }
 
-function pctChangeParts(current, previous) {
-  if (!previous) return current ? { text: "+100%", direction: "up" } : { text: "—", direction: "flat" };
+// invertColor is for metrics where "up" is bad news, not good -- labor
+// hours is a cost, so more hours than last period should show red, and
+// fewer hours (spent less on labor) should show green. Everything else
+// (money invoiced/collected) keeps the normal "up = green" convention.
+// The +/-% text itself never changes, only which color it's shown in.
+function pctChangeParts(current, previous, invertColor) {
+  if (!previous) {
+    if (!current) return { text: "—", direction: "flat" };
+    return { text: "+100%", direction: invertColor ? "down" : "up" };
+  }
   const rounded = Math.round(((current - previous) / previous) * 100);
-  const direction = rounded > 0 ? "up" : rounded < 0 ? "down" : "flat";
+  let direction = rounded > 0 ? "up" : rounded < 0 ? "down" : "flat";
+  if (invertColor && direction !== "flat") direction = direction === "up" ? "down" : "up";
   return { text: (rounded > 0 ? "+" : "") + rounded + "%", direction: direction };
 }
 
@@ -2661,7 +2670,7 @@ async function loadReportSummary() {
         '<div style="margin-bottom:16px;">' +
           '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">This year (' + dateToStr(janThisYear) + ' – ' + dateToStr(today) + ')</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), null, pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours)) +
+            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), null, pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true)) +
             renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices", pctChangeParts(thisYearData.invoice_total, lastYearData.invoice_total)) +
             renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices", pctChangeParts(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total)) +
           '</div>' +
@@ -2684,7 +2693,7 @@ async function loadReportSummary() {
     ]);
     content.innerHTML =
       '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), null, pctChangeParts(data.labor_hours, prevData.labor_hours)) +
+        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), null, pctChangeParts(data.labor_hours, prevData.labor_hours, true)) +
         renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total)) +
         renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total)) +
       '</div>' +
