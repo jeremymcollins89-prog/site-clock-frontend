@@ -765,6 +765,13 @@
   <div id="anim-popover-status" style="font-size:11px; margin-top:8px; display:none;"></div>
 </div>
 
+<div class="anim-popover" id="rate-popover">
+  <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:#8A8578; font-weight:700; margin-bottom:10px;">Hourly rate</div>
+  <input id="rate-popover-input" type="number" min="0" step="0.01" placeholder="e.g. 22.50" style="margin-bottom:8px;" />
+  <button class="btn-primary" style="width:auto;" onclick="submitRatePopover()">Save</button>
+  <div id="rate-popover-status" style="font-size:11px; margin-top:8px; display:none;"></div>
+</div>
+
 <div class="sheet" id="crew-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeCrewSheet()">&times;</button>
@@ -1050,7 +1057,11 @@
     <label>Amount</label>
     <input id="expense-amount-input" type="number" min="0" step="0.01" placeholder="0.00" />
     <label>Description (optional)</label>
-    <input id="expense-description-input" placeholder="e.g. Cleaning supplies" style="margin-bottom:16px;" />
+    <input id="expense-description-input" placeholder="e.g. Cleaning supplies" />
+    <label>Job (optional)</label>
+    <select id="expense-job-input" style="margin-bottom:16px;">
+      <option value="">— general expense, no job —</option>
+    </select>
     <button class="btn-primary" onclick="submitExpense()">Save expense</button>
   </div>
 </div>
@@ -1517,7 +1528,8 @@ async function loadEmployees() {
     return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', false)">' +
       '<div>' +
         '<strong>' + e.name + '</strong>' +
-        '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openAnimationsPopover(event, \'' + e.id + '\', \'' + (e.clock_in_animation || "none") + '\')">Animation: ' + animationLabel(e.clock_in_animation) + '</span></div>' +
+        '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openAnimationsPopover(event, \'' + e.id + '\', \'' + (e.clock_in_animation || "none") + '\')">Animation: ' + animationLabel(e.clock_in_animation) + '</span>' +
+        ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openRatePopover(event, \'' + e.id + '\', ' + (e.hourly_rate === null || e.hourly_rate === undefined ? "null" : Number(e.hourly_rate)) + ')">' + (e.hourly_rate === null || e.hourly_rate === undefined ? "Rate: not set" : "Rate: " + fmtMoney(e.hourly_rate) + "/hr") + '</span></div>' +
       '</div>' +
       '<span class="actions" style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email.replace(/'/g, "\\'") + '\', \'' + e.name.replace(/'/g, "\\'") + '\', ' + !!e.active + ', ' + (e.hourly_rate === null || e.hourly_rate === undefined ? "null" : Number(e.hourly_rate)) + ')">Edit</button>' +
@@ -1673,6 +1685,69 @@ async function submitAnimationsPopover() {
   const statusEl = document.getElementById("anim-popover-status");
   try {
     await admin.updateEmployee(animPopoverEmployeeId, { clock_in_animation: value });
+    statusEl.textContent = "Saved.";
+    statusEl.style.color = "var(--teal-deep)";
+    statusEl.style.display = "block";
+    loadEmployees();
+  } catch (err) {
+    statusEl.textContent = err.message || "Couldn't save.";
+    statusEl.style.color = "var(--rust)";
+    statusEl.style.display = "block";
+  }
+}
+
+// Same popover pattern as clock-in animations, but for hourly rate -- lets
+// Jeremy set pay rate directly from the Employees list instead of opening
+// the full Edit sheet, since it feeds straight into Reports' profit numbers.
+let ratePopoverEmployeeId = null;
+
+function openRatePopover(evt, employeeId, current) {
+  evt.stopPropagation();
+  ratePopoverEmployeeId = employeeId;
+  const pop = document.getElementById("rate-popover");
+  document.getElementById("rate-popover-input").value = (current === null || current === undefined) ? "" : current;
+  const statusEl = document.getElementById("rate-popover-status");
+  statusEl.style.display = "none";
+  const rect = evt.target.getBoundingClientRect();
+  pop.style.display = "block";
+  const popWidth = pop.offsetWidth || 220;
+  const popHeight = pop.offsetHeight || 120;
+  let left = rect.left;
+  if (left + popWidth > window.innerWidth - 12) left = window.innerWidth - popWidth - 12;
+  if (left < 12) left = 12;
+  let top = rect.bottom + 6;
+  if (top + popHeight > window.innerHeight - 12) {
+    top = rect.top - popHeight - 6;
+    if (top < 12) top = 12;
+  }
+  pop.style.left = left + "px";
+  pop.style.top = top + "px";
+  setTimeout(function() {
+    document.addEventListener("click", closeRatePopoverOnOutsideClick);
+  }, 0);
+}
+
+function closeRatePopoverOnOutsideClick(evt) {
+  const pop = document.getElementById("rate-popover");
+  if (!pop.contains(evt.target)) {
+    pop.style.display = "none";
+    ratePopoverEmployeeId = null;
+    document.removeEventListener("click", closeRatePopoverOnOutsideClick);
+  }
+}
+
+async function submitRatePopover() {
+  if (!ratePopoverEmployeeId) return;
+  const raw = document.getElementById("rate-popover-input").value.trim();
+  const statusEl = document.getElementById("rate-popover-status");
+  if (raw && (isNaN(Number(raw)) || Number(raw) < 0)) {
+    statusEl.textContent = "Must be a non-negative number.";
+    statusEl.style.color = "var(--rust)";
+    statusEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.updateEmployee(ratePopoverEmployeeId, { hourly_rate: raw ? Number(raw) : null });
     statusEl.textContent = "Saved.";
     statusEl.style.color = "var(--teal-deep)";
     statusEl.style.display = "block";
@@ -3831,7 +3906,7 @@ function renderExpensesList() {
   list.innerHTML = expenses.map(function(x) {
     return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
       '<div><strong>' + fmtMoney(x.amount) + '</strong><div style="font-size:12px; color:#8A8578;">' +
-        x.expense_date + (x.description ? ' &middot; ' + x.description : '') +
+        x.expense_date + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; Job: ' + x.job_title : '') +
       '</div></div>' +
       '<span style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal); margin-right:6px;" onclick="openExpenseSheet(\'' + x.id + '\')">Edit</button>' +
@@ -3841,7 +3916,25 @@ function renderExpensesList() {
   }).join("");
 }
 
-function openExpenseSheet(expenseId) {
+// Fetches the full company job list fresh each time the sheet opens (rather
+// than reusing the Schedule tab's range-limited job list), since an expense
+// might belong to a job outside whatever range the calendar currently shows.
+async function populateExpenseJobPicker(selectedJobId) {
+  const picker = document.getElementById("expense-job-input");
+  let jobs = [];
+  try {
+    jobs = await admin.listJobs();
+  } catch (err) {
+    jobs = [];
+  }
+  picker.innerHTML = '<option value="">— general expense, no job —</option>' +
+    jobs.map(function(j) {
+      return '<option value="' + j.id + '">' + j.title + ' (' + j.start_date + ')</option>';
+    }).join("");
+  picker.value = selectedJobId || "";
+}
+
+async function openExpenseSheet(expenseId) {
   editingExpenseId = expenseId || null;
   const expense = expenseId ? (window.allExpenses || []).find(function(x) { return x.id === expenseId; }) : null;
   document.getElementById("expense-sheet-title").textContent = expense ? "Edit expense" : "New expense";
@@ -3850,6 +3943,7 @@ function openExpenseSheet(expenseId) {
   document.getElementById("expense-amount-input").value = expense ? Number(expense.amount) : "";
   document.getElementById("expense-description-input").value = expense ? (expense.description || "") : "";
   document.getElementById("expense-sheet").classList.add("visible");
+  await populateExpenseJobPicker(expense ? expense.job_id : null);
 }
 
 function closeExpenseSheet() {
@@ -3861,6 +3955,7 @@ async function submitExpense() {
   const expenseDate = document.getElementById("expense-date-input").value;
   const amount = document.getElementById("expense-amount-input").value;
   const description = document.getElementById("expense-description-input").value.trim();
+  const jobId = document.getElementById("expense-job-input").value;
   const errEl = document.getElementById("expense-sheet-error");
   errEl.style.display = "none";
 
@@ -3875,7 +3970,7 @@ async function submitExpense() {
     return;
   }
 
-  const payload = { expense_date: expenseDate, amount: Number(amount), description: description || null };
+  const payload = { expense_date: expenseDate, amount: Number(amount), description: description || null, job_id: jobId || null };
   try {
     if (editingExpenseId) {
       await admin.updateExpense(editingExpenseId, payload);
