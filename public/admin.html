@@ -3801,10 +3801,13 @@ async function openReportBreakdown(kind, start, end) {
     if (kind === "labor") {
       const breakdown = await admin.getLaborBreakdown(start, end);
       bodyEl.innerHTML = renderLaborBreakdownRows(breakdown);
-    } else if (kind === "invoiced") {
-      bodyEl.innerHTML = renderInvoiceBreakdownRows(start, end, "invoiced");
-    } else if (kind === "paid") {
-      bodyEl.innerHTML = renderInvoiceBreakdownRows(start, end, "paid");
+    } else if (kind === "invoiced" || kind === "paid") {
+      // Always re-fetch invoices fresh rather than trusting window.allInvoices
+      // to already be populated -- this sheet can be opened before the
+      // Billing view's own load call resolves, which previously showed an
+      // empty/stale list even though the actual total was correct.
+      window.allInvoices = await admin.listInvoices();
+      bodyEl.innerHTML = renderInvoiceBreakdownRows(start, end, kind);
     } else if (kind === "gross") {
       const [summary, breakdown] = await Promise.all([
         admin.getReportSummary(start, end),
@@ -3812,10 +3815,12 @@ async function openReportBreakdown(kind, start, end) {
       ]);
       bodyEl.innerHTML = renderGrossProfitBreakdown(summary, breakdown);
     } else if (kind === "net") {
-      const [summary, breakdown] = await Promise.all([
+      const [summary, breakdown, expenses] = await Promise.all([
         admin.getReportSummary(start, end),
         admin.getLaborBreakdown(start, end),
+        admin.listExpenses(),
       ]);
+      window.allExpenses = expenses;
       bodyEl.innerHTML = renderNetProfitBreakdown(summary, breakdown, start, end);
     }
   } catch (err) {
