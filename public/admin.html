@@ -1727,7 +1727,23 @@ async function submitEditEmployee() {
     await admin.updateEmployee(editingEmployeeId, patch);
     successEl.textContent = "Employee updated.";
     successEl.style.display = "block";
-    loadEmployees();
+    await loadEmployees();
+    // If the employee-detail sheet (with the Contact info card) is open
+    // behind this Edit sheet for the same employee, refresh it too --
+    // otherwise it keeps showing the pre-edit phone/email/address until the
+    // whole page is reloaded, since it was rendered before this save.
+    if (currentEmployeeDetail && currentEmployeeDetail.id === editingEmployeeId) {
+      const full = (window.allEmployees || []).find(function(x) { return x.id === editingEmployeeId; }) || {};
+      currentEmployeeDetail.email = full.email;
+      currentEmployeeDetail.phone = full.phone;
+      currentEmployeeDetail.street = full.street;
+      currentEmployeeDetail.city = full.city;
+      currentEmployeeDetail.state = full.state;
+      currentEmployeeDetail.zip = full.zip;
+      const startEl = document.getElementById("emp-detail-start");
+      const endEl = document.getElementById("emp-detail-end");
+      if (startEl && endEl) renderEmployeeDetail(startEl.value, endEl.value);
+    }
   } catch (err) {
     errEl.textContent = err.message || "Couldn't update employee.";
     errEl.style.display = "block";
