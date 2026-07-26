@@ -67,12 +67,28 @@
     password (also stored as a one-way hash).</li>
     <li><strong>Time records:</strong> clock-in and clock-out timestamps, break times, job/location
     labels, and hours submitted for payroll.</li>
+    <li><strong>Compensation info:</strong> if a company chooses to set hourly pay rates for its
+    employees, that rate is stored and used only to calculate that company's own labor cost and
+    profit reports. It is not shown to the employee it belongs to inside the app.</li>
     <li><strong>Location data:</strong> if an employee's company has location-based auto clock-in/out
     enabled, the app checks the device's GPS location against the company's registered shop address
     to detect arrival and departure. This check only runs while the app is open or in the background
     as permitted by your device, and only for employees whose company has turned this feature on.</li>
     <li><strong>Payroll contact info:</strong> each company sets its own payroll inbox address, used
     only to email that company's submitted timesheets.</li>
+    <li><strong>Customer records:</strong> if a company adds its own customers to the app, we store
+    the name, phone number, email, mailing address, and notes the company enters, along with a
+    history of that customer's scheduled appointments, quotes, and invoices. This is the company's
+    own business data about its customers, not information we collect directly from those
+    customers.</li>
+    <li><strong>Billing records:</strong> quotes, invoices, line items, payment status, business
+    expenses, and an optional company logo image, all entered by a company to run its own billing
+    and profit tracking.</li>
+    <li><strong>Team messages:</strong> chat messages sent between a company's admin and its
+    employees within the app.</li>
+    <li><strong>Push notification data:</strong> if an employee or admin enables notifications, we
+    store a device push subscription token, used only to deliver that company's own schedule and
+    chat notifications to that device.</li>
   </ul>
 
   <h2>How we use this information</h2>
@@ -81,14 +97,19 @@
     <li>To optionally automate clock-in/out based on arrival at a company's job site.</li>
     <li>To send account-related emails: password/PIN reset links and submitted timesheets.</li>
     <li>To let a company's admin view their own employees' time records and overview dashboard.</li>
+    <li>To let a company manage its own customers, schedule jobs, and send quotes and invoices.</li>
+    <li>To calculate a company's own labor cost, expenses, and Gross/Net Profit reports.</li>
+    <li>To deliver chat messages and schedule/job push notifications within a company's own
+    account.</li>
   </ul>
 
   <h2>What we don't do</h2>
   <ul>
     <li>We don't sell or share your data with advertisers or unrelated third parties.</li>
     <li>We don't track location outside of the clock-in/out check described above.</li>
-    <li>Each company's data (employees, time records, settings) is only visible to that company's
-    own admin account — never to other companies using Coll Timeclock.</li>
+    <li>Each company's data — employees, time records, pay rates, customers, quotes, invoices,
+    expenses, and chat messages — is only visible to that company's own admin account, never to
+    other companies using Coll Timeclock.</li>
   </ul>
 
   <h2>How data is stored and secured</h2>
