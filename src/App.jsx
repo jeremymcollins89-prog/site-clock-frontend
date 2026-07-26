@@ -86,6 +86,10 @@ const LINE = "#D8D3C4";
 // for exactly the same duration so they feel consistent.
 const ANIMATION_DURATION_MS = 12000;
 const FIREWORKS_DURATION_MS = ANIMATION_DURATION_MS;
+// Rocket launch splits the same 12s window into a 3s countdown (still on
+// the pad) followed by 9s of powered flight up and off the top of the screen.
+const ROCKET_COUNTDOWN_MS = 3000;
+const ROCKET_LAUNCH_MS = ANIMATION_DURATION_MS - ROCKET_COUNTDOWN_MS;
 
 function FireworksOverlay({ onDone }) {
   const canvasRef = useRef(null);
@@ -303,6 +307,154 @@ function BirthdayOverlay({ name, onDone }) {
         🎉 Happy Birthday{name ? `, ${name}` : ""}! 🎂
       </div>
     </div>
+  );
+}
+
+// Full-screen SpaceX-style rocket launch, shown briefly after a clock-in
+// when the employee's clock_in_animation is "rocket". First 3s is a
+// pad-side 3-2-1 countdown, then the rocket lifts off with a flame trail
+// and flies off the top of the screen over the remaining 9s. Mirrors the
+// other overlays' ref-based timing and hard-stop at ANIMATION_DURATION_MS.
+function RocketLaunchOverlay({ onDone }) {
+  const canvasRef = useRef(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+    function handleResize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", handleResize);
+
+    // Fixed starfield so the night sky doesn't feel empty during the countdown.
+    const stars = Array.from({ length: 70 }, () => ({
+      x: Math.random(),
+      y: Math.random(),
+      r: 0.6 + Math.random() * 1.4,
+    }));
+
+    let flames = [];
+    const startedAt = performance.now();
+    let raf;
+    let stopped = false;
+
+    function spawnFlame(x, y) {
+      for (let i = 0; i < 3; i++) {
+        flames.push({
+          x: x + (Math.random() - 0.5) * 16,
+          y: y + Math.random() * 6,
+          vx: (Math.random() - 0.5) * 0.7,
+          vy: 1.6 + Math.random() * 2.2,
+          life: 1,
+          color: Math.random() < 0.5 ? "#FFB020" : "#FF5A1F",
+        });
+      }
+    }
+
+    function tick(now) {
+      const elapsed = now - startedAt;
+
+      // Night-sky background for the whole run.
+      ctx.fillStyle = "#0B1220";
+      ctx.fillRect(0, 0, width, height);
+      ctx.fillStyle = "rgba(255,255,255,0.85)";
+      stars.forEach((s) => {
+        ctx.beginPath();
+        ctx.arc(s.x * width, s.y * height, s.r, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      const padY = height * 0.82;
+      // The rocket emoji renders leaning up-and-to-the-right in most fonts --
+      // rotate it upright so "launch" reads as straight up, not sideways.
+      const ROCKET_ROTATION = -Math.PI / 4;
+      const rocketFontSize = Math.round(Math.min(width, height) * 0.16);
+
+      if (elapsed < ROCKET_COUNTDOWN_MS) {
+        const secondsLeft = 3 - Math.floor(elapsed / 1000);
+        const label = secondsLeft > 0 ? String(secondsLeft) : "LIFTOFF!";
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillStyle = "#fff";
+        const bigFont = Math.round(Math.min(width, height) * 0.26);
+        const smallFont = Math.round(Math.min(width, height) * 0.1);
+        ctx.font = `800 ${label.length > 1 ? smallFont : bigFont}px 'IBM Plex Mono', monospace`;
+        ctx.fillText(label, width / 2, height * 0.32);
+
+        // Rocket sits still on the pad during the countdown.
+        ctx.save();
+        ctx.translate(width / 2, padY);
+        ctx.rotate(ROCKET_ROTATION);
+        ctx.font = `${rocketFontSize}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🚀", 0, 0);
+        ctx.restore();
+      } else {
+        const launchElapsed = elapsed - ROCKET_COUNTDOWN_MS;
+        const progress = Math.min(launchElapsed / ROCKET_LAUNCH_MS, 1);
+        // Eases in -- slow off the pad, fastest as it clears the screen.
+        const eased = progress * progress;
+        const rocketY = padY - eased * (padY + rocketFontSize);
+        const rocketX = width / 2;
+
+        spawnFlame(rocketX, rocketY + rocketFontSize * 0.4);
+
+        flames.forEach((p) => {
+          p.x += p.vx;
+          p.y += p.vy;
+          p.life -= 0.03;
+        });
+        flames = flames.filter((p) => p.life > 0);
+        flames.forEach((p) => {
+          ctx.globalAlpha = Math.max(p.life, 0);
+          ctx.fillStyle = p.color;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, 5 * p.life, 0, Math.PI * 2);
+          ctx.fill();
+        });
+        ctx.globalAlpha = 1;
+
+        ctx.save();
+        ctx.translate(rocketX, rocketY);
+        ctx.rotate(ROCKET_ROTATION);
+        ctx.font = `${rocketFontSize}px serif`;
+        ctx.textAlign = "center";
+        ctx.textBaseline = "middle";
+        ctx.fillText("🚀", 0, 0);
+        ctx.restore();
+      }
+
+      // Hard stop at exactly the shared 12s window.
+      if (elapsed >= ANIMATION_DURATION_MS) {
+        if (!stopped) {
+          stopped = true;
+          window.removeEventListener("resize", handleResize);
+          onDoneRef.current && onDoneRef.current();
+        }
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}
+    />
   );
 }
 
@@ -933,7 +1085,7 @@ const [emailInput, setEmailInput] = useState("");
     }
     setJobName("Shop");
     setStatus("working");
-    if (employee?.clock_in_animation === "fireworks" || employee?.clock_in_animation === "birthday") {
+    if (["fireworks", "birthday", "rocket"].includes(employee?.clock_in_animation)) {
       setActiveAnimation(employee.clock_in_animation);
     }
   }
@@ -1261,7 +1413,7 @@ const [emailInput, setEmailInput] = useState("");
     // A fresh manual clock-in means any earlier "don't auto clock-in" flag
     // (from a previous manual clock-out) is stale — clear it.
     clearAutoClockInSuppression();
-    if (employee?.clock_in_animation === "fireworks" || employee?.clock_in_animation === "birthday") {
+    if (["fireworks", "birthday", "rocket"].includes(employee?.clock_in_animation)) {
       setActiveAnimation(employee.clock_in_animation);
     }
   }
@@ -1400,6 +1552,7 @@ const [emailInput, setEmailInput] = useState("");
       <style>{FONT_IMPORT}</style>
       {activeAnimation === "fireworks" && <FireworksOverlay onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "birthday" && <BirthdayOverlay name={employee?.name} onDone={() => setActiveAnimation(null)} />}
+      {activeAnimation === "rocket" && <RocketLaunchOverlay onDone={() => setActiveAnimation(null)} />}
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
         <div className="flex items-baseline justify-between mb-1">
           <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
