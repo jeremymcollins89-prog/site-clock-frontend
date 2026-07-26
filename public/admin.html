@@ -3870,7 +3870,7 @@ async function loadReportSummary() {
         '<div style="margin-bottom:16px;">' +
           '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">This year (' + thisYearStart + ' – ' + thisYearEnd + ')</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), null, pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true), reportBubbleOnclick("labor", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), "labor cost " + fmtMoney(thisYearData.labor_cost), pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true), reportBubbleOnclick("labor", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices", pctChangeParts(thisYearData.invoice_total, lastYearData.invoice_total), reportBubbleOnclick("invoiced", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices", pctChangeParts(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total), reportBubbleOnclick("paid", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Gross Profit", fmtMoney(thisYearProfits.grossProfit), "labor cost " + fmtMoney(thisYearData.labor_cost), profitChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit), reportBubbleOnclick("gross", thisYearStart, thisYearEnd)) +
@@ -3880,7 +3880,7 @@ async function loadReportSummary() {
         '<div>' +
           '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">Last year (' + lastYearStart + ' – ' + lastYearEnd + ')</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-            renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours), null, null, reportBubbleOnclick("labor", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours), "labor cost " + fmtMoney(lastYearData.labor_cost), null, reportBubbleOnclick("labor", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Invoiced", fmtMoney(lastYearData.invoice_total), lastYearData.invoice_count + " invoices", null, reportBubbleOnclick("invoiced", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Paid", fmtMoney(lastYearData.paid_invoice_total), lastYearData.paid_invoice_count + " invoices", null, reportBubbleOnclick("paid", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Gross Profit", fmtMoney(lastYearProfits.grossProfit), "labor cost " + fmtMoney(lastYearData.labor_cost), null, reportBubbleOnclick("gross", lastYearStart, lastYearEnd)) +
@@ -3901,7 +3901,7 @@ async function loadReportSummary() {
     content.innerHTML =
       missingHourlyRateWarning() +
       '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), null, pctChangeParts(data.labor_hours, prevData.labor_hours, true), reportBubbleOnclick("labor", rangeStart, rangeEnd)) +
+        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), "labor cost " + fmtMoney(data.labor_cost), pctChangeParts(data.labor_hours, prevData.labor_hours, true), reportBubbleOnclick("labor", rangeStart, rangeEnd)) +
         renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total), reportBubbleOnclick("invoiced", rangeStart, rangeEnd)) +
         renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total), reportBubbleOnclick("paid", rangeStart, rangeEnd)) +
         renderReportStatCard("Gross Profit", fmtMoney(profits.grossProfit), "labor cost " + fmtMoney(data.labor_cost), profitChangeParts(profits.grossProfit, prevProfits.grossProfit), reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
