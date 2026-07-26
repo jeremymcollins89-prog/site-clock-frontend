@@ -1045,6 +1045,17 @@
   </div>
 </div>
 
+<div class="sheet" id="report-breakdown-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeReportBreakdownSheet()">&times;</button>
+    <h2 id="report-breakdown-sheet-title">Breakdown</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="report-breakdown-sheet-subtitle" style="font-size:12px; color:#8A8578; margin-top:-8px; margin-bottom:12px;"></div>
+    <div id="report-breakdown-sheet-body"></div>
+  </div>
+</div>
+
 <div class="sheet" id="expense-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeExpenseSheet()">&times;</button>
@@ -1238,6 +1249,7 @@ const admin = {
   subscribeAdminPush: (subscription) => apiFetch("/api/admin/push/subscribe", { method: "POST", body: subscription }),
 
   getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
+  getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
 
   listExpenses: () => apiFetch("/api/admin/expenses"),
   addExpense: (expense) => apiFetch("/api/admin/expenses", { method: "POST", body: expense }),
@@ -3609,11 +3621,27 @@ function pctChangeParts(current, previous, invertColor) {
   return { text: (rounded > 0 ? "+" : "") + rounded + "%", direction: direction };
 }
 
-function renderReportStatCard(label, value, sub, changeParts) {
+// Percent change is misleading whenever the comparison period's profit was
+// zero or negative -- profit can easily go negative (a slow week, or labor
+// cost exceeding what got collected), and dividing by a negative or tiny
+// baseline produces huge or sign-flipped percentages that read backwards
+// (e.g. going from -$50 to +$19,000 shows as a large NEGATIVE percent).
+// Falls back to a plain dollar swing in that case instead of a percentage.
+function profitChangeParts(current, previous) {
+  if (previous > 0) return pctChangeParts(current, previous);
+  const delta = current - previous;
+  if (delta === 0) return { text: "—", direction: "flat" };
+  const direction = delta > 0 ? "up" : "down";
+  const sign = delta > 0 ? "+" : "-";
+  return { text: sign + fmtMoney(Math.abs(delta)), direction: direction };
+}
+
+function renderReportStatCard(label, value, sub, changeParts, onclick) {
   const changeHtml = changeParts
     ? '<span class="report-stat-change ' + changeParts.direction + '">' + changeParts.text + '</span>'
     : '';
-  return '<div class="report-stat-card">' +
+  const clickAttr = onclick ? ' style="cursor:pointer;" onclick="' + onclick + '"' : '';
+  return '<div class="report-stat-card"' + clickAttr + '>' +
     '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
       '<div style="font-size:12px; color:#8A8578;">' + label + '</div>' +
       changeHtml +
@@ -3621,6 +3649,12 @@ function renderReportStatCard(label, value, sub, changeParts) {
     '<div class="stat-value" style="font-size:20px;">' + value + '</div>' +
     (sub ? '<div style="font-size:11px; color:#8A8578; margin-top:2px;">' + sub + '</div>' : '') +
   '</div>';
+}
+
+// Builds the onclick attribute for a clickable report bubble -- opens the
+// itemized breakdown sheet for that metric and date range.
+function reportBubbleOnclick(kind, start, end) {
+  return "openReportBreakdown('" + kind + "', '" + start + "', '" + end + "')";
 }
 
 function selectReportRange(range) {
@@ -3652,7 +3686,7 @@ function missingHourlyRateWarning() {
   if (!missing.length) return "";
   return '<div style="margin-bottom:12px; padding:10px 12px; background:#FBF3E7; border:1px solid #E8D9BE; border-radius:8px; font-size:12px; color:#7A6A4A;">' +
     "Profit numbers don't include labor cost for " + missing.length + (missing.length === 1 ? " employee" : " employees") +
-    " without an hourly rate set. Add rates in Employees &rarr; Edit (or the rate label on the list) for accurate Gross/Net Profit." +
+    " without an hourly rate set. Add rates in Employees &rarr; Edit (or the Pay Rate label on the list) for accurate Gross/Net Profit." +
   '</div>';
 }
 
@@ -3683,26 +3717,29 @@ async function loadReportSummary() {
       const thisYearProfits = computeProfits(thisYearData);
       const lastYearProfits = computeProfits(lastYearData);
 
+      const thisYearStart = dateToStr(janThisYear), thisYearEnd = dateToStr(today);
+      const lastYearStart = dateToStr(janLastYear), lastYearEnd = dateToStr(sameDayLastYear);
+
       content.innerHTML =
         missingHourlyRateWarning() +
         '<div style="margin-bottom:16px;">' +
-          '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">This year (' + dateToStr(janThisYear) + ' – ' + dateToStr(today) + ')</div>' +
+          '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">This year (' + thisYearStart + ' – ' + thisYearEnd + ')</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), null, pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true)) +
-            renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices", pctChangeParts(thisYearData.invoice_total, lastYearData.invoice_total)) +
-            renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices", pctChangeParts(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total)) +
-            renderReportStatCard("Gross Profit", fmtMoney(thisYearProfits.grossProfit), "labor cost " + fmtMoney(thisYearData.labor_cost), pctChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit)) +
-            renderReportStatCard("Net Profit", fmtMoney(thisYearProfits.netProfit), "expenses " + fmtMoney(thisYearData.expense_total), pctChangeParts(thisYearProfits.netProfit, lastYearProfits.netProfit)) +
+            renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), null, pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true), reportBubbleOnclick("labor", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices", pctChangeParts(thisYearData.invoice_total, lastYearData.invoice_total), reportBubbleOnclick("invoiced", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices", pctChangeParts(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total), reportBubbleOnclick("paid", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Gross Profit", fmtMoney(thisYearProfits.grossProfit), "labor cost " + fmtMoney(thisYearData.labor_cost), profitChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit), reportBubbleOnclick("gross", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Net Profit", fmtMoney(thisYearProfits.netProfit), "expenses " + fmtMoney(thisYearData.expense_total), profitChangeParts(thisYearProfits.netProfit, lastYearProfits.netProfit), reportBubbleOnclick("net", thisYearStart, thisYearEnd)) +
           '</div>' +
         '</div>' +
         '<div>' +
-          '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">Last year (' + dateToStr(janLastYear) + ' – ' + dateToStr(sameDayLastYear) + ')</div>' +
+          '<div style="font-weight:700; margin-bottom:8px; font-size:14px;">Last year (' + lastYearStart + ' – ' + lastYearEnd + ')</div>' +
           '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-            renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours)) +
-            renderReportStatCard("Invoiced", fmtMoney(lastYearData.invoice_total), lastYearData.invoice_count + " invoices") +
-            renderReportStatCard("Paid", fmtMoney(lastYearData.paid_invoice_total), lastYearData.paid_invoice_count + " invoices") +
-            renderReportStatCard("Gross Profit", fmtMoney(lastYearProfits.grossProfit), "labor cost " + fmtMoney(lastYearData.labor_cost)) +
-            renderReportStatCard("Net Profit", fmtMoney(lastYearProfits.netProfit), "expenses " + fmtMoney(lastYearData.expense_total)) +
+            renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours), null, null, reportBubbleOnclick("labor", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Invoiced", fmtMoney(lastYearData.invoice_total), lastYearData.invoice_count + " invoices", null, reportBubbleOnclick("invoiced", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Paid", fmtMoney(lastYearData.paid_invoice_total), lastYearData.paid_invoice_count + " invoices", null, reportBubbleOnclick("paid", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Gross Profit", fmtMoney(lastYearProfits.grossProfit), "labor cost " + fmtMoney(lastYearData.labor_cost), null, reportBubbleOnclick("gross", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Net Profit", fmtMoney(lastYearProfits.netProfit), "expenses " + fmtMoney(lastYearData.expense_total), null, reportBubbleOnclick("net", lastYearStart, lastYearEnd)) +
           '</div>' +
         '</div>';
       return;
@@ -3715,20 +3752,170 @@ async function loadReportSummary() {
     ]);
     const profits = computeProfits(data);
     const prevProfits = computeProfits(prevData);
+    const rangeStart = dateToStr(bounds.start), rangeEnd = dateToStr(bounds.end);
     content.innerHTML =
       missingHourlyRateWarning() +
       '<div style="display:flex; gap:8px; flex-wrap:wrap;">' +
-        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), null, pctChangeParts(data.labor_hours, prevData.labor_hours, true)) +
-        renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total)) +
-        renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total)) +
-        renderReportStatCard("Gross Profit", fmtMoney(profits.grossProfit), "labor cost " + fmtMoney(data.labor_cost), pctChangeParts(profits.grossProfit, prevProfits.grossProfit)) +
-        renderReportStatCard("Net Profit", fmtMoney(profits.netProfit), "expenses " + fmtMoney(data.expense_total), pctChangeParts(profits.netProfit, prevProfits.netProfit)) +
+        renderReportStatCard("Labor hours", fmtHours(data.labor_hours), null, pctChangeParts(data.labor_hours, prevData.labor_hours, true), reportBubbleOnclick("labor", rangeStart, rangeEnd)) +
+        renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total), reportBubbleOnclick("invoiced", rangeStart, rangeEnd)) +
+        renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total), reportBubbleOnclick("paid", rangeStart, rangeEnd)) +
+        renderReportStatCard("Gross Profit", fmtMoney(profits.grossProfit), "labor cost " + fmtMoney(data.labor_cost), profitChangeParts(profits.grossProfit, prevProfits.grossProfit), reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
+        renderReportStatCard("Net Profit", fmtMoney(profits.netProfit), "expenses " + fmtMoney(data.expense_total), profitChangeParts(profits.netProfit, prevProfits.netProfit), reportBubbleOnclick("net", rangeStart, rangeEnd)) +
       '</div>' +
-      '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + dateToStr(bounds.start) + ' – ' + dateToStr(bounds.end) +
+      '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + rangeStart + ' – ' + rangeEnd +
         ' vs. ' + dateToStr(bounds.prevStart) + ' – ' + dateToStr(bounds.prevEnd) + '</div>';
   } catch (err) {
     content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load report data.</p>';
   }
+}
+
+// ---------- Report bubble breakdowns ----------
+// Tapping any of the 5 report bubbles opens this sheet with an itemized
+// view of what makes up that number for the same date range: per-employee
+// hours/cost for Labor hours and Gross Profit, the actual invoice list for
+// Invoiced/Paid, and the itemized expense list for Net Profit.
+const REPORT_BREAKDOWN_TITLES = {
+  labor: "Labor hours breakdown",
+  invoiced: "Invoiced breakdown",
+  paid: "Paid breakdown",
+  gross: "Gross Profit breakdown",
+  net: "Net Profit breakdown",
+};
+
+function closeReportBreakdownSheet() {
+  document.getElementById("report-breakdown-sheet").classList.remove("visible");
+}
+
+async function openReportBreakdown(kind, start, end) {
+  const sheet = document.getElementById("report-breakdown-sheet");
+  const titleEl = document.getElementById("report-breakdown-sheet-title");
+  const subtitleEl = document.getElementById("report-breakdown-sheet-subtitle");
+  const bodyEl = document.getElementById("report-breakdown-sheet-body");
+
+  titleEl.textContent = REPORT_BREAKDOWN_TITLES[kind] || "Breakdown";
+  subtitleEl.textContent = start + " – " + end;
+  bodyEl.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
+  sheet.classList.add("visible");
+
+  try {
+    if (kind === "labor") {
+      const breakdown = await admin.getLaborBreakdown(start, end);
+      bodyEl.innerHTML = renderLaborBreakdownRows(breakdown);
+    } else if (kind === "invoiced") {
+      bodyEl.innerHTML = renderInvoiceBreakdownRows(start, end, "invoiced");
+    } else if (kind === "paid") {
+      bodyEl.innerHTML = renderInvoiceBreakdownRows(start, end, "paid");
+    } else if (kind === "gross") {
+      const [summary, breakdown] = await Promise.all([
+        admin.getReportSummary(start, end),
+        admin.getLaborBreakdown(start, end),
+      ]);
+      bodyEl.innerHTML = renderGrossProfitBreakdown(summary, breakdown);
+    } else if (kind === "net") {
+      const [summary, breakdown] = await Promise.all([
+        admin.getReportSummary(start, end),
+        admin.getLaborBreakdown(start, end),
+      ]);
+      bodyEl.innerHTML = renderNetProfitBreakdown(summary, breakdown, start, end);
+    }
+  } catch (err) {
+    bodyEl.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load breakdown.</p>';
+  }
+}
+
+function renderLaborBreakdownRows(breakdown) {
+  if (!breakdown.length) return '<p style="color:#8A8578; font-size:13px;">No hours worked in this range.</p>';
+  const rows = breakdown.map(function(r) {
+    const rateText = r.hourly_rate === null ? '<span style="color:var(--rust);">no rate set</span>' : fmtMoney(r.hourly_rate) + '/hr';
+    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
+      '<span>' + r.employee_name + '</span>' +
+      '<span style="color:#8A8578; text-align:right;">' + fmtHours(r.hours) + ' &middot; ' + rateText + ' &middot; ' + fmtMoney(r.cost) + '</span>' +
+    '</div>';
+  }).join("");
+  const totalHours = breakdown.reduce(function(sum, r) { return sum + r.hours; }, 0);
+  const totalCost = breakdown.reduce(function(sum, r) { return sum + r.cost; }, 0);
+  return rows + '<div style="display:flex; justify-content:space-between; padding-top:10px; font-size:13px; font-weight:600;">' +
+    '<span>Total</span><span>' + fmtHours(totalHours) + ' &middot; ' + fmtMoney(totalCost) + '</span>' +
+  '</div>';
+}
+
+// mode: "invoiced" mirrors the backend's issue_date-based filter (any
+// non-draft/non-void invoice), "paid" mirrors the paid_at-based filter. Both
+// read straight from window.allInvoices (already loaded for the Billing
+// view) rather than a new API call. Tapping a row jumps to the full invoice
+// in the Billing view.
+function renderInvoiceBreakdownRows(start, end, mode) {
+  const invoices = window.allInvoices || [];
+  const filtered = invoices.filter(function(inv) {
+    if (mode === "invoiced") {
+      return inv.status !== "draft" && inv.status !== "void" && inv.issue_date >= start && inv.issue_date <= end;
+    }
+    if (inv.status !== "paid" || !inv.paid_at) return false;
+    const paidDate = inv.paid_at.slice(0, 10);
+    return paidDate >= start && paidDate <= end;
+  });
+  if (!filtered.length) return '<p style="color:#8A8578; font-size:13px;">No invoices in this range.</p>';
+  const rows = filtered.map(function(inv) {
+    const dateLabel = mode === "invoiced" ? inv.issue_date : inv.paid_at.slice(0, 10);
+    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer;" ' +
+      'onclick="closeReportBreakdownSheet(); showView(\'invoices\'); showBillingSubtab(\'invoices\');">' +
+      '<span>#' + inv.invoice_number + ' &middot; ' + inv.customer_name + ' &middot; ' + dateLabel + '</span>' +
+      '<span>' + fmtMoney(inv.total) + '</span>' +
+    '</div>';
+  }).join("");
+  const total = filtered.reduce(function(sum, inv) { return sum + Number(inv.total); }, 0);
+  return rows + '<div style="display:flex; justify-content:space-between; padding-top:10px; font-size:13px; font-weight:600;">' +
+    '<span>Total</span><span>' + fmtMoney(total) + '</span>' +
+  '</div>';
+}
+
+function renderGrossProfitBreakdown(summary, breakdown) {
+  const laborRows = breakdown.length ? breakdown.map(function(r) {
+    const rateText = r.hourly_rate === null ? '<span style="color:var(--rust);">no rate set</span>' : fmtMoney(r.hourly_rate) + '/hr';
+    return '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
+      '<span>' + r.employee_name + ' (' + fmtHours(r.hours) + ' &middot; ' + rateText + ')</span>' +
+      '<span>' + fmtMoney(r.cost) + '</span>' +
+    '</div>';
+  }).join("") : '<p style="color:#8A8578; font-size:12.5px;">No hours worked in this range.</p>';
+
+  const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost);
+  return '<div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;">' +
+      '<span>Paid revenue</span><span>' + fmtMoney(summary.paid_invoice_total) + '</span>' +
+    '</div>' +
+    '<div style="font-size:12px; color:#8A8578; font-weight:600; margin:8px 0 4px;">Minus labor cost:</div>' +
+    laborRows +
+    '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
+      '<span>Labor cost total</span><span>' + fmtMoney(summary.labor_cost) + '</span>' +
+    '</div>' +
+    '<div style="display:flex; justify-content:space-between; font-size:15px; font-weight:700; padding-top:10px; margin-top:8px; border-top:2px solid var(--line);">' +
+      '<span>Gross Profit</span><span>' + fmtMoney(grossProfit) + '</span>' +
+    '</div>';
+}
+
+function renderNetProfitBreakdown(summary, breakdown, start, end) {
+  const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost);
+  const expenses = (window.allExpenses || []).filter(function(x) {
+    return x.expense_date >= start && x.expense_date <= end;
+  });
+  const expenseRows = expenses.length ? expenses.map(function(x) {
+    return '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
+      '<span>' + x.expense_date + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; ' + x.job_title : '') + '</span>' +
+      '<span>' + fmtMoney(x.amount) + '</span>' +
+    '</div>';
+  }).join("") : '<p style="color:#8A8578; font-size:12.5px;">No expenses logged in this range.</p>';
+  const expenseTotal = expenses.reduce(function(sum, x) { return sum + Number(x.amount); }, 0);
+
+  return '<div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;">' +
+      '<span>Gross Profit</span><span>' + fmtMoney(grossProfit) + '</span>' +
+    '</div>' +
+    '<div style="font-size:12px; color:#8A8578; font-weight:600; margin:8px 0 4px;">Minus expenses:</div>' +
+    expenseRows +
+    '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
+      '<span>Expenses total</span><span>' + fmtMoney(expenseTotal) + '</span>' +
+    '</div>' +
+    '<div style="display:flex; justify-content:space-between; font-size:15px; font-weight:700; padding-top:10px; margin-top:8px; border-top:2px solid var(--line);">' +
+      '<span>Net Profit</span><span>' + fmtMoney(grossProfit - expenseTotal) + '</span>' +
+    '</div>';
 }
 
 // ---------- Catalog items ----------
