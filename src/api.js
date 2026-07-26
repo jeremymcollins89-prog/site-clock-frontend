@@ -87,6 +87,30 @@ async function sendChatMessage(body) {
   return apiFetch("/api/chat/messages", { method: "POST", body: { body } });
 }
 
+async function getCoworkers() {
+  return apiFetch("/api/team-chat/coworkers");
+}
+
+async function getTeamUnreadCount() {
+  return apiFetch("/api/team-chat/unread-count");
+}
+
+async function getTeamThreads() {
+  return apiFetch("/api/team-chat/threads");
+}
+
+async function createTeamThread(employeeIds, name) {
+  return apiFetch("/api/team-chat/threads", { method: "POST", body: { employee_ids: employeeIds, name } });
+}
+
+async function getTeamMessages(threadId) {
+  return apiFetch(`/api/team-chat/threads/${threadId}/messages`);
+}
+
+async function sendTeamMessage(threadId, body) {
+  return apiFetch(`/api/team-chat/threads/${threadId}/messages`, { method: "POST", body: { body } });
+}
+
 async function getVapidPublicKey() {
   return apiFetch("/api/push/vapid-public-key");
 }
@@ -143,6 +167,12 @@ export {
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
+  getCoworkers,
+  getTeamUnreadCount,
+  getTeamThreads,
+  createTeamThread,
+  getTeamMessages,
+  sendTeamMessage,
   getVapidPublicKey,
   subscribePush,
   unsubscribePush,

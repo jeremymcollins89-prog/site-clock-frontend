@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, MessagesSquare } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -14,6 +14,12 @@ import {
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
+  getCoworkers,
+  getTeamUnreadCount,
+  getTeamThreads,
+  createTeamThread,
+  getTeamMessages,
+  sendTeamMessage,
   getVapidPublicKey,
   subscribePush,
 } from "./api.js";
@@ -1024,6 +1030,245 @@ function ChatView({ messages, loading, onClock, onSend }) {
   );
 }
 
+// Employee-to-employee direct messages and group chats -- separate from
+// ChatView above (which is the single admin<->employee channel). Renders
+// one of three states: the new-chat coworker picker, an open thread, or the
+// thread list, based on which props the parent hands it. Sending is gated
+// on `onClock` exactly like ChatView -- employees can only message each
+// other while clocked in, though history stays readable either way.
+function TeamChatView({
+  threads,
+  threadsLoading,
+  activeThreadId,
+  messages,
+  messagesLoading,
+  myEmployeeId,
+  onClock,
+  onOpenThread,
+  onCloseThread,
+  onSend,
+  showNewChat,
+  onOpenNewChat,
+  onCancelNewChat,
+  coworkers,
+  selectedIds,
+  onToggleSelect,
+  groupName,
+  onGroupNameChange,
+  onSubmitNewChat,
+}) {
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ block: "end" });
+  }, [messages]);
+
+  async function handleSend() {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setSending(true);
+    try {
+      await onSend(text);
+      setDraft("");
+    } catch {
+      // surfaced upstream
+    } finally {
+      setSending(false);
+    }
+  }
+
+  function threadName(t) {
+    if (t.is_group) {
+      return t.name || (t.other_participants || []).map((p) => p.name).join(", ") || "Group chat";
+    }
+    return t.other_participants?.[0]?.name || "Direct message";
+  }
+
+  if (showNewChat) {
+    return (
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+        <div className="mb-4 flex items-center justify-between">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+            New chat
+          </h2>
+          <button onClick={onCancelNewChat} className="text-xs" style={{ color: "#8A8578" }}>
+            Cancel
+          </button>
+        </div>
+        {coworkers.length === 0 ? (
+          <p className="text-sm" style={{ color: "#8A8578" }}>No other active coworkers yet.</p>
+        ) : (
+          <div className="flex flex-col gap-1 mb-4">
+            {coworkers.map((c) => (
+              <label
+                key={c.id}
+                className="flex items-center gap-2 text-sm rounded-xl px-3 py-2"
+                style={{ background: selectedIds.includes(c.id) ? "#F1EDE3" : "transparent" }}
+              >
+                <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => onToggleSelect(c.id)} />
+                {c.name}
+              </label>
+            ))}
+          </div>
+        )}
+        {selectedIds.length > 1 && (
+          <input
+            value={groupName}
+            onChange={(e) => onGroupNameChange(e.target.value)}
+            placeholder="Group name (optional)"
+            style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+            className="w-full px-3 py-2 text-sm rounded-xl outline-none mb-3"
+          />
+        )}
+        <button
+          onClick={onSubmitNewChat}
+          disabled={selectedIds.length === 0}
+          style={{
+            background: `linear-gradient(135deg, #F9C978, ${AMBER})`,
+            color: CHARCOAL,
+            opacity: selectedIds.length === 0 ? 0.5 : 1,
+          }}
+          className="w-full rounded-xl px-4 py-2 text-sm font-medium"
+        >
+          {selectedIds.length > 1 ? "Start group chat" : "Start chat"}
+        </button>
+      </div>
+    );
+  }
+
+  if (activeThreadId) {
+    return (
+      <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
+        <div className="mb-4 flex items-center gap-2">
+          <button onClick={onCloseThread} className="text-lg leading-none" style={{ color: CHARCOAL }}>
+            &larr;
+          </button>
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+            Team chat
+          </h2>
+        </div>
+
+        {messagesLoading ? (
+          <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+        ) : messages.length === 0 ? (
+          <p className="text-sm mb-4" style={{ color: "#8A8578" }}>No messages yet.</p>
+        ) : (
+          <div className="flex flex-col gap-2 mb-4">
+            {messages.map((m) => {
+              const mine = m.sender_employee_id === myEmployeeId;
+              return (
+                <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%" }}>
+                  {!mine && (
+                    <div className="text-[10px] mb-0.5 px-1" style={{ color: "#8A8578" }}>
+                      {m.sender_name}
+                    </div>
+                  )}
+                  <div
+                    style={{
+                      background: mine ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "#F1EDE3",
+                      color: CHARCOAL,
+                      borderBottomRightRadius: mine ? 4 : 14,
+                      borderBottomLeftRadius: mine ? 14 : 4,
+                    }}
+                    className="rounded-2xl px-3 py-2 text-sm"
+                  >
+                    {m.body}
+                    <div className="text-[10px] mt-0.5" style={{ color: "#8A8578" }}>
+                      {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+            <div ref={bottomRef} />
+          </div>
+        )}
+
+        {onClock ? (
+          <div className="flex gap-2 mt-auto pt-2">
+            <input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && handleSend()}
+              placeholder="Type a message..."
+              style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+              className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
+            />
+            <button
+              onClick={handleSend}
+              disabled={sending}
+              style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
+              className="rounded-xl px-4 text-sm font-medium flex items-center justify-center"
+            >
+              <Send size={16} />
+            </button>
+          </div>
+        ) : (
+          <p className="text-xs mt-auto pt-2" style={{ color: "#8A8578" }}>
+            Clock in to message your team.
+          </p>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+          Team chat
+        </h2>
+        <button
+          onClick={onOpenNewChat}
+          style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
+          className="rounded-xl px-3 py-1.5 text-xs font-medium"
+        >
+          + New
+        </button>
+      </div>
+
+      {!onClock && (
+        <p className="text-xs mb-3" style={{ color: "#8A8578" }}>
+          You can read your chats anytime, but you'll need to clock in to send a message.
+        </p>
+      )}
+
+      {threadsLoading ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+      ) : threads.length === 0 ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>No chats yet — tap "+ New" to message a coworker.</p>
+      ) : (
+        <div className="flex flex-col gap-2">
+          {threads.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => onOpenThread(t.id)}
+              className="text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2"
+              style={{ background: "#fff", border: `1px solid ${LINE}` }}
+            >
+              <div className="min-w-0">
+                <div className="text-sm font-medium truncate">{threadName(t)}</div>
+                {t.last_message && (
+                  <div className="text-xs truncate" style={{ color: "#8A8578" }}>{t.last_message.body}</div>
+                )}
+              </div>
+              {t.unread_count > 0 && (
+                <span
+                  style={{ background: RUST, color: "#fff", fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "2px 7px" }}
+                >
+                  {t.unread_count}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function TimeClock() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
@@ -1056,6 +1301,16 @@ const [emailInput, setEmailInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [scheduleUnseenCount, setScheduleUnseenCount] = useState(0);
+  const [teamThreads, setTeamThreads] = useState([]);
+  const [teamThreadsLoading, setTeamThreadsLoading] = useState(false);
+  const [teamUnreadCount, setTeamUnreadCount] = useState(0);
+  const [activeTeamThreadId, setActiveTeamThreadId] = useState(null);
+  const [teamMessages, setTeamMessages] = useState([]);
+  const [teamMessagesLoading, setTeamMessagesLoading] = useState(false);
+  const [coworkers, setCoworkers] = useState([]);
+  const [showNewTeamChat, setShowNewTeamChat] = useState(false);
+  const [newChatSelectedIds, setNewChatSelectedIds] = useState([]);
+  const [newChatGroupName, setNewChatGroupName] = useState("");
   const [now, setNow] = useState(new Date());
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -1190,7 +1445,8 @@ const [emailInput, setEmailInput] = useState("");
     function handleMessage(event) {
       if (event.data?.type !== "navigate") return;
       if (event.data.url?.includes("/schedule")) setView("schedule");
-      if (event.data.url?.includes("/chat")) setView("chat");
+      if (event.data.url?.includes("/team")) setView("team");
+      else if (event.data.url?.includes("/chat")) setView("chat");
     }
     navigator.serviceWorker.addEventListener("message", handleMessage);
     return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
@@ -1265,6 +1521,87 @@ const [emailInput, setEmailInput] = useState("");
     setChatMessages((prev) => [...prev, saved]);
   }
 
+  // Team chat (employee-to-employee) -- separate thread list from the
+  // single admin channel above. loadTeamThreads never marks anything read
+  // by itself (unlike loadChatMessages); read state is per-thread and only
+  // cleared by actually opening that thread via openTeamThread.
+  async function loadTeamThreads() {
+    setTeamThreadsLoading(true);
+    try {
+      const rows = await getTeamThreads();
+      setTeamThreads(rows);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setTeamThreadsLoading(false);
+    }
+  }
+
+  async function refreshTeamUnreadCount() {
+    try {
+      const { count } = await getTeamUnreadCount();
+      setTeamUnreadCount(count);
+    } catch {
+      // non-fatal — badge just won't update this cycle
+    }
+  }
+
+  async function openTeamThread(threadId) {
+    setActiveTeamThreadId(threadId);
+    setTeamMessagesLoading(true);
+    try {
+      const rows = await getTeamMessages(threadId);
+      setTeamMessages(rows);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setTeamMessagesLoading(false);
+    }
+    refreshTeamUnreadCount();
+    loadTeamThreads(); // refresh previews/unread badges in the background
+  }
+
+  function closeTeamThread() {
+    setActiveTeamThreadId(null);
+    setTeamMessages([]);
+  }
+
+  async function handleSendTeamMessage(body) {
+    const saved = await sendTeamMessage(activeTeamThreadId, body);
+    setTeamMessages((prev) => [...prev, saved]);
+  }
+
+  async function openNewTeamChat() {
+    setShowNewTeamChat(true);
+    setNewChatSelectedIds([]);
+    setNewChatGroupName("");
+    try {
+      const rows = await getCoworkers();
+      setCoworkers(rows);
+    } catch {
+      setCoworkers([]);
+    }
+  }
+
+  function cancelNewTeamChat() {
+    setShowNewTeamChat(false);
+  }
+
+  function toggleNewChatSelection(id) {
+    setNewChatSelectedIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+  }
+
+  async function submitNewTeamChat() {
+    if (newChatSelectedIds.length === 0) return;
+    const result = await createTeamThread(
+      newChatSelectedIds,
+      newChatSelectedIds.length > 1 ? newChatGroupName.trim() || null : null
+    );
+    setShowNewTeamChat(false);
+    await loadTeamThreads();
+    openTeamThread(result.id);
+  }
+
   function goPrevMonth() {
     setScheduleMonthAnchor((a) => new Date(a.getFullYear(), a.getMonth() - 1, 1));
   }
@@ -1280,21 +1617,24 @@ const [emailInput, setEmailInput] = useState("");
     if (view === "schedule" && loggedIn) loadSchedule(scheduleMonthAnchor);
     if (view === "customers" && loggedIn) loadCustomers();
     if (view === "chat" && loggedIn) loadChatMessages();
+    if (view === "team" && loggedIn) loadTeamThreads();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view, loggedIn, scheduleMonthAnchor]);
 
-  // Background poll for the Chat and Schedule tabs' badges -- deliberately
-  // uses the lightweight count-only endpoints (not the full fetches) so
-  // neither one silently marks things seen/read before the tab is actually
-  // opened. Each is skipped while its own tab is open, since the full
-  // fetch there already keeps its count at 0.
+  // Background poll for the Chat, Schedule, and Team tabs' badges --
+  // deliberately uses the lightweight count-only endpoints (not the full
+  // fetches) so none of them silently mark things seen/read before the tab
+  // is actually opened. Each is skipped while its own tab is open, since the
+  // full fetch there already keeps its count current.
   useEffect(() => {
     if (!loggedIn) return;
     refreshChatUnreadCount();
     refreshScheduleUnseenCount();
+    refreshTeamUnreadCount();
     const interval = setInterval(() => {
       if (view !== "chat") refreshChatUnreadCount();
       if (view !== "schedule") refreshScheduleUnseenCount();
+      if (view !== "team") refreshTeamUnreadCount();
     }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1581,6 +1921,28 @@ const [emailInput, setEmailInput] = useState("");
             loading={chatLoading}
             onClock={status !== "off"}
             onSend={handleSendChatMessage}
+          />
+        ) : view === "team" ? (
+          <TeamChatView
+            threads={teamThreads}
+            threadsLoading={teamThreadsLoading}
+            activeThreadId={activeTeamThreadId}
+            messages={teamMessages}
+            messagesLoading={teamMessagesLoading}
+            myEmployeeId={employee?.id}
+            onClock={status !== "off"}
+            onOpenThread={openTeamThread}
+            onCloseThread={closeTeamThread}
+            onSend={handleSendTeamMessage}
+            showNewChat={showNewTeamChat}
+            onOpenNewChat={openNewTeamChat}
+            onCancelNewChat={cancelNewTeamChat}
+            coworkers={coworkers}
+            selectedIds={newChatSelectedIds}
+            onToggleSelect={toggleNewChatSelection}
+            groupName={newChatGroupName}
+            onGroupNameChange={setNewChatGroupName}
+            onSubmitNewChat={submitNewTeamChat}
           />
         ) : (
         <>
@@ -1884,6 +2246,33 @@ const [emailInput, setEmailInput] = useState("");
                 }}
               >
                 {chatUnreadCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => { setView("team"); setActiveTeamThreadId(null); }}
+            style={{ color: view === "team" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif", position: "relative" }}
+            className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
+          >
+            <span
+              style={{
+                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
+                background: view === "team" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
+                boxShadow: view === "team" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
+              }}
+            >
+              <MessagesSquare size={16} style={{ color: view === "team" ? CHARCOAL : "#8A8578" }} />
+            </span>
+            Team
+            {teamUnreadCount > 0 && (
+              <span
+                style={{
+                  position: "absolute", top: 2, right: "10%",
+                  background: RUST, color: "#fff", fontSize: 9, fontWeight: 800,
+                  borderRadius: 20, padding: "1px 5px", minWidth: 14, textAlign: "center", lineHeight: 1.3,
+                }}
+              >
+                {teamUnreadCount}
               </span>
             )}
           </button>
