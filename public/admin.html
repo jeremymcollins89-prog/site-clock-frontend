@@ -1913,18 +1913,22 @@ async function renderEmployeeDetail(start, end) {
   }).join("");
 
   const fullAddress = formatAddressParts(ed.street, ed.city, ed.state, ed.zip);
-  const hasContactInfo = ed.phone || ed.email || fullAddress;
   const contactCardHtml = '<div class="card" style="margin:0 0 14px; cursor:pointer;" onclick="toggleEmpContactCard()">' +
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       '<strong style="font-size:13px;">Contact info</strong>' +
       '<span id="emp-contact-toggle-label" style="color:#8A8578; font-size:11px;">Tap to view &#9662;</span>' +
     '</div>' +
     '<div id="emp-contact-details" style="display:none; margin-top:10px;" onclick="event.stopPropagation();">' +
-      (hasContactInfo ? (
-        (ed.phone ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="' + telUrl(ed.phone) + '">' + ed.phone + '</a></div>' : '') +
-        (ed.email ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="mailto:' + ed.email + '">' + ed.email + '</a></div>' : '') +
-        (fullAddress ? '<div style="font-size:13px;"><a class="link" href="' + mapsUrl(fullAddress) + '" target="_blank">' + fullAddress + ' (directions)</a></div>' : '')
-      ) : '<p style="font-size:12px; color:#8A8578; margin:0;">No phone or address on file -- add it from the Edit button on the Employees list.</p>') +
+      (ed.phone
+        ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="' + telUrl(ed.phone) + '">' + ed.phone + '</a></div>'
+        : '<div style="font-size:13px; margin-bottom:6px; color:#8A8578;">Phone: not set</div>') +
+      (ed.email
+        ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="mailto:' + ed.email + '">' + ed.email + '</a></div>'
+        : '<div style="font-size:13px; margin-bottom:6px; color:#8A8578;">Email: not set</div>') +
+      (fullAddress
+        ? '<div style="font-size:13px; margin-bottom:8px;"><a class="link" href="' + mapsUrl(fullAddress) + '" target="_blank">' + fullAddress + ' (directions)</a></div>'
+        : '<div style="font-size:13px; margin-bottom:8px; color:#8A8578;">Address: not set</div>') +
+      '<button class="btn-secondary" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + ed.id + '\');">Edit contact info</button>' +
     '</div>' +
   '</div>';
 
