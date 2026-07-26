@@ -2842,8 +2842,8 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
   const container = document.getElementById("billing-overview-payment-breakdown");
   if (!container) return;
 
-  const methodLabels = { card: "Card", cash: "Cash", check: "Check", other: "Other" };
-  const methodOrder = ["card", "cash", "check", "other"];
+  const methodLabels = { card: "Card", cash: "Cash", check: "Check", online: "Paid online", other: "Other" };
+  const methodOrder = ["card", "cash", "check", "online", "other"];
   const counts = {};
   methodOrder.forEach(function(m) { counts[m] = { count: 0, total: 0 }; });
   paidInvoices.forEach(function(inv) {
