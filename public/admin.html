@@ -264,6 +264,8 @@
   .badge-void { color: #8A8578; background: transparent; border: 1.5px solid var(--line); }
   .badge-accepted { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
   .badge-declined { color: #fff; background: linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow: 0 3px 8px rgba(166,61,32,0.35); }
+  .badge-online { color: #fff; background: linear-gradient(135deg, #F2A93B, var(--rust-deep)); box-shadow: 0 3px 8px rgba(193,80,46,0.3); }
+  .badge-in-person { color: var(--charcoal); background: var(--line); }
   .invoice-card { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; }
   .range-btn {
     background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px;
@@ -420,6 +422,7 @@
         <button class="billing-subtab-btn" data-billing-subtab="catalog" onclick="showBillingSubtab('catalog')">Catalog</button>
         <button class="billing-subtab-btn" data-billing-subtab="quotes" onclick="showBillingSubtab('quotes')">Quotes</button>
         <button class="billing-subtab-btn" data-billing-subtab="invoices" onclick="showBillingSubtab('invoices')">Invoices</button>
+        <button class="billing-subtab-btn" data-billing-subtab="transactions" onclick="showBillingSubtab('transactions')">Transactions</button>
         <button class="billing-subtab-btn" data-billing-subtab="expenses" onclick="showBillingSubtab('expenses')">Expenses</button>
       </div>
 
@@ -527,11 +530,36 @@
           </div>
           <div style="margin-top:8px;">
             <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">
-              Invoices are created as drafts, then emailed to the customer once you tap Send.
-              Card payments aren't processed in this app yet -- Mark Paid just records how payment came in.
+              Invoices are created as drafts, then emailed to the customer once you tap Send. The email includes a
+              Pay now button for online card/bank payments, which marks the invoice paid automatically. Use Mark Paid
+              yourself only for payments that came in another way (cash, check, a card run elsewhere).
             </p>
             <div id="invoices-list"></div>
           </div>
+        </div>
+      </div>
+
+      <div id="billing-subtab-transactions" class="billing-subtab-panel" style="display:none;">
+        <div class="card">
+          <h3 style="margin:0 0 6px; font-size:15px;">Transactions</h3>
+          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">
+            Every paid invoice -- in-person/phone payments you recorded yourself, and online payments collected
+            automatically through Stripe.
+          </p>
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+            <button class="range-btn transactions-gran-btn active" data-gran="day" onclick="selectTransactionsGranularity('day')">Day</button>
+            <button class="range-btn transactions-gran-btn" data-gran="week" onclick="selectTransactionsGranularity('week')">Week</button>
+            <button class="range-btn transactions-gran-btn" data-gran="month" onclick="selectTransactionsGranularity('month')">Month</button>
+            <button class="range-btn transactions-gran-btn" data-gran="year" onclick="selectTransactionsGranularity('year')">Year</button>
+          </div>
+          <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px; flex-wrap:wrap;">
+            <button class="cal-nav-btn" onclick="navigateTransactions(-1)">&larr;</button>
+            <button class="btn-small" style="background:var(--charcoal);" onclick="goToTransactionsToday()">Today</button>
+            <button class="cal-nav-btn" onclick="navigateTransactions(1)">&rarr;</button>
+          </div>
+          <strong id="transactions-period-label" style="display:block; margin-bottom:2px;"></strong>
+          <div id="transactions-period-total" style="font-size:12px; color:#8A8578; margin-bottom:10px;"></div>
+          <div id="transactions-list"></div>
         </div>
       </div>
 
@@ -2795,6 +2823,7 @@ function showBillingSubtab(name) {
     p.style.display = p.id === "billing-subtab-" + name ? "block" : "none";
   });
   if (name === "overview") renderBillingOverview();
+  if (name === "transactions") renderTransactionsList();
 }
 
 // Pulls straight from whatever's already loaded in window.allInvoices /
@@ -2905,6 +2934,115 @@ function invoiceStatusBadge(inv) {
   if (inv.status === "sent" && inv.is_overdue) return '<span class="badge badge-overdue">Overdue</span>';
   if (inv.status === "sent") return '<span class="badge badge-sent">Sent</span>';
   return '<span class="badge badge-draft">Draft</span>';
+}
+
+// ---------- Transactions (paid invoices, viewed by day/week/month/year) ----------
+// Pulls straight from window.allInvoices (already loaded for the Invoices
+// sub-tab) -- every paid invoice already IS a transaction record, whether it
+// was paid online (Stripe, automatic) or recorded manually via Mark Paid
+// (cash/check/card run elsewhere).
+let transactionsGranularity = "day"; // day | week | month | year
+let transactionsAnchor = new Date();
+
+function transactionsPeriodBounds(granularity, anchor) {
+  const d = new Date(anchor);
+  d.setHours(0, 0, 0, 0);
+  let start, end, label;
+  if (granularity === "week") {
+    start = new Date(d);
+    start.setDate(start.getDate() - start.getDay());
+    end = new Date(start);
+    end.setDate(end.getDate() + 6);
+    label = start.toLocaleDateString("en-US", { month: "short", day: "numeric" }) + " – " +
+      end.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  } else if (granularity === "month") {
+    start = new Date(d.getFullYear(), d.getMonth(), 1);
+    end = new Date(d.getFullYear(), d.getMonth() + 1, 0);
+    label = start.toLocaleDateString("en-US", { month: "long", year: "numeric" });
+  } else if (granularity === "year") {
+    start = new Date(d.getFullYear(), 0, 1);
+    end = new Date(d.getFullYear(), 11, 31);
+    label = String(d.getFullYear());
+  } else {
+    start = new Date(d);
+    end = new Date(d);
+    label = d.toLocaleDateString("en-US", { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+  }
+  return { start: dateToStr(start), end: dateToStr(end), label: label };
+}
+
+function navigateTransactions(dir) {
+  const d = new Date(transactionsAnchor);
+  if (transactionsGranularity === "week") d.setDate(d.getDate() + dir * 7);
+  else if (transactionsGranularity === "month") d.setMonth(d.getMonth() + dir);
+  else if (transactionsGranularity === "year") d.setFullYear(d.getFullYear() + dir);
+  else d.setDate(d.getDate() + dir);
+  transactionsAnchor = d;
+  renderTransactionsList();
+}
+
+function goToTransactionsToday() {
+  transactionsAnchor = new Date();
+  renderTransactionsList();
+}
+
+function selectTransactionsGranularity(g) {
+  transactionsGranularity = g;
+  document.querySelectorAll(".transactions-gran-btn").forEach(function(b) {
+    b.classList.toggle("active", b.dataset.gran === g);
+  });
+  renderTransactionsList();
+}
+
+function renderTransactionsList() {
+  const container = document.getElementById("transactions-list");
+  if (!container) return;
+  const labelEl = document.getElementById("transactions-period-label");
+  const totalEl = document.getElementById("transactions-period-total");
+
+  const bounds = transactionsPeriodBounds(transactionsGranularity, transactionsAnchor);
+  if (labelEl) labelEl.textContent = bounds.label;
+
+  // .slice(0, 10) -- paid_at comes back as a full timestamp, not a plain
+  // date, same reason every other date field in this app gets sliced before
+  // comparison (see the expense/invoice date bug fix elsewhere in this file).
+  const paidInvoices = (window.allInvoices || []).filter(function(inv) {
+    if (inv.status !== "paid" || !inv.paid_at) return false;
+    const paidDate = String(inv.paid_at).slice(0, 10);
+    return paidDate >= bounds.start && paidDate <= bounds.end;
+  }).sort(function(a, b) { return new Date(b.paid_at) - new Date(a.paid_at); });
+
+  const total = paidInvoices.reduce(function(s, inv) { return s + Number(inv.total); }, 0);
+  if (totalEl) {
+    totalEl.textContent = paidInvoices.length + (paidInvoices.length === 1 ? " transaction · " : " transactions · ") + fmtMoney(total);
+  }
+
+  if (paidInvoices.length === 0) {
+    container.innerHTML = '<p style="color:#8A8578; font-size:13px;">No paid transactions in this period.</p>';
+    return;
+  }
+
+  const methodLabels = { card: "Card", cash: "Cash", check: "Check", online: "Online", other: "Other" };
+  container.innerHTML = paidInvoices.map(function(inv) {
+    const isOnline = inv.payment_method === "online";
+    const channelBadge = isOnline
+      ? '<span class="badge badge-online">Online</span>'
+      : '<span class="badge badge-in-person">In person / phone</span>';
+    const methodLabel = methodLabels[inv.payment_method] || "Other";
+    return '<div class="card">' +
+      '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
+        '<div>' +
+          '<strong>' + inv.customer_name + '</strong><br/>' +
+          '<span style="font-size:12px; color:#8A8578;">Invoice #' + inv.invoice_number + '</span>' +
+        '</div>' +
+        '<strong>' + fmtMoney(inv.total) + '</strong>' +
+      '</div>' +
+      '<div style="font-size:12px; color:#8A8578; margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+        '<span>' + String(inv.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + '</span>' + channelBadge +
+      '</div>' +
+      '<button class="btn-small" style="margin-top:8px; width:100%; background:var(--charcoal);" onclick="viewInvoicePdf(\'' + inv.id + '\')">Receipt</button>' +
+    '</div>';
+  }).join("");
 }
 
 function onInvoicesSearchInput() {
