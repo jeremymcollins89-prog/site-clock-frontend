@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, MessagesSquare } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -967,12 +967,6 @@ function ChatView({ messages, loading, onClock, onSend }) {
 
   return (
     <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
-      <div className="mb-4 flex items-center justify-between">
-        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
-          Chat
-        </h2>
-      </div>
-
       {loading ? (
         <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
       ) : messages.length === 0 ? (
@@ -1216,10 +1210,7 @@ function TeamChatView({
 
   return (
     <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
-      <div className="mb-4 flex items-center justify-between">
-        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
-          Team chat
-        </h2>
+      <div className="mb-4 flex items-center justify-end">
         <button
           onClick={onOpenNewChat}
           style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
@@ -1288,7 +1279,7 @@ const [emailInput, setEmailInput] = useState("");
   const [breakStartedAt, setBreakStartedAt] = useState(null);
 
   const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
-  const [view, setView] = useState("clock"); // clock | schedule | customers
+  const [view, setView] = useState("clock"); // clock | schedule | customers | chat
   const [schedule, setSchedule] = useState([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleMonthAnchor, setScheduleMonthAnchor] = useState(() => {
@@ -1311,6 +1302,11 @@ const [emailInput, setEmailInput] = useState("");
   const [showNewTeamChat, setShowNewTeamChat] = useState(false);
   const [newChatSelectedIds, setNewChatSelectedIds] = useState([]);
   const [newChatGroupName, setNewChatGroupName] = useState("");
+  // Which pane shows inside the merged Chat tab -- "direct" is the single
+  // admin<->employee channel (ChatView), "team" is employee-to-employee
+  // DMs/groups (TeamChatView). Kept separate from `view` so switching
+  // sub-tabs doesn't require leaving/re-entering the Chat tab.
+  const [chatSubtab, setChatSubtab] = useState("direct"); // direct | team
   const [now, setNow] = useState(new Date());
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
@@ -1445,8 +1441,8 @@ const [emailInput, setEmailInput] = useState("");
     function handleMessage(event) {
       if (event.data?.type !== "navigate") return;
       if (event.data.url?.includes("/schedule")) setView("schedule");
-      if (event.data.url?.includes("/team")) setView("team");
-      else if (event.data.url?.includes("/chat")) setView("chat");
+      else if (event.data.url?.includes("/team")) { setView("chat"); setChatSubtab("team"); }
+      else if (event.data.url?.includes("/chat")) { setView("chat"); setChatSubtab("direct"); }
     }
     navigator.serviceWorker.addEventListener("message", handleMessage);
     return () => navigator.serviceWorker.removeEventListener("message", handleMessage);
@@ -1616,29 +1612,32 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     if (view === "schedule" && loggedIn) loadSchedule(scheduleMonthAnchor);
     if (view === "customers" && loggedIn) loadCustomers();
-    if (view === "chat" && loggedIn) loadChatMessages();
-    if (view === "team" && loggedIn) loadTeamThreads();
+    if (view === "chat" && loggedIn) {
+      if (chatSubtab === "direct") loadChatMessages();
+      else loadTeamThreads();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [view, loggedIn, scheduleMonthAnchor]);
+  }, [view, chatSubtab, loggedIn, scheduleMonthAnchor]);
 
-  // Background poll for the Chat, Schedule, and Team tabs' badges --
+  // Background poll for the Chat (both sub-tabs) and Schedule tabs' badges --
   // deliberately uses the lightweight count-only endpoints (not the full
   // fetches) so none of them silently mark things seen/read before the tab
-  // is actually opened. Each is skipped while its own tab is open, since the
-  // full fetch there already keeps its count current.
+  // is actually opened. Each is skipped while its own pane is the one
+  // currently open, since the full fetch there already keeps its count
+  // current.
   useEffect(() => {
     if (!loggedIn) return;
     refreshChatUnreadCount();
     refreshScheduleUnseenCount();
     refreshTeamUnreadCount();
     const interval = setInterval(() => {
-      if (view !== "chat") refreshChatUnreadCount();
+      if (view !== "chat" || chatSubtab !== "direct") refreshChatUnreadCount();
       if (view !== "schedule") refreshScheduleUnseenCount();
-      if (view !== "team") refreshTeamUnreadCount();
+      if (view !== "chat" || chatSubtab !== "team") refreshTeamUnreadCount();
     }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loggedIn, view]);
+  }, [loggedIn, view, chatSubtab]);
 
   // Periodically re-sync clock status from the server. Without this, an
   // admin force-clocking someone out (forgotten shift) never reaches the
@@ -1916,34 +1915,78 @@ const [emailInput, setEmailInput] = useState("");
         ) : view === "customers" ? (
           <CustomersView customers={customers} loading={customersLoading} />
         ) : view === "chat" ? (
-          <ChatView
-            messages={chatMessages}
-            loading={chatLoading}
-            onClock={status !== "off"}
-            onSend={handleSendChatMessage}
-          />
-        ) : view === "team" ? (
-          <TeamChatView
-            threads={teamThreads}
-            threadsLoading={teamThreadsLoading}
-            activeThreadId={activeTeamThreadId}
-            messages={teamMessages}
-            messagesLoading={teamMessagesLoading}
-            myEmployeeId={employee?.id}
-            onClock={status !== "off"}
-            onOpenThread={openTeamThread}
-            onCloseThread={closeTeamThread}
-            onSend={handleSendTeamMessage}
-            showNewChat={showNewTeamChat}
-            onOpenNewChat={openNewTeamChat}
-            onCancelNewChat={cancelNewTeamChat}
-            coworkers={coworkers}
-            selectedIds={newChatSelectedIds}
-            onToggleSelect={toggleNewChatSelection}
-            groupName={newChatGroupName}
-            onGroupNameChange={setNewChatGroupName}
-            onSubmitNewChat={submitNewTeamChat}
-          />
+          <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+            <div className="mb-4 flex items-center justify-between">
+              <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+                Chat
+              </h2>
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setChatSubtab("direct")}
+                  style={{
+                    background: chatSubtab === "direct" ? CHARCOAL : "#fff",
+                    color: chatSubtab === "direct" ? "#fff" : CHARCOAL,
+                    border: `1.5px solid ${CHARCOAL}`,
+                  }}
+                  className="rounded-xl px-3 py-1 text-xs font-medium uppercase tracking-widest flex items-center gap-1.5"
+                >
+                  Direct
+                  {chatUnreadCount > 0 && (
+                    <span style={{ background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                      {chatUnreadCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  onClick={() => setChatSubtab("team")}
+                  style={{
+                    background: chatSubtab === "team" ? CHARCOAL : "#fff",
+                    color: chatSubtab === "team" ? "#fff" : CHARCOAL,
+                    border: `1.5px solid ${CHARCOAL}`,
+                  }}
+                  className="rounded-xl px-3 py-1 text-xs font-medium uppercase tracking-widest flex items-center gap-1.5"
+                >
+                  Team
+                  {teamUnreadCount > 0 && (
+                    <span style={{ background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                      {teamUnreadCount}
+                    </span>
+                  )}
+                </button>
+              </div>
+            </div>
+
+            {chatSubtab === "direct" ? (
+              <ChatView
+                messages={chatMessages}
+                loading={chatLoading}
+                onClock={status !== "off"}
+                onSend={handleSendChatMessage}
+              />
+            ) : (
+              <TeamChatView
+                threads={teamThreads}
+                threadsLoading={teamThreadsLoading}
+                activeThreadId={activeTeamThreadId}
+                messages={teamMessages}
+                messagesLoading={teamMessagesLoading}
+                myEmployeeId={employee?.id}
+                onClock={status !== "off"}
+                onOpenThread={openTeamThread}
+                onCloseThread={closeTeamThread}
+                onSend={handleSendTeamMessage}
+                showNewChat={showNewTeamChat}
+                onOpenNewChat={openNewTeamChat}
+                onCancelNewChat={cancelNewTeamChat}
+                coworkers={coworkers}
+                selectedIds={newChatSelectedIds}
+                onToggleSelect={toggleNewChatSelection}
+                groupName={newChatGroupName}
+                onGroupNameChange={setNewChatGroupName}
+                onSubmitNewChat={submitNewTeamChat}
+              />
+            )}
+          </div>
         ) : (
         <>
         {actionError && (
@@ -2237,7 +2280,7 @@ const [emailInput, setEmailInput] = useState("");
               <MessageCircle size={16} style={{ color: view === "chat" ? CHARCOAL : "#8A8578" }} />
             </span>
             Chat
-            {chatUnreadCount > 0 && (
+            {chatUnreadCount + teamUnreadCount > 0 && (
               <span
                 style={{
                   position: "absolute", top: 2, right: "22%",
@@ -2245,34 +2288,7 @@ const [emailInput, setEmailInput] = useState("");
                   borderRadius: 20, padding: "1px 5px", minWidth: 14, textAlign: "center", lineHeight: 1.3,
                 }}
               >
-                {chatUnreadCount}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => { setView("team"); setActiveTeamThreadId(null); }}
-            style={{ color: view === "team" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif", position: "relative" }}
-            className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
-          >
-            <span
-              style={{
-                display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
-                background: view === "team" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
-                boxShadow: view === "team" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
-              }}
-            >
-              <MessagesSquare size={16} style={{ color: view === "team" ? CHARCOAL : "#8A8578" }} />
-            </span>
-            Team
-            {teamUnreadCount > 0 && (
-              <span
-                style={{
-                  position: "absolute", top: 2, right: "10%",
-                  background: RUST, color: "#fff", fontSize: 9, fontWeight: 800,
-                  borderRadius: 20, padding: "1px 5px", minWidth: 14, textAlign: "center", lineHeight: 1.3,
-                }}
-              >
-                {teamUnreadCount}
+                {chatUnreadCount + teamUnreadCount}
               </span>
             )}
           </button>
