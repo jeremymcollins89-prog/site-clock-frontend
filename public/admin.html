@@ -3639,21 +3639,36 @@ function computeProfits(d) {
   return { grossProfit: grossProfit, netProfit: netProfit };
 }
 
+// Checks ALL employees, not just active ones -- someone who was deactivated
+// after doing the work still has hours counted in labor cost for whatever
+// range covers that work, so they still need a rate for the number to be
+// accurate. Excluding inactive employees here previously let this warning
+// go silent exactly when it mattered most.
 function missingHourlyRateWarning() {
   const employees = window.allEmployees || [];
   const missing = employees.filter(function(e) {
-    return e.active && (e.hourly_rate === null || e.hourly_rate === undefined);
+    return e.hourly_rate === null || e.hourly_rate === undefined;
   });
   if (!missing.length) return "";
   return '<div style="margin-bottom:12px; padding:10px 12px; background:#FBF3E7; border:1px solid #E8D9BE; border-radius:8px; font-size:12px; color:#7A6A4A;">' +
     "Profit numbers don't include labor cost for " + missing.length + (missing.length === 1 ? " employee" : " employees") +
-    " without an hourly rate set. Add rates in Employees &rarr; Edit for accurate Gross/Net Profit." +
+    " without an hourly rate set. Add rates in Employees &rarr; Edit (or the rate label on the list) for accurate Gross/Net Profit." +
   '</div>';
 }
 
 async function loadReportSummary() {
   const content = document.getElementById("reports-content");
   content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
+
+  // Always fetch employees fresh here rather than trusting window.allEmployees
+  // to already be populated -- the Reports view can render before the
+  // Employees view's own load call resolves, which previously made the
+  // missing-rate warning silently disappear on a fast first render.
+  try {
+    window.allEmployees = await admin.listEmployees();
+  } catch (err) {
+    // non-fatal -- the warning just won't show if this fails
+  }
 
   try {
     if (currentReportRange === "yoy") {
