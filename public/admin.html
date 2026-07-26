@@ -795,6 +795,16 @@
     <input id="edit-emp-pin" placeholder="4-digit PIN" />
     <label>Hourly rate (used for profit reports)</label>
     <input id="edit-emp-hourly-rate" type="number" step="0.01" min="0" placeholder="e.g. 22.50" style="margin-bottom:16px;" />
+    <label>Phone</label>
+    <input id="edit-emp-phone" placeholder="(555) 555-5555" />
+    <label>Street address</label>
+    <input id="edit-emp-street" placeholder="123 Main St" />
+    <label>City</label>
+    <input id="edit-emp-city" placeholder="Denver" />
+    <label>State</label>
+    <input id="edit-emp-state" placeholder="CO" />
+    <label>Zip</label>
+    <input id="edit-emp-zip" placeholder="80202" style="margin-bottom:16px;" />
     <button class="btn-primary" onclick="submitEditEmployee()">Save changes</button>
   </div>
 </div>
@@ -1614,7 +1624,7 @@ async function loadEmployees() {
         ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openRatePopover(event, \'' + e.id + '\', ' + (e.hourly_rate === null || e.hourly_rate === undefined ? "null" : Number(e.hourly_rate)) + ')">' + (e.hourly_rate === null || e.hourly_rate === undefined ? "Rate: not set" : "Rate: " + fmtMoney(e.hourly_rate) + "/hr") + '</span></div>' +
       '</div>' +
       '<span class="actions" style="white-space:nowrap;">' +
-        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\', \'' + e.email.replace(/'/g, "\\'") + '\', \'' + e.name.replace(/'/g, "\\'") + '\', ' + !!e.active + ', ' + (e.hourly_rate === null || e.hourly_rate === undefined ? "null" : Number(e.hourly_rate)) + ')">Edit</button>' +
+        '<button class="btn-small" style="background:var(--teal);" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + e.id + '\')">Edit</button>' +
         '<button class="btn-small" style="background:' + (e.active ? "#C1502E" : "#3D5A50") + ';" onclick="event.stopPropagation(); toggleActive(\'' + e.id + '\', ' + (!e.active) + ')">' + (e.active ? "Deactivate" : "Reactivate") + '</button>' +
         forceClockOutBtn +
       '</span>' +
@@ -1659,17 +1669,24 @@ async function addEmployee() {
 }
 
 let editingEmployeeId = null;
-function openEditEmployeeSheet(id, email, name, active, hourlyRate) {
+function openEditEmployeeSheet(id) {
+  const e = (window.allEmployees || []).find(function(x) { return x.id === id; });
+  if (!e) return;
   editingEmployeeId = id;
-  document.getElementById("edit-emp-name").textContent = name || "";
-  document.getElementById("edit-emp-email-display").textContent = email || "";
+  document.getElementById("edit-emp-name").textContent = e.name || "";
+  document.getElementById("edit-emp-email-display").textContent = e.email || "";
   const badge = document.getElementById("edit-emp-status-badge");
-  badge.textContent = active ? "Active" : "Inactive";
-  badge.style.background = active ? "var(--teal-deep)" : "#D8D3C4";
-  badge.style.color = active ? "#fff" : "#5C6660";
-  document.getElementById("edit-emp-email").value = email;
+  badge.textContent = e.active ? "Active" : "Inactive";
+  badge.style.background = e.active ? "var(--teal-deep)" : "#D8D3C4";
+  badge.style.color = e.active ? "#fff" : "#5C6660";
+  document.getElementById("edit-emp-email").value = e.email || "";
   document.getElementById("edit-emp-pin").value = "";
-  document.getElementById("edit-emp-hourly-rate").value = (hourlyRate === null || hourlyRate === undefined) ? "" : hourlyRate;
+  document.getElementById("edit-emp-hourly-rate").value = (e.hourly_rate === null || e.hourly_rate === undefined) ? "" : e.hourly_rate;
+  document.getElementById("edit-emp-phone").value = e.phone || "";
+  document.getElementById("edit-emp-street").value = e.street || "";
+  document.getElementById("edit-emp-city").value = e.city || "";
+  document.getElementById("edit-emp-state").value = e.state || "";
+  document.getElementById("edit-emp-zip").value = e.zip || "";
   document.getElementById("edit-emp-error").style.display = "none";
   document.getElementById("edit-emp-success").style.display = "none";
   document.getElementById("edit-employee-sheet").classList.add("visible");
@@ -1696,7 +1713,15 @@ async function submitEditEmployee() {
     errEl.style.display = "block";
     return;
   }
-  const patch = { email: email, hourly_rate: hourlyRateRaw ? Number(hourlyRateRaw) : null };
+  const patch = {
+    email: email,
+    hourly_rate: hourlyRateRaw ? Number(hourlyRateRaw) : null,
+    phone: document.getElementById("edit-emp-phone").value.trim() || null,
+    street: document.getElementById("edit-emp-street").value.trim() || null,
+    city: document.getElementById("edit-emp-city").value.trim() || null,
+    state: document.getElementById("edit-emp-state").value.trim() || null,
+    zip: document.getElementById("edit-emp-zip").value.trim() || null,
+  };
   if (pin) patch.pin = pin;
   try {
     await admin.updateEmployee(editingEmployeeId, patch);
@@ -1843,7 +1868,11 @@ async function submitRatePopover() {
 
 let currentEmployeeDetail = null;
 async function openEmployeeSheet(id, name, active, isClockedIn) {
-  currentEmployeeDetail = { id: id, name: name, active: active, isClockedIn: isClockedIn };
+  const full = (window.allEmployees || []).find(function(x) { return x.id === id; }) || {};
+  currentEmployeeDetail = {
+    id: id, name: name, active: active, isClockedIn: isClockedIn,
+    email: full.email, phone: full.phone, street: full.street, city: full.city, state: full.state, zip: full.zip,
+  };
   const today = new Date();
   const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
   const defaultStart = monthStart.toISOString().slice(0, 10);
@@ -1883,9 +1912,26 @@ async function renderEmployeeDetail(start, end) {
     '</div>';
   }).join("");
 
+  const fullAddress = formatAddressParts(ed.street, ed.city, ed.state, ed.zip);
+  const hasContactInfo = ed.phone || ed.email || fullAddress;
+  const contactCardHtml = '<div class="card" style="margin:0 0 14px; cursor:pointer;" onclick="toggleEmpContactCard()">' +
+    '<div style="display:flex; justify-content:space-between; align-items:center;">' +
+      '<strong style="font-size:13px;">Contact info</strong>' +
+      '<span id="emp-contact-toggle-label" style="color:#8A8578; font-size:11px;">Tap to view &#9662;</span>' +
+    '</div>' +
+    '<div id="emp-contact-details" style="display:none; margin-top:10px;" onclick="event.stopPropagation();">' +
+      (hasContactInfo ? (
+        (ed.phone ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="' + telUrl(ed.phone) + '">' + ed.phone + '</a></div>' : '') +
+        (ed.email ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="mailto:' + ed.email + '">' + ed.email + '</a></div>' : '') +
+        (fullAddress ? '<div style="font-size:13px;"><a class="link" href="' + mapsUrl(fullAddress) + '" target="_blank">' + fullAddress + ' (directions)</a></div>' : '')
+      ) : '<p style="font-size:12px; color:#8A8578; margin:0;">No phone or address on file -- add it from the Edit button on the Employees list.</p>') +
+    '</div>' +
+  '</div>';
+
   document.getElementById("employee-sheet-content").innerHTML =
     '<h2 style="margin:0 0 2px; font-size:20px;">' + ed.name + '</h2>' +
     '<p style="color:#8A8578; margin:0 0 12px;">' + (ed.active ? "Active" : "Inactive") + '</p>' +
+    contactCardHtml +
     '<div class="stat-row">' +
       '<div><div class="stat-label">Regular</div><div class="stat-value">' + fmtDurationShort(regularSeconds) + '</div></div>' +
       '<div><div class="stat-label">Travel</div><div class="stat-value">' + fmtDurationShort(travelSeconds) + '</div></div>' +
@@ -1900,6 +1946,15 @@ async function renderEmployeeDetail(start, end) {
       (openRow ? '<button class="btn-secondary" style="width:auto; margin:0; background:#C1502E; color:#fff; border-color:#C1502E;" onclick="forceClockOutConfirm(\'' + openRow.time_entry_id + '\')">Force clock out now</button>' : '') +
     '</div>' +
     (ed.isClockedIn ? '<p id="ping-status-msg" style="font-size:12px; color:#8A8578; margin-top:8px;"></p>' : '');
+}
+
+function toggleEmpContactCard() {
+  const details = document.getElementById("emp-contact-details");
+  const label = document.getElementById("emp-contact-toggle-label");
+  if (!details) return;
+  const showing = details.style.display === "block";
+  details.style.display = showing ? "none" : "block";
+  if (label) label.innerHTML = showing ? "Tap to view &#9662;" : "Tap to hide &#9652;";
 }
 
 function onEmployeeDetailRangeChange() {
