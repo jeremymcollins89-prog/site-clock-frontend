@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stripe connection</title>
+<style>
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F2A93B;
+    --teal: #3D5A50;
+    --rust: #C1502E;
+    --line: #D8D3C4;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: "Segoe UI", -apple-system, sans-serif;
+    background: var(--paper);
+    color: var(--charcoal);
+    padding: 24px;
+  }
+  .box {
+    background: #fff;
+    border: 1.5px solid var(--charcoal);
+    border-radius: 8px;
+    padding: 40px 32px;
+    width: 100%;
+    max-width: 420px;
+    text-align: center;
+  }
+  .icon {
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    color: #fff;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 30px;
+    margin: 0 auto 16px;
+  }
+  .icon.success { background: var(--teal); }
+  .icon.error { background: var(--rust); }
+  h1 { margin: 0 0 8px; font-size: 22px; }
+  p { margin: 0; color: #8A8578; font-size: 14px; line-height: 1.5; }
+  p.note { margin-top: 16px; font-size: 12px; }
+</style>
+</head>
+<body>
+  <div class="box" id="box">
+    <div class="icon" id="icon"></div>
+    <h1 id="title"></h1>
+    <p id="message"></p>
+    <p class="note">You can close this page and go back to the admin app.</p>
+  </div>
+
+<script>
+  const params = new URLSearchParams(window.location.search);
+  const status = params.get("status");
+  const reason = params.get("reason");
+
+  const icon = document.getElementById("icon");
+  const title = document.getElementById("title");
+  const message = document.getElementById("message");
+
+  if (status === "success") {
+    icon.className = "icon success";
+    icon.innerHTML = "&#10003;";
+    title.textContent = "Stripe account connected";
+    message.textContent = "Payments your customers make on invoices will now go directly to your own Stripe account and bank.";
+  } else {
+    icon.className = "icon error";
+    icon.innerHTML = "&#33;";
+    title.textContent = "Connection didn't finish";
+    const reasons = {
+      cancelled: "The Stripe connection was cancelled before it finished. No changes were made.",
+      expired: "This link expired before finishing. Go back to Billing settings and click Connect Stripe again.",
+      failed: "Something went wrong finishing the connection. Go back to Billing settings and try again.",
+      incomplete: "Stripe still needs a bit more information before this account can accept payments. Go back to Billing settings and click Connect Stripe again to pick up where you left off.",
+    };
+    message.textContent = reasons[reason] || "Something went wrong. Go back to Billing settings and try again.";
+  }
+</script>
+</body>
+</html>
