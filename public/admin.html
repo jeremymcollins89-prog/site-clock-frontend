@@ -3923,7 +3923,12 @@ function renderInvoiceBreakdownRows(start, end, mode) {
   const invoices = window.allInvoices || [];
   const filtered = invoices.filter(function(inv) {
     if (mode === "invoiced") {
-      return inv.status !== "draft" && inv.status !== "void" && inv.issue_date >= start && inv.issue_date <= end;
+      // .slice(0, 10) because DATE columns come back from the backend as
+      // full ISO timestamps (e.g. "2026-07-25T06:00:00.000Z"), not plain
+      // "YYYY-MM-DD" -- comparing the raw string against a plain start/end
+      // date silently excludes anything dated on the last day of the range.
+      const issueDate = (inv.issue_date || "").slice(0, 10);
+      return inv.status !== "draft" && inv.status !== "void" && issueDate >= start && issueDate <= end;
     }
     if (inv.status !== "paid" || !inv.paid_at) return false;
     const paidDate = inv.paid_at.slice(0, 10);
@@ -3931,7 +3936,7 @@ function renderInvoiceBreakdownRows(start, end, mode) {
   });
   if (!filtered.length) return '<p style="color:#8A8578; font-size:13px;">No invoices in this range.</p>';
   const rows = filtered.map(function(inv) {
-    const dateLabel = mode === "invoiced" ? inv.issue_date : inv.paid_at.slice(0, 10);
+    const dateLabel = mode === "invoiced" ? (inv.issue_date || "").slice(0, 10) : inv.paid_at.slice(0, 10);
     return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer;" ' +
       'onclick="closeReportBreakdownSheet(); showView(\'invoices\'); showBillingSubtab(\'invoices\');">' +
       '<span>#' + inv.invoice_number + ' &middot; ' + inv.customer_name + ' &middot; ' + dateLabel + '</span>' +
@@ -3969,12 +3974,18 @@ function renderGrossProfitBreakdown(summary, breakdown) {
 
 function renderNetProfitBreakdown(summary, breakdown, start, end) {
   const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost);
+  // .slice(0, 10) -- expense_date comes back as a full ISO timestamp (pg
+  // parses DATE columns to a Date object, which serializes with a time
+  // component), so comparing the raw string against a plain start/end date
+  // silently excluded any expense dated on the last day of the range.
   const expenses = (window.allExpenses || []).filter(function(x) {
-    return x.expense_date >= start && x.expense_date <= end;
+    const d = String(x.expense_date).slice(0, 10);
+    return d >= start && d <= end;
   });
   const expenseRows = expenses.length ? expenses.map(function(x) {
+    const d = String(x.expense_date).slice(0, 10);
     return '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
-      '<span>' + x.expense_date + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; ' + x.job_title : '') + '</span>' +
+      '<span>' + d + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; ' + x.job_title : '') + '</span>' +
       '<span>' + fmtMoney(x.amount) + '</span>' +
     '</div>';
   }).join("") : '<p style="color:#8A8578; font-size:12.5px;">No expenses logged in this range.</p>';
@@ -4183,7 +4194,7 @@ function renderExpensesList() {
   list.innerHTML = expenses.map(function(x) {
     return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
       '<div><strong>' + fmtMoney(x.amount) + '</strong><div style="font-size:12px; color:#8A8578;">' +
-        x.expense_date + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; Job: ' + x.job_title : '') +
+        String(x.expense_date).slice(0, 10) + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; Job: ' + x.job_title : '') +
       '</div></div>' +
       '<span style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal); margin-right:6px;" onclick="openExpenseSheet(\'' + x.id + '\')">Edit</button>' +
@@ -4216,7 +4227,7 @@ async function openExpenseSheet(expenseId) {
   const expense = expenseId ? (window.allExpenses || []).find(function(x) { return x.id === expenseId; }) : null;
   document.getElementById("expense-sheet-title").textContent = expense ? "Edit expense" : "New expense";
   document.getElementById("expense-sheet-error").style.display = "none";
-  document.getElementById("expense-date-input").value = expense ? expense.expense_date : dateToStr(new Date());
+  document.getElementById("expense-date-input").value = expense ? String(expense.expense_date).slice(0, 10) : dateToStr(new Date());
   document.getElementById("expense-amount-input").value = expense ? Number(expense.amount) : "";
   document.getElementById("expense-description-input").value = expense ? (expense.description || "") : "";
   document.getElementById("expense-sheet").classList.add("visible");
