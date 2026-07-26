@@ -453,19 +453,6 @@
           <div id="billing-overview-payment-breakdown"></div>
         </div>
 
-        <div class="card" id="stripe-connect-card">
-          <h3 style="margin-top:0; font-size:15px;">Get paid online</h3>
-          <p style="font-size:12px; color:#8A8578; margin:4px 0 12px;">
-            Connect your own Stripe account so customer payments on your invoices go straight to your bank account, not ours. Stripe's own processing fees apply (2.9%+30&cent; card / 0.8% bank transfer), plus a 0.5% platform fee per payment.
-          </p>
-          <div id="stripe-connect-connected-row" style="display:none; align-items:center; gap:8px; margin-bottom:4px;">
-            <span class="badge badge-paid">Connected</span>
-            <span style="font-size:12px; color:#8A8578;">Payments go directly to your Stripe account.</span>
-          </div>
-          <button id="stripe-connect-btn" class="btn-small" onclick="startStripeConnect()" style="display:none;">Connect Stripe</button>
-          <div id="stripe-connect-error" class="error" style="display:none; margin-top:10px;"></div>
-        </div>
-
         <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('catalog')">
           <div>
             <h3 style="margin:0; font-size:15px;">Catalog</h3>
@@ -653,6 +640,17 @@
         <button class="btn-secondary" id="remove-logo-btn" style="display:none;" onclick="removeCompanyLogo()">Remove logo</button>
         <div id="company-logo-error" class="error"></div>
         <div id="company-logo-success" class="success-msg"></div>
+      </div>
+
+      <div class="card" id="stripe-connect-card">
+        <h3 style="margin-top:0; font-size:15px;">Get paid online</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Connect your own Stripe account so customer payments on your invoices go straight to your bank account, not ours. Stripe's own processing fees apply (2.9%+30&cent; card / 0.8% bank transfer), plus a 0.5% platform fee per payment.</p>
+        <div id="stripe-connect-connected-row" style="display:none; align-items:center; gap:8px; margin-bottom:4px;">
+          <span class="badge badge-paid">Connected</span>
+          <span style="font-size:12px; color:#8A8578;">Payments go directly to your Stripe account.</span>
+        </div>
+        <button id="stripe-connect-btn" class="btn-primary" style="display:none;" onclick="startStripeConnect()">Connect Stripe</button>
+        <div id="stripe-connect-error" class="error"></div>
       </div>
 
       <div class="card">
@@ -1531,6 +1529,7 @@ function showView(name) {
   document.querySelectorAll(".nav-btn").forEach(function(b) { b.classList.toggle("active", b.dataset.view === name); });
   document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
   window.scrollTo(0, 0);
+  if (name === "settings") refreshStripeConnectCard();
 }
 
 // ---------- Shared helpers ----------
@@ -2919,7 +2918,6 @@ function renderBillingOverview() {
     invoices.length ? invoices.length + " total, " + unpaidInvoices.length + " unpaid" : "No invoices yet.");
 
   renderBillingPaymentBreakdown(paidInvoices, paidTotal);
-  refreshStripeConnectCard();
 }
 
 // Counts + totals paid invoices by how the customer paid (card/cash/check/
