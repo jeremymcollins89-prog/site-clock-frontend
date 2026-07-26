@@ -270,6 +270,11 @@
     padding: 6px 12px; font-size: 12.5px; color: var(--charcoal);
   }
   .range-btn.active { background: var(--charcoal); color: #fff; }
+  .billing-subtab-btn {
+    background: #fff; border: 1.5px solid var(--charcoal); border-radius: 10px;
+    padding: 6px 12px; font-size: 12.5px; color: var(--charcoal);
+  }
+  .billing-subtab-btn.active { background: var(--charcoal); color: #fff; }
   .report-stat-card {
     flex: 1; min-width: 130px; background: #fff; border: 1px solid var(--line);
     border-radius: 12px; padding: 12px;
@@ -403,44 +408,125 @@
 
     <section id="view-invoices" class="view">
       <div class="view-header"><h2>Billing</h2></div>
-      <div class="card">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleCatalogSection()">
-            <span id="catalog-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
-            Catalog <span id="catalog-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
-          </h3>
-          <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
+
+      <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
+        <button class="billing-subtab-btn active" data-billing-subtab="overview" onclick="showBillingSubtab('overview')">Overview</button>
+        <button class="billing-subtab-btn" data-billing-subtab="catalog" onclick="showBillingSubtab('catalog')">Catalog</button>
+        <button class="billing-subtab-btn" data-billing-subtab="quotes" onclick="showBillingSubtab('quotes')">Quotes</button>
+        <button class="billing-subtab-btn" data-billing-subtab="invoices" onclick="showBillingSubtab('invoices')">Invoices</button>
+      </div>
+
+      <div id="billing-subtab-overview" class="billing-subtab-panel">
+        <div class="card">
+          <h3 style="margin-top:0; font-size:15px;">Billing overview</h3>
+          <div style="display:flex; gap:8px; flex-wrap:wrap;">
+            <div class="report-stat-card" style="cursor:pointer;" onclick="showBillingSubtab('invoices')">
+              <div style="font-size:11px; color:#8A8578;">Paid invoices</div>
+              <div class="stat-value" style="font-size:18px;" id="billing-overview-paid-total"></div>
+              <div style="font-size:10.5px; color:#8A8578; margin-top:2px;" id="billing-overview-paid-count"></div>
+            </div>
+            <div class="report-stat-card" style="cursor:pointer;" onclick="showBillingSubtab('invoices')">
+              <div style="font-size:11px; color:#8A8578;">Unpaid invoices</div>
+              <div class="stat-value" style="font-size:18px;" id="billing-overview-unpaid-total"></div>
+              <div style="font-size:10.5px; color:#8A8578; margin-top:2px;" id="billing-overview-unpaid-count"></div>
+            </div>
+            <div class="report-stat-card" style="cursor:pointer;" onclick="showBillingSubtab('quotes')">
+              <div style="font-size:11px; color:#8A8578;">Pending quotes</div>
+              <div class="stat-value" style="font-size:18px;" id="billing-overview-pending-total"></div>
+              <div style="font-size:10.5px; color:#8A8578; margin-top:2px;" id="billing-overview-pending-count"></div>
+            </div>
+          </div>
         </div>
-        <div style="position:relative;">
-          <input id="catalog-search-input" type="text" placeholder="Search catalog items..." autocomplete="off"
-            oninput="onCatalogSearchInput()" onfocus="onCatalogSearchInput()" style="margin-bottom:0;" />
-          <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
+
+        <div class="card">
+          <h3 style="margin-top:0; font-size:15px;">Sales by payment type</h3>
+          <div id="billing-overview-payment-breakdown"></div>
         </div>
-        <div id="catalog-section-body" style="display:none; margin-top:8px;">
-          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
-          <div id="catalog-items-list"></div>
+
+        <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('catalog')">
+          <div>
+            <h3 style="margin:0; font-size:15px;">Catalog</h3>
+            <p style="font-size:12px; color:#8A8578; margin:4px 0 0;" id="billing-overview-catalog-summary">Reusable line items for quotes and invoices.</p>
+          </div>
+          <span style="color:#8A8578; font-size:20px;">&#8250;</span>
+        </div>
+
+        <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('quotes')">
+          <div>
+            <h3 style="margin:0; font-size:15px;">Quotes</h3>
+            <p style="font-size:12px; color:#8A8578; margin:4px 0 0;" id="billing-overview-quotes-summary">Estimates for work that hasn't been booked yet.</p>
+          </div>
+          <span style="color:#8A8578; font-size:20px;">&#8250;</span>
+        </div>
+
+        <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('invoices')">
+          <div>
+            <h3 style="margin:0; font-size:15px;">Invoices</h3>
+            <p style="font-size:12px; color:#8A8578; margin:4px 0 0;" id="billing-overview-invoices-summary">Billed work, emailed to the customer once sent.</p>
+          </div>
+          <span style="color:#8A8578; font-size:20px;">&#8250;</span>
         </div>
       </div>
 
-      <div class="card">
-        <h3 style="margin:0 0 6px;">Quotes</h3>
-        <button class="btn-primary" onclick="openQuoteSheet()">New quote</button>
+      <div id="billing-subtab-catalog" class="billing-subtab-panel" style="display:none;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h3 style="margin:0; font-size:15px;">Catalog <span id="catalog-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
+            <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
+          </div>
+          <div style="position:relative;">
+            <input id="catalog-search-input" type="text" placeholder="Search catalog items..." autocomplete="off"
+              oninput="onCatalogSearchInput()" onfocus="onCatalogSearchInput()" style="margin-bottom:0;" />
+            <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
+            <div id="catalog-items-list"></div>
+          </div>
+        </div>
       </div>
-      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
-        Quotes are estimates for work that hasn't been booked yet. Once a customer accepts, convert the quote into a
-        scheduled job and/or an invoice.
-      </p>
-      <div id="quotes-list"></div>
 
-      <div class="card">
-        <h3 style="margin:0 0 6px;">Invoices</h3>
-        <button class="btn-primary" onclick="openInvoiceSheet()">New invoice</button>
+      <div id="billing-subtab-quotes" class="billing-subtab-panel" style="display:none;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h3 style="margin:0; font-size:15px;">Quotes <span id="quotes-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
+            <button class="btn-small" style="background:var(--teal);" onclick="openQuoteSheet()">New quote</button>
+          </div>
+          <div style="position:relative;">
+            <input id="quotes-search-input" type="text" placeholder="Search quotes by customer or #..." autocomplete="off"
+              oninput="onQuotesSearchInput()" onfocus="onQuotesSearchInput()" style="margin-bottom:0;" />
+            <div id="quotes-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">
+              Quotes are estimates for work that hasn't been booked yet, emailed to the customer automatically as soon as
+              you save one. Once a customer accepts, convert the quote into a scheduled job and/or an invoice.
+            </p>
+            <div id="quotes-list"></div>
+          </div>
+        </div>
       </div>
-      <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
-        Invoices are created as drafts, then emailed to the customer once you tap Send.
-        Card payments aren't processed in this app yet -- Mark Paid just records how payment came in.
-      </p>
-      <div id="invoices-list"></div>
+
+      <div id="billing-subtab-invoices" class="billing-subtab-panel" style="display:none;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h3 style="margin:0; font-size:15px;">Invoices <span id="invoices-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
+            <button class="btn-small" style="background:var(--teal);" onclick="openInvoiceSheet()">New invoice</button>
+          </div>
+          <div style="position:relative;">
+            <input id="invoices-search-input" type="text" placeholder="Search invoices by customer or #..." autocomplete="off"
+              oninput="onInvoicesSearchInput()" onfocus="onInvoicesSearchInput()" style="margin-bottom:0;" />
+            <div id="invoices-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">
+              Invoices are created as drafts, then emailed to the customer once you tap Send.
+              Card payments aren't processed in this app yet -- Mark Paid just records how payment came in.
+            </p>
+            <div id="invoices-list"></div>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="view-reports" class="view">
@@ -468,6 +554,16 @@
 
     <section id="view-settings" class="view">
       <div class="view-header"><h2>Settings</h2></div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Business name</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Shown on invoice/quote PDFs, and as the sender name customers see on invoice and quote emails.</p>
+        <label>Business name</label>
+        <input id="company-name-input" placeholder="e.g. Modular Cleanrooms" />
+        <button class="btn-primary" onclick="saveCompanyName()">Save</button>
+        <div id="company-name-error" class="error"></div>
+        <div id="company-name-success" class="success-msg"></div>
+      </div>
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Company logo</h3>
@@ -849,7 +945,7 @@
     <p id="quote-expiration-preview" style="font-size:12px; color:#8A8578; margin-top:-6px;"></p>
 
     <label>Notes (optional)</label>
-    <input id="quote-notes-input" placeholder="Scope of work, exclusions, etc." />
+    <textarea id="quote-notes-input" placeholder="Scope of work, exclusions, etc." rows="2" style="width:100%; resize:vertical; font-family:inherit;"></textarea>
 
     <label>Line items</label>
     <div id="quote-line-items-list"></div>
@@ -989,6 +1085,9 @@ const admin = {
 
   getShopLocation: () => apiFetch("/api/admin/shop-location"),
   updateShopLocation: (patch) => apiFetch("/api/admin/shop-location", { method: "PATCH", body: patch }),
+
+  getCompanyName: () => apiFetch("/api/admin/company-name"),
+  updateCompanyName: (name) => apiFetch("/api/admin/company-name", { method: "PATCH", body: { name } }),
 
   getTimezone: () => apiFetch("/api/admin/timezone"),
   updateTimezone: (timezone) => apiFetch("/api/admin/timezone", { method: "PATCH", body: { timezone } }),
@@ -1169,6 +1268,7 @@ function showApp() {
   loadReportSummary();
   renderScheduleCalendar();
   loadShopLocation();
+  loadCompanyName();
   loadPayrollEmail();
   loadPaySchedule();
   loadChatThreads();
@@ -2403,6 +2503,100 @@ function closeCustomerHistorySheet() {
   document.getElementById("customer-history-sheet").classList.remove("visible");
 }
 
+// ---------- Billing overview ----------
+// The Billing view opens on this summary page, with Catalog/Quotes/Invoices
+// available as sub-tabs (rather than three stacked, always-visible cards).
+function showBillingSubtab(name) {
+  document.querySelectorAll(".billing-subtab-btn").forEach(function(b) {
+    b.classList.toggle("active", b.dataset.billingSubtab === name);
+  });
+  document.querySelectorAll(".billing-subtab-panel").forEach(function(p) {
+    p.style.display = p.id === "billing-subtab-" + name ? "block" : "none";
+  });
+  if (name === "overview") renderBillingOverview();
+}
+
+// Pulls straight from whatever's already loaded in window.allInvoices /
+// window.allQuotes / window.allCatalogItems -- called after each of those
+// loads so the numbers here never go stale. Void invoices are left out of
+// both the paid and unpaid totals (they're not money owed or collected).
+function renderBillingOverview() {
+  const invoices = window.allInvoices || [];
+  const quotes = window.allQuotes || [];
+  const catalogItems = window.allCatalogItems || [];
+
+  const paidInvoices = invoices.filter(function(inv) { return inv.status === "paid"; });
+  const unpaidInvoices = invoices.filter(function(inv) { return inv.status === "draft" || inv.status === "sent"; });
+  const voidCount = invoices.filter(function(inv) { return inv.status === "void"; }).length;
+  const paidTotal = paidInvoices.reduce(function(sum, inv) { return sum + Number(inv.total); }, 0);
+  const unpaidTotal = unpaidInvoices.reduce(function(sum, inv) { return sum + Number(inv.total); }, 0);
+
+  const pendingQuotes = quotes.filter(function(q) { return q.status === "draft" || q.status === "sent"; });
+  const pendingQuotesTotal = pendingQuotes.reduce(function(sum, q) { return sum + Number(q.total); }, 0);
+
+  billingOverviewSetText("billing-overview-paid-total", fmtMoney(paidTotal));
+  billingOverviewSetText("billing-overview-paid-count", paidInvoices.length === 1 ? "1 invoice" : paidInvoices.length + " invoices");
+  billingOverviewSetText("billing-overview-unpaid-total", fmtMoney(unpaidTotal));
+  billingOverviewSetText("billing-overview-unpaid-count",
+    (unpaidInvoices.length === 1 ? "1 invoice" : unpaidInvoices.length + " invoices") +
+    (voidCount ? " (" + voidCount + " void not counted)" : ""));
+  billingOverviewSetText("billing-overview-pending-total", fmtMoney(pendingQuotesTotal));
+  billingOverviewSetText("billing-overview-pending-count",
+    (pendingQuotes.length === 1 ? "1 quote" : pendingQuotes.length + " quotes") + " awaiting a decision");
+
+  billingOverviewSetText("billing-overview-catalog-summary",
+    catalogItems.length ? (catalogItems.length === 1 ? "1 item" : catalogItems.length + " items") + " ready to drop into a quote or invoice." : "No items yet -- add reusable charges here.");
+  billingOverviewSetText("billing-overview-quotes-summary",
+    quotes.length ? quotes.length + " total, " + pendingQuotes.length + " pending" : "No quotes yet.");
+  billingOverviewSetText("billing-overview-invoices-summary",
+    invoices.length ? invoices.length + " total, " + unpaidInvoices.length + " unpaid" : "No invoices yet.");
+
+  renderBillingPaymentBreakdown(paidInvoices, paidTotal);
+}
+
+// Counts + totals paid invoices by how the customer paid (card/cash/check/
+// other), so Jeremy can see at a glance how many sales came in and through
+// which method -- e.g. for reconciling cash on hand or card deposits.
+function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
+  const container = document.getElementById("billing-overview-payment-breakdown");
+  if (!container) return;
+
+  const methodLabels = { card: "Card", cash: "Cash", check: "Check", other: "Other" };
+  const methodOrder = ["card", "cash", "check", "other"];
+  const counts = {};
+  methodOrder.forEach(function(m) { counts[m] = { count: 0, total: 0 }; });
+  paidInvoices.forEach(function(inv) {
+    const method = counts[inv.payment_method] ? inv.payment_method : "other";
+    counts[method].count += 1;
+    counts[method].total += Number(inv.total);
+  });
+
+  if (!paidInvoices.length) {
+    container.innerHTML = '<p style="font-size:12px; color:#8A8578; margin:0;">No paid invoices yet.</p>';
+    return;
+  }
+
+  const rowsHtml = methodOrder.map(function(m) {
+    const row = counts[m];
+    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
+      '<span>' + methodLabels[m] + '</span>' +
+      '<span style="color:#8A8578;">' + row.count + (row.count === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(row.total) + '</span>' +
+    '</div>';
+  }).join("");
+
+  const totalHtml = '<div style="display:flex; justify-content:space-between; padding-top:10px; font-size:13px; font-weight:600;">' +
+    '<span>Total</span>' +
+    '<span>' + paidInvoices.length + (paidInvoices.length === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(paidTotal) + '</span>' +
+  '</div>';
+
+  container.innerHTML = rowsHtml + totalHtml;
+}
+
+function billingOverviewSetText(id, text) {
+  const el = document.getElementById(id);
+  if (el) el.textContent = text;
+}
+
 // ---------- Invoices ----------
 // Invoices bill a customer with line items, configurable payment terms,
 // and an emailed PDF. Card/check payments aren't processed in this app --
@@ -2432,16 +2626,78 @@ function invoiceStatusBadge(inv) {
   return '<span class="badge badge-draft">Draft</span>';
 }
 
+function onInvoicesSearchInput() {
+  renderInvoicesSearchDropdown();
+  renderInvoicesList();
+}
+
+function invoiceMatchesTerm(inv, term) {
+  return inv.customer_name.toLowerCase().indexOf(term) !== -1 ||
+    String(inv.invoice_number).indexOf(term) !== -1;
+}
+
+function renderInvoicesSearchDropdown() {
+  const dropdown = document.getElementById("invoices-search-dropdown");
+  const searchInput = document.getElementById("invoices-search-input");
+  if (!dropdown || !searchInput) return;
+  const term = searchInput.value.trim().toLowerCase();
+  const allInvoices = window.allInvoices || [];
+  const matches = !term ? allInvoices : allInvoices.filter(function(inv) { return invoiceMatchesTerm(inv, term); });
+
+  if (allInvoices.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No invoices yet.</div>';
+  } else if (matches.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No invoices match "' + term + '".</div>';
+  } else {
+    dropdown.innerHTML = matches.map(function(inv) {
+      return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
+        'onclick="selectInvoicesSearchResult(\'' + inv.id + '\')">' +
+        '<div style="font-weight:600; font-size:13px;">Invoice #' + inv.invoice_number + ' &middot; ' + inv.customer_name + '</div>' +
+        '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(inv.total) + '</div>' +
+      '</div>';
+    }).join("");
+  }
+  dropdown.style.display = "block";
+}
+
+function selectInvoicesSearchResult(invoiceId) {
+  document.getElementById("invoices-search-dropdown").style.display = "none";
+  document.getElementById("invoices-search-input").value = "";
+  renderInvoicesList();
+  openInvoiceSheet(invoiceId);
+}
+
+document.addEventListener("click", function(e) {
+  const dropdown = document.getElementById("invoices-search-dropdown");
+  const input = document.getElementById("invoices-search-input");
+  if (!dropdown || !input || dropdown.style.display === "none") return;
+  if (e.target !== input && !dropdown.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
+
 async function loadInvoices() {
   window.allInvoices = await admin.listInvoices();
+  const badge = document.getElementById("invoices-count-badge");
+  if (badge) badge.textContent = window.allInvoices.length ? "(" + window.allInvoices.length + ")" : "";
   renderInvoicesList();
+  renderBillingOverview();
 }
 
 function renderInvoicesList() {
   const list = document.getElementById("invoices-list");
-  const invoices = window.allInvoices || [];
-  if (invoices.length === 0) {
+  if (!list) return;
+  const searchInput = document.getElementById("invoices-search-input");
+  const term = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  const allInvoices = window.allInvoices || [];
+  const invoices = !term ? allInvoices : allInvoices.filter(function(inv) { return invoiceMatchesTerm(inv, term); });
+
+  if (allInvoices.length === 0) {
     list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No invoices yet.</p>';
+    return;
+  }
+  if (invoices.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No invoices match "' + term + '".</p>';
     return;
   }
   list.innerHTML = invoices.map(function(inv) {
@@ -2636,6 +2892,7 @@ async function submitInvoice() {
     }
     closeInvoiceSheet();
     await loadInvoices();
+    showBillingSubtab("invoices");
     if (result.send_warning) {
       alert("Invoice saved as a draft, but wasn't emailed: " + result.send_warning);
     }
@@ -2735,23 +2992,90 @@ function quoteStatusBadge(q) {
   return '<span class="badge badge-draft">Draft</span>';
 }
 
+
+function onQuotesSearchInput() {
+  renderQuotesSearchDropdown();
+  renderQuotesList();
+}
+
+function quoteMatchesTerm(q, term) {
+  return q.customer_name.toLowerCase().indexOf(term) !== -1 ||
+    String(q.quote_number).indexOf(term) !== -1;
+}
+
+function renderQuotesSearchDropdown() {
+  const dropdown = document.getElementById("quotes-search-dropdown");
+  const searchInput = document.getElementById("quotes-search-input");
+  if (!dropdown || !searchInput) return;
+  const term = searchInput.value.trim().toLowerCase();
+  const allQuotes = window.allQuotes || [];
+  const matches = !term ? allQuotes : allQuotes.filter(function(q) { return quoteMatchesTerm(q, term); });
+
+  if (allQuotes.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No quotes yet.</div>';
+  } else if (matches.length === 0) {
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No quotes match "' + term + '".</div>';
+  } else {
+    dropdown.innerHTML = matches.map(function(q) {
+      return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
+        'onclick="selectQuotesSearchResult(\'' + q.id + '\')">' +
+        '<div style="font-weight:600; font-size:13px;">Quote #' + q.quote_number + ' &middot; ' + q.customer_name + '</div>' +
+        '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(q.total) + '</div>' +
+      '</div>';
+    }).join("");
+  }
+  dropdown.style.display = "block";
+}
+
+function selectQuotesSearchResult(quoteId) {
+  document.getElementById("quotes-search-dropdown").style.display = "none";
+  document.getElementById("quotes-search-input").value = "";
+  renderQuotesList();
+  openQuoteSheet(quoteId);
+}
+
+document.addEventListener("click", function(e) {
+  const dropdown = document.getElementById("quotes-search-dropdown");
+  const input = document.getElementById("quotes-search-input");
+  if (!dropdown || !input || dropdown.style.display === "none") return;
+  if (e.target !== input && !dropdown.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
+
 async function loadQuotes() {
   window.allQuotes = await admin.listQuotes();
+  const badge = document.getElementById("quotes-count-badge");
+  if (badge) badge.textContent = window.allQuotes.length ? "(" + window.allQuotes.length + ")" : "";
   renderQuotesList();
+  renderBillingOverview();
 }
 
 function renderQuotesList() {
   const list = document.getElementById("quotes-list");
   if (!list) return;
-  const quotes = window.allQuotes || [];
-  if (quotes.length === 0) {
+  const searchInput = document.getElementById("quotes-search-input");
+  const term = searchInput ? searchInput.value.trim().toLowerCase() : "";
+  const allQuotes = window.allQuotes || [];
+  const quotes = !term ? allQuotes : allQuotes.filter(function(q) { return quoteMatchesTerm(q, term); });
+
+  if (allQuotes.length === 0) {
     list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No quotes yet.</p>';
     return;
   }
+  if (quotes.length === 0) {
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No quotes match "' + term + '".</p>';
+    return;
+  }
   list.innerHTML = quotes.map(function(q) {
-    const action = q.status === "draft"
+    let action = q.status === "draft"
       ? '<button class="btn-small" style="background: var(--teal);" onclick="openQuoteSheet(\'' + q.id + '\')">Edit</button>'
       : '<button class="btn-small" style="background: var(--charcoal);" onclick="openQuoteSheet(\'' + q.id + '\')">View</button>';
+    // Converting is allowed from any status except declined (and only once --
+    // no point invoicing a quote that's already been turned into an invoice).
+    if (q.status !== "declined" && !q.converted_invoice_id) {
+      action += '<button class="btn-small" style="background: var(--teal-deep); margin-left:6px;" onclick="openConvertQuoteToInvoiceSheet(\'' + q.id + '\')">Convert to invoice</button>';
+    }
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Quote #' + q.quote_number + '</strong> ' + quoteStatusBadge(q) +
@@ -2928,7 +3252,7 @@ async function openQuoteSheet(quoteId) {
   document.querySelectorAll("#quote-line-items-list .line-item-remove").forEach(function(el) { el.style.display = isEditable ? "" : "none"; });
 
   document.getElementById("quote-save-btn").style.display = isEditable ? "" : "none";
-  document.getElementById("quote-save-btn").textContent = isDraft ? "Save draft" : "Save changes";
+  document.getElementById("quote-save-btn").textContent = !quote ? "Save & send" : (isDraft ? "Save draft" : "Save changes");
   document.getElementById("quote-viewpdf-btn").style.display = quote ? "" : "none";
   document.getElementById("quote-send-btn").style.display = quote && isEditable ? "" : "none";
   document.getElementById("quote-send-btn").textContent = quote && quote.status === "sent" ? "Resend to customer" : "Send to customer";
@@ -2981,13 +3305,18 @@ async function submitQuote() {
   };
 
   try {
+    let result;
     if (editingQuoteId) {
-      await admin.updateQuote(editingQuoteId, payload);
+      result = await admin.updateQuote(editingQuoteId, payload);
     } else {
-      await admin.addQuote(payload);
+      result = await admin.addQuote(payload);
     }
     closeQuoteSheet();
     await loadQuotes();
+    showBillingSubtab("quotes");
+    if (result && result.send_warning) {
+      alert("Quote saved as a draft, but wasn't emailed: " + result.send_warning);
+    }
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save quote.";
     errEl.style.display = "block";
@@ -3236,27 +3565,6 @@ async function loadReportSummary() {
 
 window.allCatalogItems = [];
 let editingCatalogItemId = null;
-let catalogSectionExpanded = false;
-
-// Same pattern as the Crews list on the Schedule tab: collapsed by default
-// with a header search box + dropdown for quick lookup, and the full list
-// (with Edit/Delete) available on demand.
-function toggleCatalogSection() {
-  catalogSectionExpanded = !catalogSectionExpanded;
-  applyCatalogSectionState();
-}
-
-function expandCatalogSection() {
-  catalogSectionExpanded = true;
-  applyCatalogSectionState();
-}
-
-function applyCatalogSectionState() {
-  const body = document.getElementById("catalog-section-body");
-  const icon = document.getElementById("catalog-toggle-icon");
-  if (body) body.style.display = catalogSectionExpanded ? "block" : "none";
-  if (icon) icon.style.transform = catalogSectionExpanded ? "rotate(90deg)" : "rotate(0deg)";
-}
 
 async function loadCatalogItems() {
   window.allCatalogItems = await admin.listCatalogItems();
@@ -3265,6 +3573,7 @@ async function loadCatalogItems() {
   renderCatalogItemsList();
   populateInvoiceCatalogPicker();
   populateQuoteCatalogPicker();
+  renderBillingOverview();
 }
 
 function onCatalogSearchInput() {
@@ -3392,7 +3701,7 @@ async function submitCatalogItem() {
     }
     closeCatalogItemSheet();
     await loadCatalogItems();
-    expandCatalogSection();
+    showBillingSubtab("catalog");
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save catalog item.";
     errEl.style.display = "block";
@@ -3621,6 +3930,35 @@ async function removeCompanyLogo() {
     renderCompanyLogoPreview(null);
   } catch (err) {
     errEl.textContent = err.message || "Couldn't remove logo.";
+    errEl.style.display = "block";
+  }
+}
+
+async function loadCompanyName() {
+  try {
+    const data = await admin.getCompanyName();
+    document.getElementById("company-name-input").value = data.name || "";
+  } catch (err) { /* non-fatal */ }
+}
+
+async function saveCompanyName() {
+  const name = document.getElementById("company-name-input").value.trim();
+  const errEl = document.getElementById("company-name-error");
+  const successEl = document.getElementById("company-name-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+
+  if (!name) {
+    errEl.textContent = "Business name is required.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.updateCompanyName(name);
+    successEl.textContent = "Business name saved.";
+    successEl.style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save business name.";
     errEl.style.display = "block";
   }
 }
