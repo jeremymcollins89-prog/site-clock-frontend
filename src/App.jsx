@@ -1277,6 +1277,7 @@ const [emailInput, setEmailInput] = useState("");
   const [location, setLocation] = useState("in_town"); // matches backend enum
   const [clockInTime, setClockInTime] = useState(null);
   const [breakStartedAt, setBreakStartedAt] = useState(null);
+  const breakReminderFiredRef = useRef(null);
 
   const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
   const [view, setView] = useState("clock"); // clock | schedule | customers | chat
@@ -1795,6 +1796,48 @@ const [emailInput, setEmailInput] = useState("");
   const LONG_SHIFT_MS = 10 * 60 * 60 * 1000; // 10 hours
   const shiftTooLong = (status === "working" || status === "break") && elapsedMs > LONG_SHIFT_MS;
 
+  // Warns the employee their break is almost over -- 5 minutes before
+  // whatever length the admin set for them (break_minutes, e.g. 30 or 60),
+  // so the 25-minute mark on a 30-minute break or the 55-minute mark on a
+  // 60-minute break. Falls back to 30 if it's somehow missing so this never
+  // throws for an older cached session.
+  const breakMinutes = employee?.break_minutes || 30;
+  const breakReminderThresholdMs = Math.max(0, breakMinutes - 5) * 60 * 1000;
+  const breakReminderDue = status === "break" && currentBreakMs >= breakReminderThresholdMs;
+
+  // Fires the local notification exactly once per break -- breakReminderFiredRef
+  // remembers which break's breakStartedAt it already fired for, so re-renders
+  // every second (from the `now` ticker) don't spam repeat notifications, and
+  // starting a new break after ending one resets it.
+  useEffect(() => {
+    if (status !== "break" || !breakStartedAt) return;
+    if (breakReminderFiredRef.current === breakStartedAt) return;
+    if (currentBreakMs >= breakReminderThresholdMs) {
+      breakReminderFiredRef.current = breakStartedAt;
+      if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+        const title = "5 minutes left on break";
+        const body = `Your ${breakMinutes}-minute break is almost up.`;
+        // Installed PWAs (mainly Android) reject the direct Notification()
+        // constructor and require going through the service worker instead --
+        // so that's tried first, with the direct constructor as a fallback
+        // for browsers where there's no active registration.
+        if ("serviceWorker" in navigator) {
+          navigator.serviceWorker.ready
+            .then((registration) => registration.showNotification(title, { body }))
+            .catch(() => {
+              try {
+                new Notification(title, { body });
+              } catch {}
+            });
+        } else {
+          try {
+            new Notification(title, { body });
+          } catch {}
+        }
+      }
+    }
+  }, [status, breakStartedAt, currentBreakMs, breakReminderThresholdMs, breakMinutes]);
+
   const statusMeta = {
     off: { label: "OFF THE CLOCK", color: "#6b6759", bg: "#EDEAE1", shadow: "none" },
     working: { label: "WORKING", color: "#fff", bg: `linear-gradient(135deg, #5C9481, ${TEAL_DEEP})`, shadow: "0 3px 8px rgba(43,69,60,0.4)" },
@@ -2006,6 +2049,11 @@ const [emailInput, setEmailInput] = useState("");
         {shiftTooLong && (
           <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
             You've been clocked in for over 10 hours — did you forget to clock out?
+          </div>
+        )}
+        {breakReminderDue && (
+          <div style={{ background: "#fff", border: `1.5px solid ${AMBER_DEEP}`, color: AMBER_DEEP, boxShadow: "0 6px 16px rgba(219,138,22,0.12)" }} className="rounded-xl p-3 mb-4 text-xs">
+            5 minutes left on your break.
           </div>
         )}
         <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: "#fff", boxShadow: "0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05)" }} className="rounded-2xl p-5 mb-6">

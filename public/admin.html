@@ -368,12 +368,12 @@
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleCrewsSection()">
             <span id="crews-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
-            Crews <span id="crews-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
+            Teams <span id="crews-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
           </h3>
-          <button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet()">New crew</button>
+          <button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet()">New team</button>
         </div>
         <div style="position:relative;">
-          <input id="crew-search-input" type="text" placeholder="Search crews by name or member..." autocomplete="off"
+          <input id="crew-search-input" type="text" placeholder="Search teams by name or member..." autocomplete="off"
             oninput="onCrewSearchInput()" onfocus="onCrewSearchInput()" style="margin-bottom:0;" />
           <div id="crew-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
         </div>
@@ -585,8 +585,8 @@
       <div class="card">
         <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Labor hours, invoiced totals, paid totals, and profit for a time range.</p>
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
-          <button class="range-btn active" data-range="1w" onclick="selectReportRange('1w')">1 Week</button>
-          <button class="range-btn" data-range="1m" onclick="selectReportRange('1m')">1 Month</button>
+          <button class="range-btn" data-range="1w" onclick="selectReportRange('1w')">1 Week</button>
+          <button class="range-btn active" data-range="1m" onclick="selectReportRange('1m')">1 Month</button>
           <button class="range-btn" data-range="3m" onclick="selectReportRange('3m')">3 Months</button>
           <button class="range-btn" data-range="6m" onclick="selectReportRange('6m')">6 Months</button>
           <button class="range-btn" data-range="12m" onclick="selectReportRange('12m')">12 Months</button>
@@ -661,6 +661,18 @@
         <button class="btn-primary" onclick="savePayrollEmail()">Save</button>
         <div id="payroll-email-error" class="error"></div>
         <div id="payroll-email-success" class="success-msg"></div>
+      </div>
+
+      <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Long shift alert</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Get a notification if an employee is still clocked in past this many hours -- handy for catching a forgotten clock-out.</p>
+        <label>Alert me after</label>
+        <select id="long-shift-alert-select">
+          <option value="">Off</option>
+        </select>
+        <button class="btn-primary" onclick="saveLongShiftAlert()">Save</button>
+        <div id="long-shift-alert-error" class="error"></div>
+        <div id="long-shift-alert-success" class="success-msg"></div>
       </div>
 
       <div class="card">
@@ -806,7 +818,7 @@
     <div id="team-chat-new-employees" class="checkbox-list"></div>
     <div id="team-chat-new-group-name-wrap" style="display:none;">
       <label>Group name (optional)</label>
-      <input id="team-chat-new-group-name" placeholder="e.g. Roofing crew" />
+      <input id="team-chat-new-group-name" placeholder="e.g. Roofing team" />
     </div>
     <button class="btn-primary" onclick="submitNewTeamChat()">Start chat</button>
     <div id="team-chat-new-error" class="error"></div>
@@ -834,6 +846,11 @@
     <input id="edit-emp-pin" placeholder="4-digit PIN" />
     <label>Hourly rate (used for profit reports)</label>
     <input id="edit-emp-hourly-rate" type="number" step="0.01" min="0" placeholder="e.g. 22.50" style="margin-bottom:16px;" />
+    <label>Break length (for the 5-min-left reminder)</label>
+    <select id="edit-emp-break-minutes" style="margin-bottom:16px;">
+      <option value="30">30 minutes</option>
+      <option value="60">60 minutes</option>
+    </select>
     <label>Phone</label>
     <input id="edit-emp-phone" placeholder="(555) 555-5555" />
     <label>Street address</label>
@@ -879,15 +896,15 @@
 <div class="sheet" id="crew-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeCrewSheet()">&times;</button>
-    <h2 id="crew-sheet-title">New crew</h2>
+    <h2 id="crew-sheet-title">New team</h2>
   </div>
   <div class="sheet-body">
     <div id="crew-sheet-error" class="error"></div>
-    <label>Crew name</label>
-    <input id="crew-name-input" placeholder="e.g. Roofing crew A" />
+    <label>Team name</label>
+    <input id="crew-name-input" placeholder="e.g. Roofing team A" />
     <label>Members</label>
     <div id="crew-members-list" class="checkbox-list"></div>
-    <button class="btn-primary" onclick="submitCrew()">Save crew</button>
+    <button class="btn-primary" onclick="submitCrew()">Save team</button>
   </div>
 </div>
 
@@ -911,7 +928,7 @@
       <option value="other">Other</option>
     </select>
     <label>Notes (optional)</label>
-    <input id="job-notes-input" placeholder="Any details the crew should know" />
+    <input id="job-notes-input" placeholder="Any details the team should know" />
     <label>Start date</label>
     <input id="job-start-input" type="date" />
     <label>End date</label>
@@ -926,7 +943,7 @@
     </div>
     <label>Color</label>
     <div class="color-swatches" id="job-color-swatches"></div>
-    <label>Assign a crew (optional)</label>
+    <label>Assign a team (optional)</label>
     <div id="job-crews-list" class="checkbox-list"></div>
     <label>Assign individual employees (optional)</label>
     <div id="job-employees-list" class="checkbox-list"></div>
@@ -1257,6 +1274,9 @@ const admin = {
   getPayrollEmail: () => apiFetch("/api/admin/payroll-email"),
   updatePayrollEmail: (payrollEmail) => apiFetch("/api/admin/payroll-email", { method: "PATCH", body: { payroll_email: payrollEmail } }),
 
+  getLongShiftAlert: () => apiFetch("/api/admin/long-shift-alert"),
+  updateLongShiftAlert: (hours) => apiFetch("/api/admin/long-shift-alert", { method: "PATCH", body: { long_shift_alert_hours: hours } }),
+
   getPaySchedule: () => apiFetch("/api/admin/pay-schedule"),
   updatePaySchedule: (patch) => apiFetch("/api/admin/pay-schedule", { method: "PATCH", body: patch }),
 
@@ -1456,6 +1476,8 @@ function showApp() {
   loadShopLocation();
   loadCompanyName();
   loadPayrollEmail();
+  populateLongShiftAlertOptions();
+  loadLongShiftAlert();
   loadPaySchedule();
   loadChatThreads();
   loadTeamChatThreads();
@@ -1612,17 +1634,21 @@ async function loadOverview() {
   const data = await admin.getOverview();
   const activeOnly = data.employees.filter(function(e) { return e.active; });
   const list = document.getElementById("overview-list");
+  // Same threshold as the Settings tab's "Long shift alert" (null means the
+  // admin turned it off), so this badge and the push notification always
+  // agree on what counts as "too long."
+  const alertHours = data.long_shift_alert_hours;
 
   list.innerHTML = activeOnly.map(function(e) {
     const isClockedIn = !!e.open_entry_id;
     const shiftHours = isClockedIn && e.open_clock_in ? (Date.now() - new Date(e.open_clock_in).getTime()) / 3600000 : 0;
-    const shiftTooLong = isClockedIn && shiftHours > 10;
+    const shiftTooLong = isClockedIn && alertHours && shiftHours > alertHours;
 
     const statusBadge = isClockedIn
       ? '<span class="badge" style="color:#fff; background:linear-gradient(135deg, #5C9481, var(--teal-deep)); box-shadow:0 3px 8px rgba(43,69,60,0.4);">Clocked In</span>'
       : '<span class="badge" style="background:#EDEAE1; color:#6b6759;">Off the Clock</span>';
     const longShiftBadge = shiftTooLong
-      ? '<span class="badge" style="color:#fff; margin-left:6px; background:linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow:0 3px 8px rgba(166,61,32,0.4);">Over 10h</span>'
+      ? '<span class="badge" style="color:#fff; margin-left:6px; background:linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow:0 3px 8px rgba(166,61,32,0.4);">Over ' + alertHours + 'h</span>'
       : '';
 
     const currentJob = isClockedIn
@@ -1730,6 +1756,7 @@ function openEditEmployeeSheet(id) {
   document.getElementById("edit-emp-email").value = e.email || "";
   document.getElementById("edit-emp-pin").value = "";
   document.getElementById("edit-emp-hourly-rate").value = (e.hourly_rate === null || e.hourly_rate === undefined) ? "" : e.hourly_rate;
+  document.getElementById("edit-emp-break-minutes").value = e.break_minutes === 60 ? "60" : "30";
   document.getElementById("edit-emp-phone").value = e.phone || "";
   document.getElementById("edit-emp-street").value = e.street || "";
   document.getElementById("edit-emp-city").value = e.city || "";
@@ -1764,6 +1791,7 @@ async function submitEditEmployee() {
   const patch = {
     email: email,
     hourly_rate: hourlyRateRaw ? Number(hourlyRateRaw) : null,
+    break_minutes: Number(document.getElementById("edit-emp-break-minutes").value),
     phone: document.getElementById("edit-emp-phone").value.trim() || null,
     street: document.getElementById("edit-emp-street").value.trim() || null,
     city: document.getElementById("edit-emp-city").value.trim() || null,
@@ -1962,17 +1990,21 @@ async function renderEmployeeDetail(start, end) {
   // rows means the button always shows up when it should.
   const openRow = rows.find(function(r) { return !r.clock_out; });
 
+  // Fields start locked (disabled) with an Edit button -- tapping it unlocks
+  // just that card's fields and swaps the button to Save. Same reasoning as
+  // desktop: too easy to accidentally nudge a time punch while just reading
+  // the time card when every field was editable by default.
   const cardsHtml = rows.map(function(r) {
     return '<div class="entry-card">' +
-      '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" /></div>' +
-      '<div class="entry-field"><label>Location</label><select data-field="location_type" data-id="' + r.time_entry_id + '">' +
+      '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" disabled /></div>' +
+      '<div class="entry-field"><label>Location</label><select data-field="location_type" data-id="' + r.time_entry_id + '" disabled>' +
         '<option value="in_town"' + (r.location_type === "in_town" ? " selected" : "") + '>In town</option>' +
         '<option value="traveling"' + (r.location_type === "traveling" ? " selected" : "") + '>Traveling</option>' +
       '</select></div>' +
-      '<div class="entry-field"><label>Clock in</label><input type="datetime-local" value="' + (r.clock_in ? toLocalDatetimeInputValue(r.clock_in) : "") + '" data-field="clock_in" data-id="' + r.time_entry_id + '" /></div>' +
-      '<div class="entry-field"><label>Clock out</label><input type="datetime-local" value="' + (r.clock_out ? toLocalDatetimeInputValue(r.clock_out) : "") + '" data-field="clock_out" data-id="' + r.time_entry_id + '" /></div>' +
+      '<div class="entry-field"><label>Clock in</label><input type="datetime-local" value="' + (r.clock_in ? toLocalDatetimeInputValue(r.clock_in) : "") + '" data-field="clock_in" data-id="' + r.time_entry_id + '" disabled /></div>' +
+      '<div class="entry-field"><label>Clock out</label><input type="datetime-local" value="' + (r.clock_out ? toLocalDatetimeInputValue(r.clock_out) : "") + '" data-field="clock_out" data-id="' + r.time_entry_id + '" disabled /></div>' +
       '<div class="entry-meta"><div><strong>' + fmtDuration(r.worked_seconds) + '</strong>Worked</div><div><strong>' + fmtDuration(r.break_seconds) + '</strong>Break</div></div>' +
-      '<button class="btn-secondary" onclick="saveEmployeeDetailRow(\'' + r.time_entry_id + '\')">Save</button>' +
+      '<button class="btn-secondary" onclick="toggleEmployeeRowEdit(\'' + r.time_entry_id + '\', this)">Edit</button>' +
     '</div>';
   }).join("");
 
@@ -2031,7 +2063,23 @@ function onEmployeeDetailRangeChange() {
   renderEmployeeDetail(start, end);
 }
 
-async function saveEmployeeDetailRow(id) {
+// Unlocks one time-entry card for editing. The button is swapped from
+// "Edit" to "Save" (click handler reassigned) rather than adding a second
+// button.
+function toggleEmployeeRowEdit(id, btn) {
+  const inputs = document.querySelectorAll('#employee-sheet-content [data-id="' + id + '"]');
+  inputs.forEach(function(el) { el.disabled = false; });
+  if (inputs[0]) inputs[0].focus();
+  btn.textContent = "Save";
+  btn.onclick = function() { saveEmployeeDetailRow(id, btn); };
+}
+
+// btn is passed through so this can show immediate "Saving..." feedback and,
+// if the save fails, put the button back the way it was instead of silently
+// doing nothing. Previously this had no try/catch, so a failed save threw an
+// unhandled rejection -- renderEmployeeDetail below never ran, and the card
+// just sat there still in edit mode with no error and no refresh.
+async function saveEmployeeDetailRow(id, btn) {
   const inputs = document.querySelectorAll('#employee-sheet-content [data-id="' + id + '"]');
   const patch = {};
   inputs.forEach(function(el) {
@@ -2040,10 +2088,18 @@ async function saveEmployeeDetailRow(id) {
     if ((field === "clock_in" || field === "clock_out") && val) val = new Date(val).toISOString();
     patch[field] = val;
   });
-  await admin.updateTimeEntry(id, patch);
-  const start = document.getElementById("emp-detail-start").value;
-  const end = document.getElementById("emp-detail-end").value;
-  await renderEmployeeDetail(start, end);
+  if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
+  try {
+    await admin.updateTimeEntry(id, patch);
+    const start = document.getElementById("emp-detail-start").value;
+    const end = document.getElementById("emp-detail-end").value;
+    // Re-renders fresh from the server, so this card (and its Worked/Break
+    // totals) reflects the save right away.
+    await renderEmployeeDetail(start, end);
+  } catch (err) {
+    if (btn) { btn.disabled = false; btn.textContent = "Save"; }
+    alert(err.message || "Couldn't save this time entry. Try again.");
+  }
 }
 
 // For when someone forgets to clock out -- ends their open shift right now
@@ -2126,9 +2182,9 @@ function renderCrewSearchDropdown() {
   });
 
   if (allCrews.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No crews yet.</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No teams yet.</div>';
   } else if (matches.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No crews match "' + term + '".</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No teams match "' + term + '".</div>';
   } else {
     dropdown.innerHTML = matches.map(function(c) {
       const memberNames = c.members.map(function(m) { return m.name; }).join(", ") || "No members yet";
@@ -2170,11 +2226,11 @@ function renderCrewsList() {
   });
 
   if (allCrews.length === 0) {
-    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No crews yet.</p>';
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No teams yet.</p>';
     return;
   }
   if (crews.length === 0) {
-    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No crews match "' + term + '".</p>';
+    list.innerHTML = '<p style="color:#8A8578; font-size:13px;">No teams match "' + term + '".</p>';
     return;
   }
   list.innerHTML = crews.map(function(c) {
@@ -2195,7 +2251,7 @@ function renderCrewsList() {
 function openCrewSheet(crewId) {
   editingCrewId = crewId || null;
   const crew = crewId ? window.allCrews.find(function(c) { return c.id === crewId; }) : null;
-  document.getElementById("crew-sheet-title").textContent = crew ? "Edit crew" : "New crew";
+  document.getElementById("crew-sheet-title").textContent = crew ? "Edit team" : "New team";
   document.getElementById("crew-name-input").value = crew ? crew.name : "";
   document.getElementById("crew-sheet-error").style.display = "none";
 
@@ -2204,7 +2260,7 @@ function openCrewSheet(crewId) {
   document.getElementById("crew-members-list").innerHTML = employees.map(function(e) {
     const checked = memberIds.indexOf(e.id) !== -1 ? "checked" : "";
     return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + e.name + '</label>';
-  }).join("") || '<p style="color:#8A8578; font-size:12px;">Add employees first, then build crews.</p>';
+  }).join("") || '<p style="color:#8A8578; font-size:12px;">Add employees first, then build teams.</p>';
 
   document.getElementById("crew-sheet").classList.add("visible");
 }
@@ -2217,7 +2273,7 @@ async function submitCrew() {
   const errEl = document.getElementById("crew-sheet-error");
   errEl.style.display = "none";
   if (!name) {
-    errEl.textContent = "Crew name is required.";
+    errEl.textContent = "Team name is required.";
     errEl.style.display = "block";
     return;
   }
@@ -2232,12 +2288,12 @@ async function submitCrew() {
     loadCrews();
     expandCrewsSection();
   } catch (err) {
-    errEl.textContent = err.message || "Couldn't save crew.";
+    errEl.textContent = err.message || "Couldn't save team.";
     errEl.style.display = "block";
   }
 }
 async function deleteCrewConfirm(id) {
-  if (!confirm("Delete this crew? Jobs already assigned to its members won't be affected.")) return;
+  if (!confirm("Delete this team? Jobs already assigned to its members won't be affected.")) return;
   await admin.deleteCrew(id);
   loadCrews();
 }
@@ -2459,7 +2515,7 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
   document.getElementById("job-crews-list").innerHTML = crews.map(function(c) {
     const checked = assignedCrewIds.indexOf(c.id) !== -1 ? "checked" : "";
     return '<label><input type="checkbox" value="' + c.id + '" ' + checked + ' /> ' + c.name + '</label>';
-  }).join("") || '<p style="color:#8A8578; font-size:12px;">No crews yet.</p>';
+  }).join("") || '<p style="color:#8A8578; font-size:12px;">No teams yet.</p>';
 
   const employees = (window.allEmployees || []).filter(function(e) { return e.active || assignedIds.indexOf(e.id) !== -1; });
   document.getElementById("job-employees-list").innerHTML = employees.map(function(e) {
@@ -3543,9 +3599,13 @@ function renderQuotesList() {
     return;
   }
   list.innerHTML = quotes.map(function(q) {
+    // "sent" quotes are still editable (see openQuoteSheet's isEditable
+    // check); accepted/declined ones open the same sheet read-only. Both
+    // View (PDF) and Edit are offered since they're different intents.
     let action = q.status === "draft"
       ? '<button class="btn-small" style="background: var(--teal);" onclick="openQuoteSheet(\'' + q.id + '\')">Edit</button>'
-      : '<button class="btn-small" style="background: var(--charcoal);" onclick="openQuoteSheet(\'' + q.id + '\')">View</button>';
+      : '<button class="btn-small" style="background: var(--charcoal);" onclick="viewQuotePdf(\'' + q.id + '\')">View</button>' +
+        '<button class="btn-small" style="background: var(--teal); margin-left:6px;" onclick="openQuoteSheet(\'' + q.id + '\')">Edit</button>';
     // Converting is allowed from any status except declined (and only once --
     // no point invoicing a quote that's already been turned into an invoice).
     if (q.status !== "declined" && !q.converted_invoice_id) {
@@ -3896,7 +3956,12 @@ async function submitConvertQuoteToInvoice() {
     closeConvertQuoteToInvoiceSheet();
     await loadQuotes();
     await loadInvoices();
-    alert("Created draft Invoice #" + result.invoice.invoice_number + ". Review and send it from the Invoices tab.");
+    // Jump straight into editing the new draft invoice instead of just
+    // telling Jeremy where to find it -- it's already pre-filled from the
+    // quote's customer and line items, so this saves the extra trip.
+    showView("invoices");
+    showBillingSubtab("invoices");
+    await openInvoiceSheet(result.invoice.id);
   } catch (err) {
     errEl.textContent = err.message || "Couldn't convert quote to an invoice.";
     errEl.style.display = "block";
@@ -3908,7 +3973,7 @@ async function submitConvertQuoteToInvoice() {
 // comparison, pulling labor hours + invoice totals from one backend
 // endpoint. "Invoiced" and "Paid" are deliberately different numbers -- see
 // the backend route's comment.
-let currentReportRange = "1w";
+let currentReportRange = "1m";
 
 function addMonths(date, n) {
   const d = new Date(date);
@@ -4003,13 +4068,19 @@ function selectReportRange(range) {
 }
 
 // Gross Profit = Paid revenue minus labor cost (hours worked in the range x
-// each employee's hourly rate). Net Profit = Gross Profit minus logged
-// expenses in the same range. Both are undercounted for any employee
-// without an hourly rate set -- missingHourlyRateWarning() surfaces that.
+// each employee's hourly rate) minus payment processing fees (Stripe's own
+// cut plus the platform's 0.5%, whichever invoices in the range were paid
+// online -- see stripe_processing_fee/platform_fee on invoices). Those fees
+// are real money that never reached the bank account despite being part of
+// the invoice total, so leaving them out overstated profit. Net Profit is
+// Gross Profit minus logged expenses. Both are also undercounted for any
+// employee without an hourly rate set -- missingHourlyRateWarning() surfaces
+// that separately.
 function computeProfits(d) {
-  const grossProfit = Number(d.paid_invoice_total) - Number(d.labor_cost || 0);
+  const feesTotal = Number(d.stripe_fee_total || 0) + Number(d.platform_fee_total || 0);
+  const grossProfit = Number(d.paid_invoice_total) - Number(d.labor_cost || 0) - feesTotal;
   const netProfit = grossProfit - Number(d.expense_total || 0);
-  return { grossProfit: grossProfit, netProfit: netProfit };
+  return { grossProfit: grossProfit, netProfit: netProfit, feesTotal: feesTotal };
 }
 
 // Checks ALL employees, not just active ones -- someone who was deactivated
@@ -4067,8 +4138,8 @@ async function loadReportSummary() {
             renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), "labor cost " + fmtMoney(thisYearData.labor_cost), pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true), reportBubbleOnclick("labor", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices", pctChangeParts(thisYearData.invoice_total, lastYearData.invoice_total), reportBubbleOnclick("invoiced", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices", pctChangeParts(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total), reportBubbleOnclick("paid", thisYearStart, thisYearEnd)) +
-            renderReportStatCard("Gross Profit", fmtMoney(thisYearProfits.grossProfit), "labor cost " + fmtMoney(thisYearData.labor_cost), profitChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit), reportBubbleOnclick("gross", thisYearStart, thisYearEnd)) +
-            renderReportStatCard("Net Profit", fmtMoney(thisYearProfits.netProfit), "expenses " + fmtMoney(thisYearData.expense_total), profitChangeParts(thisYearProfits.netProfit, lastYearProfits.netProfit), reportBubbleOnclick("net", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Gross Profit", fmtMoney(thisYearProfits.grossProfit), null, profitChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit), reportBubbleOnclick("gross", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Net Profit", fmtMoney(thisYearProfits.netProfit), null, profitChangeParts(thisYearProfits.netProfit, lastYearProfits.netProfit), reportBubbleOnclick("net", thisYearStart, thisYearEnd)) +
           '</div>' +
         '</div>' +
         '<div>' +
@@ -4077,8 +4148,8 @@ async function loadReportSummary() {
             renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours), "labor cost " + fmtMoney(lastYearData.labor_cost), null, reportBubbleOnclick("labor", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Invoiced", fmtMoney(lastYearData.invoice_total), lastYearData.invoice_count + " invoices", null, reportBubbleOnclick("invoiced", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Paid", fmtMoney(lastYearData.paid_invoice_total), lastYearData.paid_invoice_count + " invoices", null, reportBubbleOnclick("paid", lastYearStart, lastYearEnd)) +
-            renderReportStatCard("Gross Profit", fmtMoney(lastYearProfits.grossProfit), "labor cost " + fmtMoney(lastYearData.labor_cost), null, reportBubbleOnclick("gross", lastYearStart, lastYearEnd)) +
-            renderReportStatCard("Net Profit", fmtMoney(lastYearProfits.netProfit), "expenses " + fmtMoney(lastYearData.expense_total), null, reportBubbleOnclick("net", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Gross Profit", fmtMoney(lastYearProfits.grossProfit), null, null, reportBubbleOnclick("gross", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Net Profit", fmtMoney(lastYearProfits.netProfit), null, null, reportBubbleOnclick("net", lastYearStart, lastYearEnd)) +
           '</div>' +
         '</div>';
       return;
@@ -4098,8 +4169,8 @@ async function loadReportSummary() {
         renderReportStatCard("Labor hours", fmtHours(data.labor_hours), "labor cost " + fmtMoney(data.labor_cost), pctChangeParts(data.labor_hours, prevData.labor_hours, true), reportBubbleOnclick("labor", rangeStart, rangeEnd)) +
         renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total), reportBubbleOnclick("invoiced", rangeStart, rangeEnd)) +
         renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total), reportBubbleOnclick("paid", rangeStart, rangeEnd)) +
-        renderReportStatCard("Gross Profit", fmtMoney(profits.grossProfit), "labor cost " + fmtMoney(data.labor_cost), profitChangeParts(profits.grossProfit, prevProfits.grossProfit), reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
-        renderReportStatCard("Net Profit", fmtMoney(profits.netProfit), "expenses " + fmtMoney(data.expense_total), profitChangeParts(profits.netProfit, prevProfits.netProfit), reportBubbleOnclick("net", rangeStart, rangeEnd)) +
+        renderReportStatCard("Gross Profit", fmtMoney(profits.grossProfit), null, profitChangeParts(profits.grossProfit, prevProfits.grossProfit), reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
+        renderReportStatCard("Net Profit", fmtMoney(profits.netProfit), null, profitChangeParts(profits.netProfit, prevProfits.netProfit), reportBubbleOnclick("net", rangeStart, rangeEnd)) +
       '</div>' +
       '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + rangeStart + ' – ' + rangeEnd +
         ' vs. ' + dateToStr(bounds.prevStart) + ' – ' + dateToStr(bounds.prevEnd) + '</div>';
@@ -4207,7 +4278,7 @@ function renderInvoiceBreakdownRows(start, end, mode) {
   const rows = filtered.map(function(inv) {
     const dateLabel = mode === "invoiced" ? (inv.issue_date || "").slice(0, 10) : inv.paid_at.slice(0, 10);
     return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer;" ' +
-      'onclick="closeReportBreakdownSheet(); showView(\'invoices\'); showBillingSubtab(\'invoices\');">' +
+      'onclick="closeReportBreakdownSheet(); viewInvoicePdf(\'' + inv.id + '\');">' +
       '<span>#' + inv.invoice_number + ' &middot; ' + inv.customer_name + ' &middot; ' + dateLabel + '</span>' +
       '<span>' + fmtMoney(inv.total) + '</span>' +
     '</div>';
@@ -4218,31 +4289,48 @@ function renderInvoiceBreakdownRows(start, end, mode) {
   '</div>';
 }
 
-function renderGrossProfitBreakdown(summary, breakdown) {
-  const laborRows = breakdown.length ? breakdown.map(function(r) {
-    const rateText = r.hourly_rate === null ? '<span style="color:var(--rust);">no rate set</span>' : fmtMoney(r.hourly_rate) + '/hr';
-    return '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
-      '<span>' + r.employee_name + ' (' + fmtHours(r.hours) + ' &middot; ' + rateText + ')</span>' +
-      '<span>' + fmtMoney(r.cost) + '</span>' +
+// Payment processing fees rows shared by both breakdowns below -- Stripe's
+// own cut and the platform's 0.5%, summed across whichever invoices in this
+// range were paid online (see stripe_processing_fee/platform_fee on
+// invoices, captured at the moment Stripe confirms each payment). Only
+// rendered at all when something was actually paid online in the range, so
+// a company with no online payments doesn't see a confusing "$0.00" line.
+function renderProcessingFeeRows(summary) {
+  const stripeFee = Number(summary.stripe_fee_total || 0);
+  const platformFee = Number(summary.platform_fee_total || 0);
+  if (stripeFee === 0 && platformFee === 0) return "";
+  return '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
+      '<span>Stripe processing fee</span><span>' + fmtMoney(stripeFee) + '</span>' +
+    '</div>' +
+    '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
+      '<span>Platform fee (0.5%)</span><span>' + fmtMoney(platformFee) + '</span>' +
     '</div>';
-  }).join("") : '<p style="color:#8A8578; font-size:12.5px;">No hours worked in this range.</p>';
+}
 
-  const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost);
+function renderGrossProfitBreakdown(summary, breakdown) {
+  const feesTotal = Number(summary.stripe_fee_total || 0) + Number(summary.platform_fee_total || 0);
+  const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost) - feesTotal;
   return '<div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;">' +
       '<span>Paid revenue</span><span>' + fmtMoney(summary.paid_invoice_total) + '</span>' +
     '</div>' +
-    '<div style="font-size:12px; color:#8A8578; font-weight:600; margin:8px 0 4px;">Minus labor cost:</div>' +
-    laborRows +
-    '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
-      '<span>Labor cost total</span><span>' + fmtMoney(summary.labor_cost) + '</span>' +
+    '<div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;">' +
+      '<span>Labor cost</span><span>' + fmtMoney(summary.labor_cost) + '</span>' +
     '</div>' +
+    (feesTotal > 0
+      ? '<div style="font-size:12px; color:#8A8578; font-weight:600; margin:8px 0 4px;">Minus processing fees:</div>' +
+        renderProcessingFeeRows(summary) +
+        '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
+          '<span>Processing fees total</span><span>' + fmtMoney(feesTotal) + '</span>' +
+        '</div>'
+      : '') +
     '<div style="display:flex; justify-content:space-between; font-size:15px; font-weight:700; padding-top:10px; margin-top:8px; border-top:2px solid var(--line);">' +
       '<span>Gross Profit</span><span>' + fmtMoney(grossProfit) + '</span>' +
     '</div>';
 }
 
 function renderNetProfitBreakdown(summary, breakdown, start, end) {
-  const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost);
+  const feesTotal = Number(summary.stripe_fee_total || 0) + Number(summary.platform_fee_total || 0);
+  const grossProfit = Number(summary.paid_invoice_total) - Number(summary.labor_cost) - feesTotal;
   // .slice(0, 10) -- expense_date comes back as a full ISO timestamp (pg
   // parses DATE columns to a Date object, which serializes with a time
   // component), so comparing the raw string against a plain start/end date
@@ -4263,6 +4351,9 @@ function renderNetProfitBreakdown(summary, breakdown, start, end) {
   return '<div style="display:flex; justify-content:space-between; font-size:14px; padding:6px 0;">' +
       '<span>Gross Profit</span><span>' + fmtMoney(grossProfit) + '</span>' +
     '</div>' +
+    (feesTotal > 0
+      ? '<div style="font-size:11px; color:#8A8578; margin:-2px 0 6px;">(already includes ' + fmtMoney(feesTotal) + ' in processing fees -- see Gross Profit breakdown)</div>'
+      : '') +
     '<div style="font-size:12px; color:#8A8578; font-weight:600; margin:8px 0 4px;">Minus expenses:</div>' +
     expenseRows +
     '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
@@ -4793,6 +4884,40 @@ async function saveCompanyName() {
     successEl.style.display = "block";
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save business name.";
+    errEl.style.display = "block";
+  }
+}
+
+function populateLongShiftAlertOptions() {
+  const select = document.getElementById("long-shift-alert-select");
+  for (let h = 1; h <= 24; h++) {
+    const opt = document.createElement("option");
+    opt.value = String(h);
+    opt.textContent = h === 1 ? "1 hour" : h + " hours";
+    select.appendChild(opt);
+  }
+}
+
+async function loadLongShiftAlert() {
+  try {
+    const data = await admin.getLongShiftAlert();
+    document.getElementById("long-shift-alert-select").value = data.long_shift_alert_hours ? String(data.long_shift_alert_hours) : "";
+  } catch (err) { /* non-fatal */ }
+}
+
+async function saveLongShiftAlert() {
+  const raw = document.getElementById("long-shift-alert-select").value;
+  const errEl = document.getElementById("long-shift-alert-error");
+  const successEl = document.getElementById("long-shift-alert-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+  try {
+    await admin.updateLongShiftAlert(raw ? Number(raw) : null);
+    successEl.textContent = "Long shift alert saved.";
+    successEl.style.display = "block";
+    if (document.getElementById("overview-list")) loadOverview();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save long shift alert.";
     errEl.style.display = "block";
   }
 }
