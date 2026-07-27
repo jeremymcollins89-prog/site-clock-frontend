@@ -23,16 +23,17 @@ function isAfterHour(date, hour, minute) {
 }
 
 // Parses a Postgres TIME string like "16:30:00" (or "16:30") into
-// { hour, minute }. Falls back to 4:30pm if the value is missing or
-// malformed, so a company that hasn't set this yet behaves like before.
-function parseClockOutTime(timeStr) {
+// { hour, minute }. Falls back to the given default if the value is
+// missing or malformed, so a company that hasn't set this yet behaves like
+// before.
+function parseTimeOfDay(timeStr, defaultHour, defaultMinute) {
   if (typeof timeStr === "string") {
     const match = timeStr.match(/^(\d{1,2}):(\d{2})/);
     if (match) {
       return { hour: Number(match[1]), minute: Number(match[2]) };
     }
   }
-  return { hour: 16, minute: 30 };
+  return { hour: defaultHour, minute: defaultMinute };
 }
 
 // Manual clock-outs need to stick — an in-memory "did we just arrive" check
@@ -66,7 +67,7 @@ function clearAutoClockInSuppression() {
   }
 }
 
-function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockOutTime, sessionReady }) {
+function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockInTime, clockOutTime, sessionReady }) {
   const [permission, setPermission] = useState("unknown");
   const [withinRange, setWithinRange] = useState(null);
   const [distanceMeters, setDistanceMeters] = useState(null);
@@ -111,10 +112,15 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     if (actingRef.current) return;
     const now = new Date();
 
-    // Auto clock-in: only on a genuine arrival, any time of day — not
-    // every time we happen to check while already sitting in range, and
-    // never right after a manual clock-out until they've actually left.
+    // Auto clock-in: only on a genuine arrival, and only once the
+    // company's configured earliest clock-in time has passed (defaults to
+    // midnight, i.e. no restriction, so this behaves exactly like before
+    // for any company that hasn't set a real value) — not every time we
+    // happen to check while already sitting in range, and never right
+    // after a manual clock-out until they've actually left.
     if (justArrived && status === "off" && !isAutoClockInSuppressed()) {
+      const { hour: inHour, minute: inMinute } = parseTimeOfDay(clockInTime, 0, 0);
+      if (!isAfterHour(now, inHour, inMinute)) return;
       actingRef.current = true;
       try {
         await autoClockIn();
@@ -122,7 +128,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
         actingRef.current = false;
       }
     } else if (!inRange && status === "working") {
-      const { hour, minute } = parseClockOutTime(clockOutTime);
+      const { hour, minute } = parseTimeOfDay(clockOutTime, 16, 30);
       if (!isAfterHour(now, hour, minute)) return;
       actingRef.current = true;
       try {
@@ -183,7 +189,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
       document.removeEventListener("visibilitychange", onVisible);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [status, configured, locationMode, clockOutTime, sessionReady]);
+  }, [status, configured, locationMode, clockInTime, clockOutTime, sessionReady]);
 
   return { permission, withinRange, distanceMeters, geoError, configured };
 }

@@ -756,6 +756,9 @@
         <input id="shop-lng-input" placeholder="e.g. -104.9903" />
         <label>Radius (meters)</label>
         <input id="shop-radius-input" placeholder="152" />
+        <label>Auto clock-in time</label>
+        <p style="font-size:11px; color:#8A8578; margin:0 0 4px;">No auto clock-in before this time, even if they're at the shop. Leave at 12:00 AM for no restriction.</p>
+        <input id="clockin-time-input" type="time" />
         <label>Auto clock-out time</label>
         <input id="clockout-time-input" type="time" />
         <button class="btn-primary" onclick="saveShopLocation()">Save</button>
@@ -4895,6 +4898,7 @@ async function loadShopLocation() {
     document.getElementById("shop-lng-input").value = loc.shop_lng != null ? loc.shop_lng : "";
     document.getElementById("shop-radius-input").value = loc.shop_radius_m != null ? loc.shop_radius_m : 152;
     document.getElementById("clockout-time-input").value = loc.auto_clockout_time ? loc.auto_clockout_time.slice(0, 5) : "16:30";
+    document.getElementById("clockin-time-input").value = loc.auto_clockin_time ? loc.auto_clockin_time.slice(0, 5) : "00:00";
   } catch (err) { /* non-fatal */ }
 }
 
@@ -4903,6 +4907,7 @@ async function saveShopLocation() {
   const lng = document.getElementById("shop-lng-input").value.trim();
   const radius = document.getElementById("shop-radius-input").value.trim();
   const clockoutTime = document.getElementById("clockout-time-input").value.trim();
+  const clockinTime = document.getElementById("clockin-time-input").value.trim();
   const errEl = document.getElementById("shop-location-error");
   const successEl = document.getElementById("shop-location-success");
   errEl.style.display = "none";
@@ -4919,6 +4924,7 @@ async function saveShopLocation() {
       shop_lng: Number(lng),
       shop_radius_m: radius ? Number(radius) : 152,
       auto_clockout_time: clockoutTime || undefined,
+      auto_clockin_time: clockinTime || undefined,
     });
     successEl.textContent = "Shop location saved. Employees will use this the next time they open the app.";
     successEl.style.display = "block";

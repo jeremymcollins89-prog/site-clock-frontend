@@ -1363,6 +1363,7 @@ const [emailInput, setEmailInput] = useState("");
     shopLat: SHOP_LAT,
     shopLng: SHOP_LNG,
     radiusMeters: SHOP_RADIUS_M,
+    clockInTime: employee?.auto_clockin_time,
     clockOutTime: employee?.auto_clockout_time,
     sessionReady: !checkingSession,
   });
