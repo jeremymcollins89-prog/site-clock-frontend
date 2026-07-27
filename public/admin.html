@@ -384,6 +384,19 @@
       </div>
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+          <h3 style="margin:0; font-size:15px;">Time Off Requests <span id="timeoff-pending-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
+          <button class="btn-secondary" style="width:auto;" onclick="toggleTimeOffHistory()">
+            <span id="timeoff-history-toggle-label">Show history</span>
+          </button>
+        </div>
+        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Approving adds it to the calendar below in bright yellow and notifies the employee.</p>
+        <div id="timeoff-pending-list"></div>
+        <div id="timeoff-history-section" style="display:none; margin-top:10px; padding-top:10px; border-top:1.5px solid var(--line);">
+          <div id="timeoff-history-list"></div>
+        </div>
+      </div>
+      <div class="card">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <h3 style="margin:0; font-size:15px;">Jobs</h3>
           <button class="btn-small" style="background:var(--rust);" onclick="openJobSheet(null, todayStr())">New job</button>
         </div>
@@ -1335,6 +1348,9 @@ const admin = {
   updateJob: (id, patch) => apiFetch(`/api/admin/jobs/${id}`, { method: "PATCH", body: patch }),
   deleteJob: (id) => apiFetch(`/api/admin/jobs/${id}`, { method: "DELETE" }),
 
+  listTimeOffRequests: (status) => apiFetch(`/api/admin/time-off-requests${status ? `?status=${status}` : ""}`),
+  reviewTimeOffRequest: (id, status) => apiFetch(`/api/admin/time-off-requests/${id}`, { method: "PATCH", body: { status } }),
+
   listCustomers: () => apiFetch("/api/admin/customers"),
   addCustomer: (customer) => apiFetch("/api/admin/customers", { method: "POST", body: customer }),
   updateCustomer: (id, patch) => apiFetch(`/api/admin/customers/${id}`, { method: "PATCH", body: patch }),
@@ -1519,6 +1535,7 @@ function showApp() {
   loadReportSummary();
   loadMonthlyProfitChart();
   renderScheduleCalendar();
+  loadTimeOffRequests();
   loadShopLocation();
   loadCompanyName();
   loadPayrollEmail();
@@ -1637,8 +1654,8 @@ function formatAddressParts(street, city, state, zip) {
 }
 function formatAddress(c) { return formatAddressParts(c.street, c.city, c.state, c.zip); }
 
-const JOB_COLORS = { rust: "#FF4433", amber: "#FFA400", teal: "#00B871", blue: "#1E88FF", purple: "#9B30FF", rose: "#FF2D95", charcoal: "#707B85" };
-const EVENT_TYPE_LABELS = { job: "Job", personal: "Personal", other: "Other" };
+const JOB_COLORS = { rust: "#FF4433", amber: "#FFA400", teal: "#00B871", blue: "#1E88FF", purple: "#9B30FF", rose: "#FF2D95", charcoal: "#707B85", yellow: "#FFE400" };
+const EVENT_TYPE_LABELS = { job: "Job", personal: "Personal", other: "Other", time_off: "Time Off" };
 
 const DOW_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTH_LABELS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
@@ -2378,6 +2395,95 @@ function goToToday() {
   const now = new Date();
   scheduleAnchor = new Date(now.getFullYear(), now.getMonth(), 1);
   renderScheduleCalendar();
+}
+
+let timeOffHistoryExpanded = false;
+
+function formatTimeOffRange(req) {
+  return req.start_date === req.end_date
+    ? req.start_date.slice(0, 10)
+    : req.start_date.slice(0, 10) + " – " + req.end_date.slice(0, 10);
+}
+
+async function loadTimeOffRequests() {
+  window.allTimeOffRequests = await admin.listTimeOffRequests();
+  const pending = window.allTimeOffRequests.filter(function(r) { return r.status === "pending"; });
+  const badge = document.getElementById("timeoff-pending-badge");
+  if (badge) badge.textContent = pending.length ? "(" + pending.length + ")" : "";
+  renderTimeOffPending();
+  renderTimeOffHistory();
+}
+
+function renderTimeOffPending() {
+  const wrap = document.getElementById("timeoff-pending-list");
+  if (!wrap) return;
+  const all = window.allTimeOffRequests || [];
+  const pending = all.filter(function(r) { return r.status === "pending"; });
+  if (pending.length === 0) {
+    wrap.innerHTML = '<p style="font-size:12px; color:#8A8578; margin:8px 0 0;">No pending requests.</p>';
+    return;
+  }
+  wrap.innerHTML = pending.map(function(r) {
+    const note = r.note ? '<div style="font-size:12px; color:#5B5647; margin-top:4px;">' + escapeHtml(r.note) + '</div>' : "";
+    return '<div class="card" style="margin-top:8px; background:#FFF9E0; border-color:#FFE400;">' +
+      '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap;">' +
+        '<div>' +
+          '<div style="font-weight:600;">' + escapeHtml(r.employee_name) + '</div>' +
+          '<div style="font-size:13px; color:#5B5647;">' + escapeHtml(formatTimeOffRange(r)) + '</div>' +
+          note +
+        '</div>' +
+        '<div style="display:flex; gap:8px;">' +
+          '<button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="reviewTimeOff(\'' + r.id + '\', \'denied\')">Deny</button>' +
+          '<button class="btn-primary" style="width:auto;" onclick="reviewTimeOff(\'' + r.id + '\', \'approved\')">Approve</button>' +
+        '</div>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function renderTimeOffHistory() {
+  const wrap = document.getElementById("timeoff-history-list");
+  if (!wrap) return;
+  const all = window.allTimeOffRequests || [];
+  const reviewed = all.filter(function(r) { return r.status !== "pending"; });
+  if (reviewed.length === 0) {
+    wrap.innerHTML = '<p style="font-size:12px; color:#8A8578; margin:0;">No reviewed requests yet.</p>';
+    return;
+  }
+  wrap.innerHTML = reviewed.map(function(r) {
+    const statusColor = r.status === "approved" ? "#2B6E5C" : "#B4231F";
+    const note = r.note ? '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' + escapeHtml(r.note) + '</div>' : "";
+    return '<div style="padding:8px 0; border-bottom:1px solid var(--line);">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
+        '<div>' +
+          '<span style="font-weight:600;">' + escapeHtml(r.employee_name) + '</span>' +
+          '<span style="font-size:13px; color:#5B5647;"> · ' + escapeHtml(formatTimeOffRange(r)) + '</span>' +
+        '</div>' +
+        '<span style="font-size:12px; font-weight:600; color:' + statusColor + ';">' + (r.status === "approved" ? "Approved" : "Denied") + '</span>' +
+      '</div>' +
+      note +
+    '</div>';
+  }).join("");
+}
+
+function toggleTimeOffHistory() {
+  timeOffHistoryExpanded = !timeOffHistoryExpanded;
+  const section = document.getElementById("timeoff-history-section");
+  const label = document.getElementById("timeoff-history-toggle-label");
+  if (section) section.style.display = timeOffHistoryExpanded ? "block" : "none";
+  if (label) label.textContent = timeOffHistoryExpanded ? "Hide history" : "Show history";
+}
+
+async function reviewTimeOff(id, status) {
+  const verb = status === "approved" ? "approve" : "deny";
+  if (!confirm("Are you sure you want to " + verb + " this time off request?")) return;
+  try {
+    await admin.reviewTimeOffRequest(id, status);
+    await loadTimeOffRequests();
+    if (status === "approved") await renderScheduleCalendar();
+  } catch (err) {
+    alert(err.message || "Couldn't update that request.");
+  }
 }
 
 async function renderScheduleCalendar() {

@@ -75,6 +75,21 @@ async function getScheduleUnseenCount() {
   return apiFetch("/api/schedule/unseen-count");
 }
 
+async function getMyTimeOffRequests() {
+  return apiFetch("/api/schedule/time-off");
+}
+
+async function requestTimeOff(startDate, endDate, note) {
+  return apiFetch("/api/schedule/time-off", {
+    method: "POST",
+    body: { start_date: startDate, end_date: endDate, note: note || undefined },
+  });
+}
+
+async function cancelTimeOffRequest(id) {
+  return apiFetch(`/api/schedule/time-off/${id}`, { method: "DELETE" });
+}
+
 async function getChatUnreadCount() {
   return apiFetch("/api/chat/unread-count");
 }
@@ -164,6 +179,9 @@ export {
   getMySchedule,
   getCustomers,
   getScheduleUnseenCount,
+  getMyTimeOffRequests,
+  requestTimeOff,
+  cancelTimeOffRequest,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,

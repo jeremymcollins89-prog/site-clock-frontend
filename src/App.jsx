@@ -11,6 +11,9 @@ import {
   getMySchedule,
   getCustomers,
   getScheduleUnseenCount,
+  getMyTimeOffRequests,
+  requestTimeOff,
+  cancelTimeOffRequest,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
@@ -33,7 +36,16 @@ const JOB_COLORS = {
   purple: "#9B30FF",
   rose: "#FF2D95",
   charcoal: "#707B85",
+  yellow: "#FFE400",
 };
+
+// "job" gets no badge at all (see the `job.event_type !== "job"` guard at
+// each call site) -- this only ever needs to label personal/other/time_off.
+function eventTypeLabel(eventType) {
+  if (eventType === "personal") return "Personal";
+  if (eventType === "time_off") return "Time Off";
+  return "Other";
+}
 
 // Converts the VAPID public key (base64url) into the Uint8Array format the
 // browser's Push API expects.
@@ -594,7 +606,7 @@ function EventCard({ job, onSelect }) {
                 color: "#5C6660",
               }}
             >
-              {job.event_type === "personal" ? "Personal" : "Other"}
+              {eventTypeLabel(job.event_type)}
             </span>
           )}
         </div>
@@ -658,7 +670,7 @@ function JobDetailSheet({ job, onClose }) {
                   color: "#5C6660",
                 }}
               >
-                {job.event_type === "personal" ? "Personal" : "Other"}
+                {eventTypeLabel(job.event_type)}
               </span>
             )}
           </div>
@@ -707,7 +719,150 @@ function JobDetailSheet({ job, onClose }) {
   );
 }
 
-function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday }) {
+const TIME_OFF_STATUS_STYLE = {
+  pending: { bg: "#FBEFD6", color: "#8A5A00", label: "Pending" },
+  approved: { bg: "#DDEFE6", color: "#0A7A45", label: "Approved" },
+  denied: { bg: "#FBDCD3", color: "#B23A1E", label: "Denied" },
+  cancelled: { bg: LINE, color: "#5C6660", label: "Cancelled" },
+};
+
+// Bottom sheet reachable from the "Time off" button on the Schedule tab --
+// a flexible date-range request (a day, a week, whatever) with an optional
+// note, plus the employee's own request history so they can see what's
+// pending/approved/denied without having to ask. Approving a request is
+// what actually adds it to the shared calendar (bright yellow, see
+// JOB_COLORS.yellow) -- this sheet only ever creates/cancels the request
+// itself.
+function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, onSubmit, submitting, error, onCancelRequest }) {
+  if (!open) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 100 }}
+      className="flex items-end"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: PAPER,
+          width: "100%",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
+          padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
+            <Plane size={14} /> Request time off
+          </h2>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+            &times;
+          </button>
+        </div>
+
+        <form onSubmit={onSubmit} className="mb-5">
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <label className="text-xs">
+              <div className="mb-1" style={{ color: "#8A8578" }}>Start date</div>
+              <input
+                type="date"
+                required
+                value={form.start_date}
+                onChange={(e) => onFormChange({ ...form, start_date: e.target.value })}
+                style={{ border: `1px solid ${LINE}`, background: "#fff" }}
+                className="rounded-lg px-2 py-2 w-full text-sm"
+              />
+            </label>
+            <label className="text-xs">
+              <div className="mb-1" style={{ color: "#8A8578" }}>End date</div>
+              <input
+                type="date"
+                required
+                value={form.end_date}
+                min={form.start_date || undefined}
+                onChange={(e) => onFormChange({ ...form, end_date: e.target.value })}
+                style={{ border: `1px solid ${LINE}`, background: "#fff" }}
+                className="rounded-lg px-2 py-2 w-full text-sm"
+              />
+            </label>
+          </div>
+          <label className="text-xs block mb-3">
+            <div className="mb-1" style={{ color: "#8A8578" }}>Note (optional)</div>
+            <textarea
+              value={form.note}
+              onChange={(e) => onFormChange({ ...form, note: e.target.value })}
+              placeholder="What's it for? Leave blank if you'd rather not say."
+              rows={2}
+              style={{ border: `1px solid ${LINE}`, background: "#fff", resize: "none" }}
+              className="rounded-lg px-2 py-2 w-full text-sm"
+            />
+          </label>
+          {error && (
+            <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-xl p-2.5 mb-3 text-xs">
+              {error}
+            </div>
+          )}
+          <button
+            type="submit"
+            disabled={submitting}
+            style={{ background: CHARCOAL, color: "#fff", opacity: submitting ? 0.6 : 1 }}
+            className="w-full rounded-xl py-2.5 text-sm font-medium"
+          >
+            {submitting ? "Submitting..." : "Submit request"}
+          </button>
+        </form>
+
+        <div className="pt-3" style={{ borderTop: `1px solid ${LINE}` }}>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "#8A8578" }}>Your requests</div>
+          {loading ? (
+            <p className="text-xs" style={{ color: "#8A8578" }}>Loading...</p>
+          ) : requests.length === 0 ? (
+            <p className="text-xs" style={{ color: "#8A8578" }}>No time off requests yet.</p>
+          ) : (
+            <div className="flex flex-col gap-2">
+              {requests.map((r) => {
+                const style = TIME_OFF_STATUS_STYLE[r.status] || TIME_OFF_STATUS_STYLE.pending;
+                const dateLabel =
+                  r.start_date === r.end_date
+                    ? formatDateShort(r.start_date)
+                    : `${formatDateShort(r.start_date)} – ${formatDateShort(r.end_date)}`;
+                return (
+                  <div key={r.id} style={{ background: "#fff", border: `1px solid ${LINE}` }} className="rounded-xl p-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium">{dateLabel}</span>
+                      <span
+                        className="rounded"
+                        style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: style.bg, color: style.color }}
+                      >
+                        {style.label}
+                      </span>
+                    </div>
+                    {r.note && <div className="text-xs mt-1" style={{ color: "#8A8578" }}>{r.note}</div>}
+                    {r.status === "pending" && (
+                      <button
+                        onClick={() => onCancelRequest(r.id)}
+                        className="text-xs underline mt-2"
+                        style={{ color: RUST }}
+                      >
+                        Cancel request
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount }) {
   const [selectedDay, setSelectedDay] = useState(todayStr());
   const [selectedJob, setSelectedJob] = useState(null);
 
@@ -738,16 +893,30 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
         <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
           Schedule
         </h2>
-        <button
-          onClick={() => {
-            onToday();
-            setSelectedDay(todayStr());
-          }}
-          className="text-xs underline"
-          style={{ color: "#8A8578" }}
-        >
-          Today
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onOpenTimeOff}
+            className="text-xs font-medium flex items-center gap-1 rounded-lg px-2.5 py-1"
+            style={{ color: CHARCOAL, background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+          >
+            <Plane size={12} /> Time off
+            {timeOffPendingCount > 0 && (
+              <span style={{ background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                {timeOffPendingCount}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => {
+              onToday();
+              setSelectedDay(todayStr());
+            }}
+            className="text-xs underline"
+            style={{ color: "#8A8578" }}
+          >
+            Today
+          </button>
+        </div>
       </div>
 
       <div className="flex items-center justify-between mb-3">
@@ -1293,6 +1462,12 @@ const [emailInput, setEmailInput] = useState("");
   const [chatLoading, setChatLoading] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
   const [scheduleUnseenCount, setScheduleUnseenCount] = useState(0);
+  const [showTimeOffSheet, setShowTimeOffSheet] = useState(false);
+  const [timeOffRequests, setTimeOffRequests] = useState([]);
+  const [timeOffLoading, setTimeOffLoading] = useState(false);
+  const [timeOffForm, setTimeOffForm] = useState({ start_date: "", end_date: "", note: "" });
+  const [timeOffSubmitting, setTimeOffSubmitting] = useState(false);
+  const [timeOffError, setTimeOffError] = useState("");
   const [teamThreads, setTeamThreads] = useState([]);
   const [teamThreadsLoading, setTeamThreadsLoading] = useState(false);
   const [teamUnreadCount, setTeamUnreadCount] = useState(0);
@@ -1477,6 +1652,56 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  async function loadTimeOffRequests() {
+    setTimeOffLoading(true);
+    try {
+      const rows = await getMyTimeOffRequests();
+      setTimeOffRequests(rows);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setTimeOffLoading(false);
+    }
+  }
+
+  function openTimeOffSheet() {
+    setTimeOffError("");
+    setShowTimeOffSheet(true);
+    loadTimeOffRequests();
+  }
+
+  async function submitTimeOffRequest(e) {
+    e.preventDefault();
+    setTimeOffError("");
+    if (!timeOffForm.start_date || !timeOffForm.end_date) {
+      setTimeOffError("Pick a start and end date.");
+      return;
+    }
+    if (timeOffForm.end_date < timeOffForm.start_date) {
+      setTimeOffError("End date can't be before the start date.");
+      return;
+    }
+    setTimeOffSubmitting(true);
+    try {
+      await requestTimeOff(timeOffForm.start_date, timeOffForm.end_date, timeOffForm.note.trim());
+      setTimeOffForm({ start_date: "", end_date: "", note: "" });
+      await loadTimeOffRequests();
+    } catch (err) {
+      setTimeOffError(err.message || "Couldn't submit request. Try again.");
+    } finally {
+      setTimeOffSubmitting(false);
+    }
+  }
+
+  async function handleCancelTimeOffRequest(id) {
+    try {
+      await cancelTimeOffRequest(id);
+      await loadTimeOffRequests();
+    } catch {
+      // non-fatal — the request just stays in the list as-is
+    }
+  }
+
   async function loadCustomers() {
     setCustomersLoading(true);
     try {
@@ -1612,7 +1837,10 @@ const [emailInput, setEmailInput] = useState("");
   }
 
   useEffect(() => {
-    if (view === "schedule" && loggedIn) loadSchedule(scheduleMonthAnchor);
+    if (view === "schedule" && loggedIn) {
+      loadSchedule(scheduleMonthAnchor);
+      loadTimeOffRequests();
+    }
     if (view === "customers" && loggedIn) loadCustomers();
     if (view === "chat" && loggedIn) {
       if (chatSubtab === "direct") loadChatMessages();
@@ -1953,14 +2181,30 @@ const [emailInput, setEmailInput] = useState("");
         <div className="h-px w-full mb-6" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
 
         {view === "schedule" ? (
-          <CalendarView
-            schedule={schedule}
-            loading={scheduleLoading}
-            monthAnchor={scheduleMonthAnchor}
-            onPrevMonth={goPrevMonth}
-            onNextMonth={goNextMonth}
-            onToday={goToday}
-          />
+          <>
+            <CalendarView
+              schedule={schedule}
+              loading={scheduleLoading}
+              monthAnchor={scheduleMonthAnchor}
+              onPrevMonth={goPrevMonth}
+              onNextMonth={goNextMonth}
+              onToday={goToday}
+              onOpenTimeOff={openTimeOffSheet}
+              timeOffPendingCount={timeOffRequests.filter((r) => r.status === "pending").length}
+            />
+            <TimeOffSheet
+              open={showTimeOffSheet}
+              onClose={() => setShowTimeOffSheet(false)}
+              requests={timeOffRequests}
+              loading={timeOffLoading}
+              form={timeOffForm}
+              onFormChange={setTimeOffForm}
+              onSubmit={submitTimeOffRequest}
+              submitting={timeOffSubmitting}
+              error={timeOffError}
+              onCancelRequest={handleCancelTimeOffRequest}
+            />
+          </>
         ) : view === "customers" ? (
           <CustomersView customers={customers} loading={customersLoading} />
         ) : view === "chat" ? (
