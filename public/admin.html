@@ -1066,6 +1066,29 @@
   </div>
 </div>
 
+<div class="sheet" id="resend-receipt-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeResendReceiptSheet()">&times;</button>
+    <h2>Resend receipt</h2>
+  </div>
+  <div class="sheet-body">
+    <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Sends the same payment confirmation email for this invoice again.</p>
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+      <input type="radio" name="resend-receipt-choice" value="onfile" checked onchange="toggleResendReceiptEmailField()" style="width:16px; height:16px; margin:0;" />
+      Send to email on file
+    </label>
+    <div id="resend-receipt-onfile-email" style="font-size:12.5px; color:#8A8578; margin:0 0 12px 24px;"></div>
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+      <input type="radio" name="resend-receipt-choice" value="other" onchange="toggleResendReceiptEmailField()" style="width:16px; height:16px; margin:0;" />
+      Send to a different email
+    </label>
+    <input id="resend-receipt-email-input" type="email" placeholder="name@example.com" disabled />
+    <button class="btn-primary" onclick="submitResendReceipt()">Send</button>
+    <div id="resend-receipt-error" class="error"></div>
+    <div id="resend-receipt-success" class="success-msg"></div>
+  </div>
+</div>
+
 <div class="sheet" id="quote-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeQuoteSheet()">&times;</button>
@@ -1309,6 +1332,8 @@ const admin = {
   markInvoicePaid: (id, paymentMethod) =>
     apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod } }),
   voidInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/void`, { method: "PATCH" }),
+  resendInvoiceReceipt: (id, email) =>
+    apiFetch(`/api/admin/invoices/${id}/resend-receipt`, { method: "POST", body: { email: email || "" } }),
   // Fetches the PDF with the auth header attached (a plain link can't send
   // one), then opens it as a blob URL in a new tab so the browser's own
   // PDF viewer displays it.
@@ -3152,7 +3177,10 @@ function renderTransactionsList() {
       '<div style="font-size:12px; color:#8A8578; margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
         '<span>' + String(inv.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + '</span>' + channelBadge +
       '</div>' +
-      '<button class="btn-small" style="margin-top:8px; width:100%; background:var(--charcoal);" onclick="viewInvoicePdf(\'' + inv.id + '\')">Receipt</button>' +
+      '<div style="display:flex; gap:6px; margin-top:8px;">' +
+        '<button class="btn-small" style="flex:1; background:var(--charcoal);" onclick="viewInvoicePdf(\'' + inv.id + '\')">Receipt</button>' +
+        '<button class="btn-small" style="flex:1; background:var(--teal);" onclick="openResendReceiptSheet(\'' + inv.id + '\')">Resend receipt</button>' +
+      '</div>' +
     '</div>';
   }).join("");
 }
@@ -3485,6 +3513,58 @@ async function submitMarkPaid() {
     await loadInvoices();
   } catch (err) {
     errEl.textContent = err.message || "Couldn't mark invoice as paid.";
+    errEl.style.display = "block";
+  }
+}
+
+let resendReceiptInvoiceId = null;
+
+function toggleResendReceiptEmailField() {
+  const other = document.querySelector('input[name="resend-receipt-choice"][value="other"]').checked;
+  document.getElementById("resend-receipt-email-input").disabled = !other;
+  if (other) document.getElementById("resend-receipt-email-input").focus();
+}
+
+async function openResendReceiptSheet(id) {
+  resendReceiptInvoiceId = id;
+  document.getElementById("resend-receipt-error").style.display = "none";
+  document.getElementById("resend-receipt-success").style.display = "none";
+  document.getElementById("resend-receipt-email-input").value = "";
+  document.querySelector('input[name="resend-receipt-choice"][value="onfile"]').checked = true;
+  toggleResendReceiptEmailField();
+  document.getElementById("resend-receipt-onfile-email").textContent = "Loading...";
+  document.getElementById("resend-receipt-sheet").classList.add("visible");
+  try {
+    const invoice = await admin.getInvoice(id);
+    document.getElementById("resend-receipt-onfile-email").textContent = invoice.customer_email || "No email on file";
+  } catch (err) {
+    document.getElementById("resend-receipt-onfile-email").textContent = "No email on file";
+  }
+}
+
+function closeResendReceiptSheet() {
+  document.getElementById("resend-receipt-sheet").classList.remove("visible");
+  resendReceiptInvoiceId = null;
+}
+
+async function submitResendReceipt() {
+  const useOther = document.querySelector('input[name="resend-receipt-choice"][value="other"]').checked;
+  const email = useOther ? document.getElementById("resend-receipt-email-input").value.trim() : "";
+  const errEl = document.getElementById("resend-receipt-error");
+  const successEl = document.getElementById("resend-receipt-success");
+  errEl.style.display = "none";
+  successEl.style.display = "none";
+  if (useOther && !email) {
+    errEl.textContent = "Enter an email address to send to.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    const result = await admin.resendInvoiceReceipt(resendReceiptInvoiceId, email);
+    successEl.textContent = result.message || "Receipt sent.";
+    successEl.style.display = "block";
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't send receipt.";
     errEl.style.display = "block";
   }
 }
