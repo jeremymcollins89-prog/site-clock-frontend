@@ -1710,10 +1710,19 @@ async function loadOverview() {
 
 // ---------- Employees + hours ----------
 async function loadEmployees() {
-  const [rows, overview] = await Promise.all([
-    admin.listEmployees(),
-    admin.getOverview(),
-  ]);
+  let rows, overview;
+  try {
+    [rows, overview] = await Promise.all([
+      admin.listEmployees(),
+      admin.getOverview(),
+    ]);
+  } catch (err) {
+    // If either call fails (a network blip on getOverview, say), don't let
+    // it wipe out an already-correct window.allEmployees with nothing --
+    // just skip this refresh and let the next successful one catch up,
+    // rather than the list silently going stale or blank.
+    return;
+  }
   window.allEmployees = rows;
   const openEntryByEmployee = {};
   (overview.employees || []).forEach(function(oe) {
@@ -1834,22 +1843,30 @@ async function submitEditEmployee() {
   };
   if (pin) patch.pin = pin;
   try {
-    await admin.updateEmployee(editingEmployeeId, patch);
+    // Use the server's own response as the source of truth for the local
+    // cache, rather than relying solely on the loadEmployees() refresh below
+    // to pick up the change. If that refresh ever loses a race with another
+    // in-flight request (or the getOverview() half of it hiccups), the edit
+    // you just saved would otherwise flash correct and then look like it
+    // "reverted" the next time you opened this employee -- even though the
+    // database itself was updated fine the whole time.
+    const updated = await admin.updateEmployee(editingEmployeeId, patch);
+    const idx = (window.allEmployees || []).findIndex(function(x) { return x.id === editingEmployeeId; });
+    if (idx !== -1) Object.assign(window.allEmployees[idx], updated);
     successEl.textContent = "Employee updated.";
     successEl.style.display = "block";
-    await loadEmployees();
+    loadEmployees(); // background refresh of the list view; not depended on above
     // If the employee-detail sheet (with the Contact info card) is open
     // behind this Edit sheet for the same employee, refresh it too --
     // otherwise it keeps showing the pre-edit phone/email/address until the
     // whole page is reloaded, since it was rendered before this save.
     if (currentEmployeeDetail && currentEmployeeDetail.id === editingEmployeeId) {
-      const full = (window.allEmployees || []).find(function(x) { return x.id === editingEmployeeId; }) || {};
-      currentEmployeeDetail.email = full.email;
-      currentEmployeeDetail.phone = full.phone;
-      currentEmployeeDetail.street = full.street;
-      currentEmployeeDetail.city = full.city;
-      currentEmployeeDetail.state = full.state;
-      currentEmployeeDetail.zip = full.zip;
+      currentEmployeeDetail.email = updated.email;
+      currentEmployeeDetail.phone = updated.phone;
+      currentEmployeeDetail.street = updated.street;
+      currentEmployeeDetail.city = updated.city;
+      currentEmployeeDetail.state = updated.state;
+      currentEmployeeDetail.zip = updated.zip;
       const startEl = document.getElementById("emp-detail-start");
       const endEl = document.getElementById("emp-detail-end");
       if (startEl && endEl) renderEmployeeDetail(startEl.value, endEl.value);
