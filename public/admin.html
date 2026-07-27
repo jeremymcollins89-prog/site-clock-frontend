@@ -594,10 +594,6 @@
         </div>
       </div>
       <div id="reports-content"></div>
-      <div class="card" style="margin-top:12px;">
-        <h3 style="margin:0 0 4px; font-size:15px;">Gross Profit: This Month vs Last Month</h3>
-        <div id="monthly-profit-chart"></div>
-      </div>
     </section>
 
     <section id="view-chat" class="view">
@@ -1415,8 +1411,6 @@ const admin = {
 
   getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
   getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
-  getMonthlyProfit: (year) => apiFetch(`/api/admin/reports/monthly-profit?year=${year}`),
-
   listExpenses: () => apiFetch("/api/admin/expenses"),
   addExpense: (expense) => apiFetch("/api/admin/expenses", { method: "POST", body: expense }),
   updateExpense: (id, patch) => apiFetch(`/api/admin/expenses/${id}`, { method: "PATCH", body: patch }),
@@ -1505,7 +1499,6 @@ function showApp() {
   loadCompanyLogo();
   loadCompanyTimezone();
   loadReportSummary();
-  loadMonthlyProfitChart();
   renderScheduleCalendar();
   loadShopLocation();
   loadCompanyName();
@@ -4281,75 +4274,6 @@ async function loadReportSummary() {
   } catch (err) {
     content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load report data.</p>';
   }
-}
-
-async function loadMonthlyProfitChart() {
-  const el = document.getElementById("monthly-profit-chart");
-  el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
-  try {
-    const now = new Date();
-    const curYear = now.getFullYear(), curMonth = now.getMonth() + 1;
-    let prevYear = curYear, prevMonth = curMonth - 1;
-    if (prevMonth === 0) { prevMonth = 12; prevYear = curYear - 1; }
-
-    // Only fetch the previous year too if the month before this one actually
-    // falls in it (i.e. we're looking at January) -- otherwise one request
-    // for the current year already has both months' data.
-    const years = prevYear === curYear ? [curYear] : [curYear, prevYear];
-    const results = await Promise.all(years.map(function(y) { return admin.getMonthlyProfit(y); }));
-    const byYear = {};
-    years.forEach(function(y, i) { byYear[y] = results[i]; });
-
-    const thisMonthData = byYear[curYear].months.find(function(m) { return m.month === curMonth; });
-    const lastMonthData = byYear[prevYear].months.find(function(m) { return m.month === prevMonth; });
-
-    el.innerHTML = renderMonthlyProfitChart(thisMonthData, lastMonthData);
-  } catch (err) {
-    el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load monthly profit.</p>';
-  }
-}
-
-// Hand-built SVG bar chart -- just the two bars that matter for a quick
-// gut-check: this month vs last month, matching the desktop admin app's
-// version. This month renders in a bright green (brighter than the muted
-// teal used for money numbers elsewhere in the app, so it's the first
-// thing your eye lands on), last month stays amber. Either bar flips to
-// rust if that month was actually a loss.
-function renderMonthlyProfitChart(thisMonth, lastMonth) {
-  const width = 300, height = 200;
-  const chartH = height - 44;
-  const zeroY = 16 + chartH * 0.7;
-  const bars_ = [
-    { label: "Last month", profit: lastMonth ? lastMonth.gross_profit : 0, color: "#F4B04C" },
-    { label: "This month", profit: thisMonth ? thisMonth.gross_profit : 0, color: "#2FA84F" },
-  ];
-  const maxPositive = Math.max(1, ...bars_.map(function(v) { return v.profit; }));
-  const maxNegative = Math.max(1, ...bars_.map(function(v) { return -v.profit; }));
-  const posScale = (chartH * 0.7 - 8) / maxPositive;
-  const negScale = (chartH * 0.3 - 8) / maxNegative;
-  const barWidth = 80, gap = 32;
-  const startX = (width - (barWidth * 2 + gap)) / 2;
-
-  const bars = bars_.map(function(v, i) {
-    const x = startX + i * (barWidth + gap);
-    const isNeg = v.profit < 0;
-    const barH = Math.abs(v.profit) * (isNeg ? negScale : posScale);
-    const y = isNeg ? zeroY : zeroY - barH;
-    const color = isNeg ? "#C1502E" : v.color;
-    const labelY = isNeg ? y + barH + 14 : y - 6;
-    return '<g>' +
-      '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + Math.max(barH, 1) + '" rx="4" fill="' + color + '">' +
-        '<title>' + v.label + ' ' + fmtMoney(v.profit) + '</title>' +
-      '</rect>' +
-      '<text x="' + (x + barWidth / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="11.5" font-weight="700" fill="#1F2421">' + fmtMoney(v.profit) + '</text>' +
-      '<text x="' + (x + barWidth / 2) + '" y="' + (height - 6) + '" text-anchor="middle" font-size="10.5" fill="#8A8578">' + v.label + '</text>' +
-    '</g>';
-  }).join("");
-
-  return '<svg viewBox="0 0 ' + width + ' ' + height + '" style="width:100%; max-width:320px; height:auto; max-height:220px; display:block; margin:0 auto;">' +
-    '<line x1="10" y1="' + zeroY + '" x2="' + (width - 10) + '" y2="' + zeroY + '" stroke="#D8D3C4" stroke-width="1"/>' +
-    bars +
-  '</svg>';
 }
 
 // ---------- Report bubble breakdowns ----------
