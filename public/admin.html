@@ -1699,9 +1699,9 @@ async function loadOverview() {
 
     const statValueClass = isClockedIn ? "stat-value accent" : "stat-value";
 
-    return '<div class="card" style="' + (shiftTooLong ? "border-color:var(--rust);" : "") + '" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', ' + isClockedIn + ')">' +
+    return '<div class="card" style="' + (shiftTooLong ? "border-color:var(--rust);" : "") + '" onclick="openEmployeeSheet(\'' + e.id + '\', ' + e.active + ', ' + isClockedIn + ')">' +
         '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-          '<strong style="font-size:15.5px;">' + e.name + '</strong>' +
+          '<strong style="font-size:15.5px;">' + escapeHtml(e.name) + '</strong>' +
           statusBadge + longShiftBadge +
         '</div>' +
         currentJob +
@@ -1739,10 +1739,10 @@ async function loadEmployees() {
     const forceClockOutBtn = openEntryId
       ? '<button class="btn-small" style="background:#C1502E;" onclick="event.stopPropagation(); forceClockOutRowConfirm(\'' + openEntryId + '\', \'' + e.name.replace(/'/g, "\\'") + '\')">Force clock out</button>'
       : '';
-    return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', \'' + e.name + '\', ' + e.active + ', false)">' +
+    return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', ' + e.active + ', false)">' +
       '<div>' +
-        '<strong>' + e.name + '</strong>' +
-        '<div style="font-size:12.5px; color:#8A8578;">' + e.email + ' &middot; ' + (e.active ? "Active" : "Inactive") + ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openAnimationsPopover(event, \'' + e.id + '\', \'' + (e.clock_in_animation || "none") + '\')">Animation: ' + animationLabel(e.clock_in_animation) + '</span>' +
+        '<strong>' + escapeHtml(e.name) + '</strong>' +
+        '<div style="font-size:12.5px; color:#8A8578;">' + escapeHtml(e.email) + ' &middot; ' + (e.active ? "Active" : "Inactive") + ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openAnimationsPopover(event, \'' + e.id + '\', \'' + (e.clock_in_animation || "none") + '\')">Animation: ' + animationLabel(e.clock_in_animation) + '</span>' +
         ' &middot; <span class="anim-toggle" onclick="event.stopPropagation(); openRatePopover(event, \'' + e.id + '\', ' + (e.hourly_rate === null || e.hourly_rate === undefined ? "null" : Number(e.hourly_rate)) + ')">' + (e.hourly_rate === null || e.hourly_rate === undefined ? "Rate: not set" : "Rate: " + fmtMoney(e.hourly_rate) + "/hr") + '</span></div>' +
       '</div>' +
       '<span class="actions" style="white-space:nowrap;">' +
@@ -2015,10 +2015,13 @@ async function submitRatePopover() {
 }
 
 let currentEmployeeDetail = null;
-async function openEmployeeSheet(id, name, active, isClockedIn) {
+async function openEmployeeSheet(id, active, isClockedIn) {
+  // name is looked up from the full record rather than passed through the
+  // onclick="" attribute string -- an employee name is free text, and a
+  // stray quote in it could otherwise break out of that inline JS string.
   const full = (window.allEmployees || []).find(function(x) { return x.id === id; }) || {};
   currentEmployeeDetail = {
-    id: id, name: name, active: active, isClockedIn: isClockedIn,
+    id: id, name: full.name, active: active, isClockedIn: isClockedIn,
     email: full.email, phone: full.phone, street: full.street, city: full.city, state: full.state, zip: full.zip,
   };
   const today = new Date();
@@ -2072,20 +2075,20 @@ async function renderEmployeeDetail(start, end) {
     '</div>' +
     '<div id="emp-contact-details" style="display:none; margin-top:10px;" onclick="event.stopPropagation();">' +
       (ed.phone
-        ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="' + telUrl(ed.phone) + '">' + ed.phone + '</a></div>'
+        ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="' + escapeHtml(telUrl(ed.phone)) + '">' + escapeHtml(ed.phone) + '</a></div>'
         : '<div style="font-size:13px; margin-bottom:6px; color:#8A8578;">Phone: not set</div>') +
       (ed.email
-        ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="mailto:' + ed.email + '">' + ed.email + '</a></div>'
+        ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="mailto:' + escapeHtml(ed.email) + '">' + escapeHtml(ed.email) + '</a></div>'
         : '<div style="font-size:13px; margin-bottom:6px; color:#8A8578;">Email: not set</div>') +
       (fullAddress
-        ? '<div style="font-size:13px; margin-bottom:8px;"><a class="link" href="' + mapsUrl(fullAddress) + '" target="_blank">' + fullAddress + ' (directions)</a></div>'
+        ? '<div style="font-size:13px; margin-bottom:8px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + ' (directions)</a></div>'
         : '<div style="font-size:13px; margin-bottom:8px; color:#8A8578;">Address: not set</div>') +
       '<button class="btn-secondary" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + ed.id + '\');">Edit contact info</button>' +
     '</div>' +
   '</div>';
 
   document.getElementById("employee-sheet-content").innerHTML =
-    '<h2 style="margin:0 0 2px; font-size:20px;">' + ed.name + '</h2>' +
+    '<h2 style="margin:0 0 2px; font-size:20px;">' + escapeHtml(ed.name) + '</h2>' +
     '<p style="color:#8A8578; margin:0 0 12px;">' + (ed.active ? "Active" : "Inactive") + '</p>' +
     contactCardHtml +
     '<div class="stat-row">' +
@@ -2243,10 +2246,10 @@ function renderCrewSearchDropdown() {
     dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:#8A8578;">No teams match "' + term + '".</div>';
   } else {
     dropdown.innerHTML = matches.map(function(c) {
-      const memberNames = c.members.map(function(m) { return m.name; }).join(", ") || "No members yet";
+      const memberNames = escapeHtml(c.members.map(function(m) { return m.name; }).join(", ") || "No members yet");
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectCrewSearchResult(\'' + c.id + '\')">' +
-        '<div style="font-weight:600; font-size:13px;">' + c.name + '</div>' +
+        '<div style="font-weight:600; font-size:13px;">' + escapeHtml(c.name) + '</div>' +
         '<div style="font-size:11px; color:#8A8578;">' + memberNames + '</div>' +
       '</div>';
     }).join("");
@@ -2290,10 +2293,10 @@ function renderCrewsList() {
     return;
   }
   list.innerHTML = crews.map(function(c) {
-    const members = c.members.map(function(m) { return '<span class="chip">' + m.name + '</span>'; }).join("");
+    const members = c.members.map(function(m) { return '<span class="chip">' + escapeHtml(m.name) + '</span>'; }).join("");
     return '<div class="card" style="margin-bottom:8px;">' +
       '<div style="display:flex; justify-content:space-between; align-items:center;">' +
-        '<strong>' + c.name + '</strong>' +
+        '<strong>' + escapeHtml(c.name) + '</strong>' +
         '<span>' +
           '<button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet(\'' + c.id + '\')">Edit</button>' +
           '<button class="btn-small" style="background:#C1502E; margin-left:6px;" onclick="deleteCrewConfirm(\'' + c.id + '\')">Delete</button>' +
@@ -2315,7 +2318,7 @@ function openCrewSheet(crewId) {
   const employees = (window.allEmployees || []).filter(function(e) { return e.active || memberIds.indexOf(e.id) !== -1; });
   document.getElementById("crew-members-list").innerHTML = employees.map(function(e) {
     const checked = memberIds.indexOf(e.id) !== -1 ? "checked" : "";
-    return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + e.name + '</label>';
+    return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + escapeHtml(e.name) + '</label>';
   }).join("") || '<p style="color:#8A8578; font-size:12px;">Add employees first, then build teams.</p>';
 
   document.getElementById("crew-sheet").classList.add("visible");
@@ -2427,20 +2430,20 @@ function formatDayHeading(dateStr) {
 // One event's full detail card -- same content whether it's shown in the
 // "No specific time" section or slotted into an hour row below.
 function renderDayJobCard(j) {
-  const assigned = j.assigned_employees.map(function(e) { return '<span class="chip">' + e.name + '</span>'; }).join("");
+  const assigned = j.assigned_employees.map(function(e) { return '<span class="chip">' + escapeHtml(e.name) + '</span>'; }).join("");
   const jobAddress = formatAddressParts(j.customer_street, j.customer_city, j.customer_state, j.customer_zip);
   return '<div class="card" style="margin-bottom:0;">' +
     '<div>' +
       '<span class="job-color-dot" style="background:' + (JOB_COLORS[j.color] || JOB_COLORS.rust) + ';"></span>' +
-      '<strong>' + j.title + '</strong>' +
+      '<strong>' + escapeHtml(j.title) + '</strong>' +
       '<span class="type-badge">' + (EVENT_TYPE_LABELS[j.event_type] || "Job") + '</span>' +
     '</div>' +
     (j.customer_name ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
-      '<strong>' + j.customer_name + '</strong>' +
-      (j.customer_phone ? '<br/><a class="link" href="' + telUrl(j.customer_phone) + '">' + j.customer_phone + '</a>' : "") +
-      (jobAddress ? '<br/><a class="link" href="' + mapsUrl(jobAddress) + '" target="_blank">' + jobAddress + ' (directions)</a>' : "") +
+      '<strong>' + escapeHtml(j.customer_name) + '</strong>' +
+      (j.customer_phone ? '<br/><a class="link" href="' + escapeHtml(telUrl(j.customer_phone)) + '">' + escapeHtml(j.customer_phone) + '</a>' : "") +
+      (jobAddress ? '<br/><a class="link" href="' + escapeHtml(mapsUrl(jobAddress)) + '" target="_blank">' + escapeHtml(jobAddress) + ' (directions)</a>' : "") +
     '</div>' : '') +
-    (j.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' + j.notes + '</div>' : '') +
+    (j.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' + escapeHtml(j.notes) + '</div>' : '') +
     '<div style="margin-top:8px;">' + (assigned || '<span style="color:#8A8578; font-size:12px;">Nobody assigned yet</span>') + '</div>' +
     '<div style="margin-top:10px; display:flex; gap:8px;">' +
       '<button class="btn-small" style="background:var(--teal); flex:1;" onclick="closeDaySheet(); openJobSheet(\'' + j.id + '\');">Edit</button>' +
@@ -2546,7 +2549,7 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
   const customers = window.allCustomers || [];
   document.getElementById("job-customer-input").innerHTML =
     '<option value="">— none —</option>' +
-    customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join("");
+    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
   document.getElementById("job-customer-input").value = job && job.customer_id ? job.customer_id : "";
 
   document.getElementById("job-notes-input").value = job ? (job.notes || "") : "";
@@ -2570,13 +2573,13 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
   const crews = window.allCrews || [];
   document.getElementById("job-crews-list").innerHTML = crews.map(function(c) {
     const checked = assignedCrewIds.indexOf(c.id) !== -1 ? "checked" : "";
-    return '<label><input type="checkbox" value="' + c.id + '" ' + checked + ' /> ' + c.name + '</label>';
+    return '<label><input type="checkbox" value="' + c.id + '" ' + checked + ' /> ' + escapeHtml(c.name) + '</label>';
   }).join("") || '<p style="color:#8A8578; font-size:12px;">No teams yet.</p>';
 
   const employees = (window.allEmployees || []).filter(function(e) { return e.active || assignedIds.indexOf(e.id) !== -1; });
   document.getElementById("job-employees-list").innerHTML = employees.map(function(e) {
     const checked = assignedIds.indexOf(e.id) !== -1 ? "checked" : "";
-    return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + e.name + '</label>';
+    return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + escapeHtml(e.name) + '</label>';
   }).join("");
 
   document.getElementById("job-sheet").classList.add("visible");
@@ -2826,13 +2829,13 @@ function renderCustomersList() {
 
   list.innerHTML = customers.map(function(c) {
     const fullAddress = formatAddress(c);
-    const details = (c.phone ? '<div style="font-size:12.5px;"><a class="link" href="' + telUrl(c.phone) + '">' + c.phone + '</a></div>' : "") +
-      (c.email ? '<div style="font-size:12.5px;"><a class="link" href="mailto:' + c.email + '">' + c.email + '</a></div>' : "") +
-      (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + mapsUrl(fullAddress) + '" target="_blank">' + fullAddress + ' (directions)</a></div>' : "");
+    const details = (c.phone ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(telUrl(c.phone)) + '">' + escapeHtml(c.phone) + '</a></div>' : "") +
+      (c.email ? '<div style="font-size:12.5px;"><a class="link" href="mailto:' + escapeHtml(c.email) + '">' + escapeHtml(c.email) + '</a></div>' : "") +
+      (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + ' (directions)</a></div>' : "");
     return '<div class="card">' +
-      '<strong>' + c.name + '</strong>' +
+      '<strong>' + escapeHtml(c.name) + '</strong>' +
       details +
-      (c.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + c.notes + '</div>' : '') +
+      (c.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + escapeHtml(c.notes) + '</div>' : '') +
       '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">' +
         '<button class="btn-small" style="background:var(--charcoal);" onclick="openCustomerHistorySheet(\'' + c.id + '\')">History</button>' +
         '<button class="btn-small" style="background:var(--teal);" onclick="openCustomerSheet(\'' + c.id + '\')">Edit</button>' +
@@ -2917,7 +2920,7 @@ async function openCustomerHistorySheet(id) {
       const dateLabel = ev.start_date === ev.end_date ? ev.start_date.slice(0, 10) : ev.start_date.slice(0, 10) + " – " + ev.end_date.slice(0, 10);
       return '<div class="card" style="margin-bottom:8px;" onclick="closeCustomerHistorySheet(); openJobSheet(\'' + ev.id + '\');">' +
         '<span class="job-color-dot" style="background:' + (JOB_COLORS[ev.color] || JOB_COLORS.rust) + ';"></span>' +
-        '<strong>' + ev.title + '</strong>' +
+        '<strong>' + escapeHtml(ev.title) + '</strong>' +
         '<span class="type-badge">' + (EVENT_TYPE_LABELS[ev.event_type] || "Job") + '</span>' +
         '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + dateLabel + '</div>' +
       '</div>';
@@ -2934,7 +2937,7 @@ async function openCustomerHistorySheet(id) {
   }).join("");
 
   document.getElementById("customer-history-content").innerHTML =
-    '<h2 style="margin-top:0; font-size:18px;">' + customer.name + '</h2>' +
+    '<h2 style="margin-top:0; font-size:18px;">' + escapeHtml(customer.name) + '</h2>' +
     '<p style="font-size:12px; color:#8A8578; margin-top:-8px;">Appointments and invoices</p>' +
     (rows || '<p style="color:#8A8578; font-size:13px;">Nothing on file for this customer yet.</p>');
 
@@ -3200,7 +3203,7 @@ function renderTransactionsList() {
     return '<div class="card">' +
       '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
         '<div>' +
-          '<strong>' + inv.customer_name + '</strong><br/>' +
+          '<strong>' + escapeHtml(inv.customer_name) + '</strong><br/>' +
           '<span style="font-size:12px; color:#8A8578;">Invoice #' + inv.invoice_number + '</span>' +
         '</div>' +
         '<strong>' + fmtMoney(inv.total) + '</strong>' +
@@ -3242,7 +3245,7 @@ function renderInvoicesSearchDropdown() {
     dropdown.innerHTML = matches.map(function(inv) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectInvoicesSearchResult(\'' + inv.id + '\')">' +
-        '<div style="font-weight:600; font-size:13px;">Invoice #' + inv.invoice_number + ' &middot; ' + inv.customer_name + '</div>' +
+        '<div style="font-weight:600; font-size:13px;">Invoice #' + inv.invoice_number + ' &middot; ' + escapeHtml(inv.customer_name) + '</div>' +
         '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(inv.total) + '</div>' +
       '</div>';
     }).join("");
@@ -3299,7 +3302,7 @@ function renderInvoicesList() {
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) +
-        '<div style="font-size:13px; margin-top:4px;">' + inv.customer_name + '</div>' +
+        '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(inv.customer_name) + '</div>' +
         '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
           PAYMENT_TERMS_LABELS[inv.payment_terms] + ' &middot; Due ' + inv.due_date.slice(0, 10) +
         '</div>' +
@@ -3406,7 +3409,7 @@ async function openInvoiceSheet(invoiceId) {
 
   const customers = window.allCustomers || [];
   document.getElementById("invoice-customer-input").innerHTML =
-    customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join("");
+    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
   document.getElementById("invoice-customer-input").value = invoice ? invoice.customer_id : (customers[0] ? customers[0].id : "");
 
   document.getElementById("invoice-terms-input").value = invoice ? invoice.payment_terms : "due_on_receipt";
@@ -3659,7 +3662,7 @@ function renderQuotesSearchDropdown() {
     dropdown.innerHTML = matches.map(function(q) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectQuotesSearchResult(\'' + q.id + '\')">' +
-        '<div style="font-weight:600; font-size:13px;">Quote #' + q.quote_number + ' &middot; ' + q.customer_name + '</div>' +
+        '<div style="font-weight:600; font-size:13px;">Quote #' + q.quote_number + ' &middot; ' + escapeHtml(q.customer_name) + '</div>' +
         '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(q.total) + '</div>' +
       '</div>';
     }).join("");
@@ -3723,7 +3726,7 @@ function renderQuotesList() {
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Quote #' + q.quote_number + '</strong> ' + quoteStatusBadge(q) +
-        '<div style="font-size:13px; margin-top:4px;">' + q.customer_name + '</div>' +
+        '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(q.customer_name) + '</div>' +
         '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
           (q.expiration_date ? 'Valid until ' + q.expiration_date.slice(0, 10) : 'No expiration set') +
         '</div>' +
@@ -3836,7 +3839,7 @@ function populateQuoteCatalogPicker() {
   if (!picker) return;
   const items = window.allCatalogItems || [];
   picker.innerHTML = '<option value="">+ Add from catalog...</option>' +
-    items.map(function(item) { return '<option value="' + item.id + '">' + item.name + ' — ' + fmtMoney(item.unit_price) + '</option>'; }).join("");
+    items.map(function(item) { return '<option value="' + item.id + '">' + escapeHtml(item.name) + ' — ' + fmtMoney(item.unit_price) + '</option>'; }).join("");
 }
 
 function addLineItemFromCatalogToQuote() {
@@ -3872,7 +3875,7 @@ async function openQuoteSheet(quoteId) {
 
   const customers = window.allCustomers || [];
   document.getElementById("quote-customer-input").innerHTML =
-    customers.map(function(c) { return '<option value="' + c.id + '">' + c.name + '</option>'; }).join("");
+    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
   document.getElementById("quote-customer-input").value = quote ? quote.customer_id : (customers[0] ? customers[0].id : "");
 
   document.getElementById("quote-issue-date-input").value = quote ? quote.issue_date.slice(0, 10) : todayStr();
@@ -4388,7 +4391,7 @@ function renderInvoiceBreakdownRows(start, end, mode) {
     const dateLabel = mode === "invoiced" ? (inv.issue_date || "").slice(0, 10) : inv.paid_at.slice(0, 10);
     return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer;" ' +
       'onclick="closeReportBreakdownSheet(); viewInvoicePdf(\'' + inv.id + '\');">' +
-      '<span>#' + inv.invoice_number + ' &middot; ' + inv.customer_name + ' &middot; ' + dateLabel + '</span>' +
+      '<span>#' + inv.invoice_number + ' &middot; ' + escapeHtml(inv.customer_name) + ' &middot; ' + dateLabel + '</span>' +
       '<span>' + fmtMoney(inv.total) + '</span>' +
     '</div>';
   }).join("");
@@ -4514,7 +4517,7 @@ function renderCatalogSearchDropdown() {
     dropdown.innerHTML = matches.map(function(i) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectCatalogSearchResult(\'' + i.id + '\')">' +
-        '<div style="font-weight:600; font-size:13px;">' + i.name + '</div>' +
+        '<div style="font-weight:600; font-size:13px;">' + escapeHtml(i.name) + '</div>' +
         '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(i.unit_price) + '</div>' +
       '</div>';
     }).join("");
@@ -4558,7 +4561,7 @@ function renderCatalogItemsList() {
   }
   list.innerHTML = items.map(function(item) {
     return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div><strong>' + item.name + '</strong><div style="font-size:12px; color:#8A8578;">' + fmtMoney(item.unit_price) + '</div></div>' +
+      '<div><strong>' + escapeHtml(item.name) + '</strong><div style="font-size:12px; color:#8A8578;">' + fmtMoney(item.unit_price) + '</div></div>' +
       '<span style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal); margin-right:6px;" onclick="openCatalogItemSheet(\'' + item.id + '\')">Edit</button>' +
         '<button class="btn-small" style="background:#C1502E;" onclick="deleteCatalogItemConfirm(\'' + item.id + '\')">Delete</button>' +
@@ -4572,7 +4575,7 @@ function populateInvoiceCatalogPicker() {
   if (!picker) return;
   const items = window.allCatalogItems || [];
   picker.innerHTML = '<option value="">+ Add from catalog...</option>' +
-    items.map(function(item) { return '<option value="' + item.id + '">' + item.name + ' — ' + fmtMoney(item.unit_price) + '</option>'; }).join("");
+    items.map(function(item) { return '<option value="' + item.id + '">' + escapeHtml(item.name) + ' — ' + fmtMoney(item.unit_price) + '</option>'; }).join("");
 }
 
 function addLineItemFromCatalog() {
@@ -4759,7 +4762,7 @@ async function populateExpenseJobPicker(selectedJobId) {
   }
   picker.innerHTML = '<option value="">— general expense, no job —</option>' +
     jobs.map(function(j) {
-      return '<option value="' + j.id + '">' + j.title + ' (' + j.start_date + ')</option>';
+      return '<option value="' + j.id + '">' + escapeHtml(j.title) + ' (' + j.start_date + ')</option>';
     }).join("");
   picker.value = selectedJobId || "";
 }
