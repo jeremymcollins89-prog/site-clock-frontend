@@ -594,6 +594,17 @@
         </div>
       </div>
       <div id="reports-content"></div>
+      <div class="card" style="margin-top:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+          <h3 style="margin:0; font-size:15px;">Gross Profit by Month</h3>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <button class="btn-small" style="padding:2px 10px;" onclick="changeMonthlyProfitYear(-1)">&lsaquo;</button>
+            <span id="monthly-profit-year-label" style="font-weight:700; min-width:40px; text-align:center;"></span>
+            <button class="btn-small" style="padding:2px 10px;" onclick="changeMonthlyProfitYear(1)">&rsaquo;</button>
+          </div>
+        </div>
+        <div id="monthly-profit-chart"></div>
+      </div>
     </section>
 
     <section id="view-chat" class="view">
@@ -1408,6 +1419,7 @@ const admin = {
 
   getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
   getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
+  getMonthlyProfit: (year) => apiFetch(`/api/admin/reports/monthly-profit?year=${year}`),
 
   listExpenses: () => apiFetch("/api/admin/expenses"),
   addExpense: (expense) => apiFetch("/api/admin/expenses", { method: "POST", body: expense }),
@@ -1497,6 +1509,7 @@ function showApp() {
   loadCompanyLogo();
   loadCompanyTimezone();
   loadReportSummary();
+  loadMonthlyProfitChart();
   renderScheduleCalendar();
   loadShopLocation();
   loadCompanyName();
@@ -4255,6 +4268,60 @@ async function loadReportSummary() {
   } catch (err) {
     content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load report data.</p>';
   }
+}
+
+let currentMonthlyProfitYear = new Date().getFullYear();
+const SHORT_MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+function changeMonthlyProfitYear(delta) {
+  currentMonthlyProfitYear += delta;
+  loadMonthlyProfitChart();
+}
+
+async function loadMonthlyProfitChart() {
+  document.getElementById("monthly-profit-year-label").textContent = currentMonthlyProfitYear;
+  const el = document.getElementById("monthly-profit-chart");
+  el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
+  try {
+    const data = await admin.getMonthlyProfit(currentMonthlyProfitYear);
+    el.innerHTML = renderMonthlyProfitChart(data.months);
+  } catch (err) {
+    el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load monthly profit.</p>';
+  }
+}
+
+// Hand-built SVG bar chart -- no charting library dependency, matches the
+// desktop admin app's version. Bars are scaled against the largest
+// |gross_profit| in the year so a loss month renders as a downward
+// rust-colored bar below the zero line rather than breaking the scale.
+function renderMonthlyProfitChart(months) {
+  const width = 340, height = 220, barGap = 4;
+  const chartH = height - 40;
+  const zeroY = 14 + chartH * 0.75;
+  const maxPositive = Math.max(1, ...months.map(function(m) { return m.gross_profit; }));
+  const maxNegative = Math.max(1, ...months.map(function(m) { return -m.gross_profit; }));
+  const posScale = (chartH * 0.75 - 8) / maxPositive;
+  const negScale = (chartH * 0.25 - 8) / maxNegative;
+  const barWidth = (width - 20 - barGap * 13) / 12;
+
+  const bars = months.map(function(m, i) {
+    const x = 10 + i * (barWidth + barGap);
+    const isNeg = m.gross_profit < 0;
+    const barH = Math.abs(m.gross_profit) * (isNeg ? negScale : posScale);
+    const y = isNeg ? zeroY : zeroY - barH;
+    const color = isNeg ? "#C1502E" : "#46705F";
+    return '<g>' +
+      '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + Math.max(barH, 1) + '" rx="2" fill="' + color + '">' +
+        '<title>' + SHORT_MONTH_LABELS[m.month - 1] + ' ' + fmtMoney(m.gross_profit) + '</title>' +
+      '</rect>' +
+      '<text x="' + (x + barWidth / 2) + '" y="' + (height - 6) + '" text-anchor="middle" font-size="8" fill="#8A8578">' + SHORT_MONTH_LABELS[m.month - 1][0] + '</text>' +
+    '</g>';
+  }).join("");
+
+  return '<svg viewBox="0 0 ' + width + ' ' + height + '" style="width:100%; height:auto; max-height:200px;">' +
+    '<line x1="10" y1="' + zeroY + '" x2="' + (width - 10) + '" y2="' + zeroY + '" stroke="#D8D3C4" stroke-width="1"/>' +
+    bars +
+  '</svg>';
 }
 
 // ---------- Report bubble breakdowns ----------
