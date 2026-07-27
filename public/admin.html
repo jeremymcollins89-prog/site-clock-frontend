@@ -484,6 +484,10 @@
             <h3 style="margin:0; font-size:15px;">Catalog <span id="catalog-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
             <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
           </div>
+          <div style="display:flex; gap:8px; margin-bottom:6px;">
+            <button class="btn-small" style="background:var(--teal); flex:1;" onclick="document.getElementById('catalog-import-input').click()">Import Catalog</button>
+          </div>
+          <input type="file" id="catalog-import-input" accept=".xlsx,.xls,.csv,text/csv" style="display:none;" onchange="handleCatalogImportFile(event)" />
           <div style="position:relative;">
             <input id="catalog-search-input" type="text" placeholder="Search catalog items..." autocomplete="off"
               oninput="onCatalogSearchInput()" onfocus="onCatalogSearchInput()" style="margin-bottom:0;" />
@@ -491,6 +495,9 @@
           </div>
           <div style="margin-top:8px;">
             <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
+            <p style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">
+              Import an Excel (.xlsx) or CSV file with a Name column (Price/Unit Price/Cost/Rate is optional). Rows matching an existing item's name are skipped.
+            </p>
             <div id="catalog-items-list"></div>
           </div>
         </div>
@@ -1224,6 +1231,10 @@
   </div>
 </div>
 
+<!-- SheetJS: parses .xlsx/.xls files client-side for the Catalog "Import
+     Catalog" button below. Loaded from cdnjs rather than bundled since this
+     page already requires internet access for every API call it makes. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script>
 // Registers the same service worker the employee app uses (it's a generic
 // push handler -- see service-worker.js). Needed here too so this page can
@@ -1420,6 +1431,7 @@ const admin = {
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
   deleteCatalogItem: (id) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "DELETE" }),
+  importCatalogItems: (items) => apiFetch("/api/admin/catalog-items/import", { method: "POST", body: { items } }),
 
   getCompanyLogo: () => apiFetch("/api/admin/company-logo"),
   updateCompanyLogo: (logoBase64, mimeType) =>
@@ -4615,6 +4627,79 @@ async function deleteCatalogItemConfirm(id) {
   if (!confirm("Delete this catalog item? It won't affect any invoice it's already been used on.")) return;
   await admin.deleteCatalogItem(id);
   await loadCatalogItems();
+}
+
+// ---------- Catalog import (Excel/CSV) ----------
+// Same flexible-header-matching approach as the customer CSV importer
+// above, but reading the file's rows into a plain 2D array first so both
+// CSV (parseCsv) and Excel (SheetJS) sources can share one mapping
+// function -- the two file types just produce that 2D array differently.
+const CATALOG_FIELD_ALIASES = {
+  name: ["name", "item", "item name", "product", "product name", "service", "description"],
+  unit_price: ["unit price", "price", "cost", "rate", "unit cost", "amount"],
+};
+
+function mapRowsToCatalogItems(rows) {
+  if (!rows || rows.length === 0) return [];
+  const headerRow = rows[0].map(normalizeCsvHeader);
+  const fieldIndex = {};
+  Object.keys(CATALOG_FIELD_ALIASES).forEach(function(field) {
+    const aliases = CATALOG_FIELD_ALIASES[field];
+    const idx = headerRow.findIndex(function(h) { return aliases.indexOf(h) !== -1; });
+    if (idx !== -1) fieldIndex[field] = idx;
+  });
+  return rows.slice(1).map(function(r) {
+    const obj = {};
+    if (fieldIndex.name !== undefined) obj.name = String(r[fieldIndex.name] == null ? "" : r[fieldIndex.name]).trim();
+    if (fieldIndex.unit_price !== undefined) {
+      const raw = r[fieldIndex.unit_price];
+      obj.unit_price = raw == null || raw === "" ? 0 : Number(String(raw).replace(/[$,]/g, "")) || 0;
+    }
+    return obj;
+  }).filter(function(o) { return o.name; });
+}
+
+async function handleCatalogImportFile(event) {
+  const file = event.target.files[0];
+  event.target.value = ""; // allow re-selecting the same file later
+  if (!file) return;
+
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+  let rows2D;
+  try {
+    if (isExcel) {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      rows2D = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+    } else {
+      const text = await file.text();
+      rows2D = parseCsv(text);
+    }
+  } catch (err) {
+    alert("Couldn't read that file. Make sure it's a valid Excel (.xlsx) or CSV file.");
+    return;
+  }
+
+  const items = mapRowsToCatalogItems(rows2D);
+  if (items.length === 0) {
+    alert("Couldn't find any rows in that file, or it's missing a Name column.");
+    return;
+  }
+  if (!confirm("Import " + items.length + " item(s) from this file?")) return;
+
+  try {
+    const result = await admin.importCatalogItems(items);
+    const skippedDup = result.skipped.filter(function(s) { return s.reason === "duplicate"; }).length;
+    const skippedNoName = result.skipped.filter(function(s) { return s.reason === "missing_name"; }).length;
+    let msg = "Imported " + result.imported + " catalog item(s).";
+    if (skippedDup > 0) msg += "\nSkipped " + skippedDup + " that already exist.";
+    if (skippedNoName > 0) msg += "\nSkipped " + skippedNoName + " with no name.";
+    alert(msg);
+    loadCatalogItems();
+  } catch (err) {
+    alert(err.message || "Couldn't import that file.");
+  }
 }
 
 // ---------- Expenses ----------
