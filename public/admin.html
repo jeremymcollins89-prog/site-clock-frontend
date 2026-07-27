@@ -4287,7 +4287,7 @@ async function loadMonthlyProfitChart() {
   el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
   try {
     const data = await admin.getMonthlyProfit(currentMonthlyProfitYear);
-    el.innerHTML = renderMonthlyProfitChart(data.months);
+    el.innerHTML = renderMonthlyProfitChart(data.months, currentMonthlyProfitYear);
   } catch (err) {
     el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load monthly profit.</p>';
   }
@@ -4297,7 +4297,11 @@ async function loadMonthlyProfitChart() {
 // desktop admin app's version. Bars are scaled against the largest
 // |gross_profit| in the year so a loss month renders as a downward
 // rust-colored bar below the zero line rather than breaking the scale.
-function renderMonthlyProfitChart(months) {
+// This month and last month get their own colors (amber shades) so they're
+// easy to pick out against the rest of the year -- they always sit right
+// next to each other in this chart, which makes them the natural pair to
+// eyeball a comparison against.
+function renderMonthlyProfitChart(months, year) {
   const width = 340, height = 220, barGap = 4;
   const chartH = height - 40;
   const zeroY = 14 + chartH * 0.75;
@@ -4307,12 +4311,21 @@ function renderMonthlyProfitChart(months) {
   const negScale = (chartH * 0.25 - 8) / maxNegative;
   const barWidth = (width - 20 - barGap * 13) / 12;
 
+  const now = new Date();
+  const curYear = now.getFullYear(), curMonth = now.getMonth() + 1;
+  let prevYear = curYear, prevMonth = curMonth - 1;
+  if (prevMonth === 0) { prevMonth = 12; prevYear = curYear - 1; }
+
   const bars = months.map(function(m, i) {
     const x = 10 + i * (barWidth + barGap);
     const isNeg = m.gross_profit < 0;
     const barH = Math.abs(m.gross_profit) * (isNeg ? negScale : posScale);
     const y = isNeg ? zeroY : zeroY - barH;
-    const color = isNeg ? "#C1502E" : "#46705F";
+    const isCurrentMonth = year === curYear && m.month === curMonth;
+    const isLastMonth = year === prevYear && m.month === prevMonth;
+    let color = isNeg ? "#C1502E" : "#46705F";
+    if (!isNeg && isCurrentMonth) color = "#DB8A16";
+    else if (!isNeg && isLastMonth) color = "#F4B04C";
     return '<g>' +
       '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + Math.max(barH, 1) + '" rx="2" fill="' + color + '">' +
         '<title>' + SHORT_MONTH_LABELS[m.month - 1] + ' ' + fmtMoney(m.gross_profit) + '</title>' +
@@ -4321,10 +4334,17 @@ function renderMonthlyProfitChart(months) {
     '</g>';
   }).join("");
 
+  const legend =
+    '<div style="display:flex; gap:10px; flex-wrap:wrap; font-size:10.5px; color:#8A8578; margin-top:6px;">' +
+      '<span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#DB8A16; margin-right:4px; vertical-align:middle;"></span>This month</span>' +
+      '<span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#F4B04C; margin-right:4px; vertical-align:middle;"></span>Last month</span>' +
+      '<span><span style="display:inline-block; width:9px; height:9px; border-radius:2px; background:#C1502E; margin-right:4px; vertical-align:middle;"></span>Loss</span>' +
+    '</div>';
+
   return '<svg viewBox="0 0 ' + width + ' ' + height + '" style="width:100%; height:auto; max-height:200px;">' +
     '<line x1="10" y1="' + zeroY + '" x2="' + (width - 10) + '" y2="' + zeroY + '" stroke="#D8D3C4" stroke-width="1"/>' +
     bars +
-  '</svg>';
+  '</svg>' + legend;
 }
 
 // ---------- Report bubble breakdowns ----------
