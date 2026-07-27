@@ -66,7 +66,9 @@
     hash — we never store or can see your actual PIN). Company admins provide a business email and
     password (also stored as a one-way hash).</li>
     <li><strong>Time records:</strong> clock-in and clock-out timestamps, break times, job/location
-    labels, and hours submitted for payroll.</li>
+    labels, and hours submitted for payroll. If a company sets a break-length or long-shift alert
+    preference, that setting is stored to time the "break ending soon" and "still clocked in"
+    notifications described below.</li>
     <li><strong>Compensation info:</strong> if a company chooses to set hourly pay rates for its
     employees, that rate is stored and used only to calculate that company's own labor cost and
     profit reports. It is not shown to the employee it belongs to inside the app.</li>
@@ -84,16 +86,18 @@
     <li><strong>Billing records:</strong> quotes, invoices, line items, payment status, business
     expenses, and an optional company logo image, all entered by a company to run its own billing
     and profit tracking.</li>
-    <li><strong>Payment information:</strong> if a company's customer pays an invoice online, that
-    payment is collected and processed directly by Stripe, our payment processor — Coll Timeclock
-    never receives or stores full card numbers or bank account numbers. We store only the payment
-    status, amount, date, and Stripe's own transaction reference, along with the email address used
-    to send that customer an automatic payment receipt.</li>
+    <li><strong>Payment information:</strong> a company that wants to accept online payments
+    connects its own Stripe account, and its customers' payments are collected and processed
+    directly by Stripe into that account — the money never passes through Coll Timeclock, and we
+    never receive or store full card numbers or bank account numbers. We store only the payment
+    status, amount, date, Stripe's own transaction reference, the processing fee and our platform
+    fee for that transaction (used only to calculate that company's own profit reports), and the
+    email address used to send that customer an automatic payment receipt.</li>
     <li><strong>Team messages:</strong> chat messages sent between a company's admin and its
     employees within the app.</li>
     <li><strong>Push notification data:</strong> if an employee or admin enables notifications, we
-    store a device push subscription token, used only to deliver that company's own schedule and
-    chat notifications to that device.</li>
+    store a device push subscription token, used only to deliver that company's own schedule, chat,
+    break, and long-shift-alert notifications to that device.</li>
   </ul>
 
   <h2>How we use this information</h2>
@@ -123,9 +127,10 @@
   <p>Running Coll Timeclock means a few outside services process data on our behalf, each only for
   the specific job described:</p>
   <ul>
-    <li><strong>Stripe</strong> — processes online invoice payments (card and bank transfer/ACH).
-    Stripe collects and stores the actual payment details; we only receive the payment status,
-    amount, and a transaction reference.</li>
+    <li><strong>Stripe</strong> — processes online invoice payments (card and bank transfer/ACH)
+    through each company's own connected Stripe account. Stripe collects and stores the actual
+    payment details; we only receive the payment status, amount, fees, and a transaction
+    reference.</li>
     <li><strong>Resend</strong> — delivers the emails Coll Timeclock sends (timesheets, password/PIN
     resets, quotes, invoices, and payment receipts).</li>
     <li><strong>Railway</strong> — hosts our servers and database.</li>
