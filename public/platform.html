@@ -2,8 +2,16 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Coll Timeclock — Platform</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>Coll Platform</title>
+
+<link rel="manifest" href="/platform-manifest.json" />
+<meta name="theme-color" content="#1F2421" />
+<link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="Coll Platform" />
+
 <style>
   :root {
     --charcoal: #1F2421;
@@ -274,6 +282,15 @@ async function toggleExempt(id, newValue) {
 
 if (getToken()) {
   showApp();
+}
+
+// Registers the shared service worker so this page (like admin.html) can be
+// added to a phone's home screen and opened as a standalone app icon rather
+// than a browser tab. No push subscription here -- that's registered by
+// admin.html for company-level schedule alerts; this page only needs the
+// installability + offline-shell piece of the same worker.
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("/service-worker.js", { updateViaCache: "none" });
 }
 </script>
 </body>

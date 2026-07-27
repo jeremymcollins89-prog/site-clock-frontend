@@ -1,0 +1,17 @@
+{
+  "name": "Coll Platform",
+  "short_name": "Coll Platform",
+  "description": "Cross-company monitoring for Coll Timeclock — companies, activity, billing",
+  "start_url": "/platform.html",
+  "scope": "/platform.html",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#F4F2ED",
+  "theme_color": "#1F2421",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
