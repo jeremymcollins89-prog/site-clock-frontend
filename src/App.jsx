@@ -1853,6 +1853,11 @@ const [emailInput, setEmailInput] = useState("");
     try {
       await apiFetch("/api/timesheets/submit", { method: "POST" });
       setSubmitted(true);
+      // The server now excludes those shifts from GET /time-entries (they're
+      // marked submitted), so refetching immediately clears the on-screen
+      // history right away rather than waiting for the next 20s poll --
+      // the whole point of submitting is to see the slate wiped.
+      await refreshFromServer();
     } catch (err) {
       setActionError(err.message || "Nothing to submit yet.");
     }
