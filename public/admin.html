@@ -3232,10 +3232,8 @@ function renderInvoicesList() {
     return;
   }
   list.innerHTML = invoices.map(function(inv) {
-    let action = inv.status === "draft"
-      ? '<button class="btn-small" style="background: var(--teal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">Edit</button>'
-      : '<button class="btn-small" style="background: var(--charcoal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">View</button>';
-    action += '<button class="btn-small" style="background: var(--charcoal); margin-left:6px;" onclick="viewInvoicePdf(\'' + inv.id + '\')">View PDF</button>';
+    let action = '<button class="btn-small" style="background: var(--teal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">Edit</button>';
+    action += '<button class="btn-small" style="background: var(--charcoal); margin-left:6px;" onclick="viewInvoicePdf(\'' + inv.id + '\')">View</button>';
     if (inv.status === "sent") {
       action += '<button class="btn-small" style="background: var(--teal); margin-left:6px;" onclick="openMarkPaidSheet(\'' + inv.id + '\')">Mark paid</button>';
     }
