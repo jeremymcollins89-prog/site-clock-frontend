@@ -1,0 +1,280 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Coll Timeclock — Platform</title>
+<style>
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F4B04C;
+    --amber-deep: #DB8A16;
+    --teal: #46705F;
+    --teal-deep: #2B453C;
+    --rust: #D35A34;
+    --rust-deep: #A63D20;
+    --line: #D8D3C4;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; min-height: 100%;
+    font-family: "Segoe UI", -apple-system, sans-serif;
+    background: var(--paper); color: var(--charcoal);
+  }
+  input, button { font-family: inherit; }
+  input {
+    width: 100%; padding: 11px 12px; border: 1.5px solid var(--line); border-radius: 12px;
+    font-size: 15px; margin-bottom: 10px; background: #FBFAF7; color: var(--charcoal);
+  }
+  input:focus { outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(244,176,76,0.25); }
+  button { cursor: pointer; }
+  .btn-primary {
+    width: 100%; color: var(--charcoal); border: none; border-radius: 12px; font-weight: 700;
+    padding: 13px; font-size: 15px; margin-top: 4px;
+    background: linear-gradient(180deg, #F9C978 0%, var(--amber) 55%, var(--amber-deep) 100%);
+    box-shadow: 0 4px 10px rgba(219,138,22,0.35), inset 0 1px 0 rgba(255,255,255,0.5);
+  }
+  .error { color: var(--rust); font-size: 13px; margin: 8px 0; display: none; }
+  #login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+  }
+  #login-screen.hidden { display: none; }
+  .login-box {
+    background: #fff; border-radius: 18px; padding: 32px; width: 340px; max-width: 90vw;
+    box-shadow: 0 10px 24px rgba(31,36,33,0.12);
+  }
+  .login-box h1 { font-size: 20px; margin: 0 0 4px; }
+  .login-box p { color: #8A8578; font-size: 13px; margin: 0 0 20px; }
+  #app { display: none; max-width: 1100px; margin: 0 auto; padding: 24px 20px 60px; }
+  #app.visible { display: block; }
+  header.top {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
+  }
+  header.top h1 { font-size: 20px; margin: 0; }
+  .logout-btn {
+    background: var(--charcoal); color: #fff; border: none; border-radius: 10px;
+    padding: 8px 14px; font-size: 12.5px; font-weight: 600;
+  }
+  .stats-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 20px; }
+  .stat-card {
+    background: #fff; border-radius: 14px; padding: 14px 18px; flex: 1; min-width: 150px;
+    box-shadow: 0 6px 16px rgba(31,36,33,0.06);
+  }
+  .stat-card .label { font-size: 11px; color: #8A8578; text-transform: uppercase; letter-spacing: 0.03em; }
+  .stat-card .value { font-size: 22px; font-weight: 700; margin-top: 4px; font-family: "IBM Plex Mono", monospace; }
+  .card {
+    background: #fff; border-radius: 18px; padding: 18px;
+    box-shadow: 0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05);
+  }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  th { text-align: left; font-size: 11px; color: #8A8578; text-transform: uppercase; letter-spacing: 0.03em; padding: 8px 10px; border-bottom: 1.5px solid var(--line); }
+  td { padding: 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+  tr:last-child td { border-bottom: none; }
+  .badge { display: inline-block; font-size: 11px; padding: 4px 10px; border-radius: 20px; font-weight: 700; }
+  .badge-yes { background: var(--teal-deep); color: #fff; }
+  .badge-no { background: var(--line); color: var(--charcoal); }
+  .badge-dormant { background: var(--rust-deep); color: #fff; }
+  .badge-fresh { background: var(--teal-deep); color: #fff; }
+  .badge-never { background: #8A8578; color: #fff; }
+  .toggle-btn {
+    border: none; border-radius: 10px; padding: 6px 12px; font-size: 12px; font-weight: 600; color: #fff;
+  }
+  .search-input { max-width: 280px; margin-bottom: 14px; }
+</style>
+</head>
+<body>
+
+<div id="login-screen">
+  <div class="login-box">
+    <h1>Coll Timeclock</h1>
+    <p>Platform owner login</p>
+    <div id="login-error" class="error"></div>
+    <input id="platform-email-input" type="text" placeholder="Email" />
+    <input id="platform-password-input" type="password" placeholder="Password" />
+    <button class="btn-primary" onclick="doLogin()">Sign in</button>
+  </div>
+</div>
+
+<div id="app">
+  <header class="top">
+    <h1>All Companies</h1>
+    <button class="logout-btn" onclick="doLogout()">Log out</button>
+  </header>
+
+  <div class="stats-row" id="stats-row"></div>
+
+  <div class="card">
+    <input class="search-input" id="company-search" placeholder="Search companies..." oninput="renderCompanies()" />
+    <table>
+      <thead>
+        <tr>
+          <th>Company</th>
+          <th>Owner email</th>
+          <th>Signed up</th>
+          <th>Employees</th>
+          <th>Stripe connected</th>
+          <th>Last activity</th>
+          <th>Billing exempt</th>
+        </tr>
+      </thead>
+      <tbody id="companies-body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+const API_BASE_URL = location.origin.includes("localhost") ? "http://localhost:3000" : "https://site-clock-backend-production.up.railway.app";
+const TOKEN_KEY = "platform-token";
+
+function getToken() { return localStorage.getItem(TOKEN_KEY); }
+function setToken(t) { localStorage.setItem(TOKEN_KEY, t); }
+function clearToken() { localStorage.removeItem(TOKEN_KEY); }
+
+async function apiFetch(path, { method = "GET", body } = {}) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}${path}`, {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || "Request failed");
+  return data;
+}
+
+let allCompanies = [];
+
+async function doLogin() {
+  const email = document.getElementById("platform-email-input").value.trim();
+  const password = document.getElementById("platform-password-input").value;
+  const errEl = document.getElementById("login-error");
+  errEl.style.display = "none";
+  if (!email || !password) {
+    errEl.textContent = "Enter email and password.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    const data = await apiFetch("/api/platform/login", { method: "POST", body: { email, password } });
+    setToken(data.token);
+    showApp();
+  } catch (err) {
+    errEl.textContent = err.message || "Login failed.";
+    errEl.style.display = "block";
+  }
+}
+
+function doLogout() {
+  clearToken();
+  document.getElementById("app").classList.remove("visible");
+  document.getElementById("login-screen").classList.remove("hidden");
+}
+
+function showApp() {
+  document.getElementById("login-screen").classList.add("hidden");
+  document.getElementById("app").classList.add("visible");
+  loadOverview();
+  loadCompanies();
+}
+
+function fmtMoney(n) {
+  return "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+function fmtDate(iso) {
+  if (!iso) return "—";
+  return new Date(iso).toISOString().slice(0, 10);
+}
+
+async function loadOverview() {
+  const el = document.getElementById("stats-row");
+  try {
+    const o = await apiFetch("/api/platform/overview");
+    el.innerHTML =
+      statCard("Companies", o.total_companies) +
+      statCard("Stripe connected", o.stripe_connected_count) +
+      statCard("Dormant (30+ days)", o.dormant_count) +
+      statCard("Total paid (all companies)", fmtMoney(o.total_paid)) +
+      statCard("Your platform fee revenue", fmtMoney(o.total_platform_fees));
+  } catch (err) {
+    el.innerHTML = '<p style="color:#8A8578;">Couldn\'t load overview.</p>';
+  }
+}
+
+function statCard(label, value) {
+  return '<div class="stat-card"><div class="label">' + label + '</div><div class="value">' + value + '</div></div>';
+}
+
+async function loadCompanies() {
+  const body = document.getElementById("companies-body");
+  body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#8A8578; padding:16px;">Loading...</td></tr>';
+  try {
+    allCompanies = await apiFetch("/api/platform/companies");
+    renderCompanies();
+  } catch (err) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#8A8578; padding:16px;">Couldn\'t load companies.</td></tr>';
+  }
+}
+
+function renderCompanies() {
+  const search = document.getElementById("company-search").value.trim().toLowerCase();
+  const body = document.getElementById("companies-body");
+  const rows = allCompanies.filter(function(c) {
+    if (!search) return true;
+    return (c.name || "").toLowerCase().includes(search) || (c.admin_email || "").toLowerCase().includes(search);
+  });
+
+  if (!rows.length) {
+    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#8A8578; padding:16px;">No companies match.</td></tr>';
+    return;
+  }
+
+  body.innerHTML = rows.map(function(c) {
+    const stripeBadge = c.stripe_connected
+      ? '<span class="badge badge-yes">Connected</span>'
+      : '<span class="badge badge-no">Not connected</span>';
+
+    let activityBadge;
+    if (c.last_activity == null) {
+      activityBadge = '<span class="badge badge-never">Never used</span>';
+    } else if (c.dormant_days >= 30) {
+      activityBadge = '<span class="badge badge-dormant">' + c.dormant_days + ' days ago</span>';
+    } else {
+      activityBadge = '<span class="badge badge-fresh">' + fmtDate(c.last_activity) + '</span>';
+    }
+
+    const exemptBtn = c.billing_exempt
+      ? '<button class="toggle-btn" style="background:var(--teal-deep);" onclick="toggleExempt(\'' + c.id + '\', false)">Exempt (click to unset)</button>'
+      : '<button class="toggle-btn" style="background:var(--line); color:var(--charcoal);" onclick="toggleExempt(\'' + c.id + '\', true)">Not exempt (click to comp)</button>';
+
+    return '<tr>' +
+      '<td><strong>' + c.name + '</strong></td>' +
+      '<td>' + c.admin_email + '</td>' +
+      '<td>' + fmtDate(c.created_at) + '</td>' +
+      '<td>' + c.employee_count + '</td>' +
+      '<td>' + stripeBadge + '</td>' +
+      '<td>' + activityBadge + '</td>' +
+      '<td>' + exemptBtn + '</td>' +
+    '</tr>';
+  }).join("");
+}
+
+async function toggleExempt(id, newValue) {
+  try {
+    await apiFetch(`/api/platform/companies/${id}`, { method: "PATCH", body: { billing_exempt: newValue } });
+    await loadCompanies();
+  } catch (err) {
+    alert(err.message || "Couldn't update that company.");
+  }
+}
+
+if (getToken()) {
+  showApp();
+}
+</script>
+</body>
+</html>
