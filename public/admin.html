@@ -601,6 +601,11 @@
         </div>
       </div>
       <div id="reports-content"></div>
+      <div class="card" style="margin-top:16px;">
+        <h3 style="margin:0 0 4px;">Gross &amp; Net Profit by Month</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:0;">Trailing 6 months, regardless of the range picker above.</p>
+        <div id="monthly-profit-chart"></div>
+      </div>
     </section>
 
     <section id="view-chat" class="view">
@@ -1422,6 +1427,7 @@ const admin = {
 
   getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
   getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
+  getMonthlyProfit: (months) => apiFetch(`/api/admin/reports/monthly-profit?months=${months || 6}`),
   listExpenses: () => apiFetch("/api/admin/expenses"),
   addExpense: (expense) => apiFetch("/api/admin/expenses", { method: "POST", body: expense }),
   updateExpense: (id, patch) => apiFetch(`/api/admin/expenses/${id}`, { method: "PATCH", body: patch }),
@@ -1511,6 +1517,7 @@ function showApp() {
   loadCompanyLogo();
   loadCompanyTimezone();
   loadReportSummary();
+  loadMonthlyProfitChart();
   renderScheduleCalendar();
   loadShopLocation();
   loadCompanyName();
@@ -4289,6 +4296,79 @@ async function loadReportSummary() {
   } catch (err) {
     content.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load report data.</p>';
   }
+}
+
+async function loadMonthlyProfitChart() {
+  const el = document.getElementById("monthly-profit-chart");
+  el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
+  try {
+    const data = await admin.getMonthlyProfit(6);
+    el.innerHTML = renderMonthlyProfitChart(data.months || []);
+  } catch (err) {
+    el.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load monthly profit.</p>';
+  }
+}
+
+// Hand-built SVG grouped bar chart -- one pair of bars (Gross Profit amber,
+// Net Profit teal) per trailing month, so you can see both the trend and
+// how much of gross profit expenses ate into at a glance. Either bar in a
+// pair flips to rust if that number was actually a loss for that month
+// (labor + fees, or labor + fees + expenses, outweighing what got paid).
+function renderMonthlyProfitChart(months) {
+  const width = 620, height = 260;
+  const chartH = height - 56;
+  const zeroY = 16 + chartH * 0.72;
+  const posH = chartH * 0.72 - 12;
+  const negH = chartH * 0.28 - 12;
+
+  const allValues = months.reduce(function(acc, m) { return acc.concat([m.gross_profit, m.net_profit]); }, []);
+  const maxPositive = Math.max(1, ...allValues.filter(function(v) { return v > 0; }), 1);
+  const maxNegative = Math.max(1, ...allValues.filter(function(v) { return v < 0; }).map(function(v) { return -v; }), 1);
+  const posScale = posH / maxPositive;
+  const negScale = negH / maxNegative;
+
+  const groupW = width / Math.max(months.length, 1);
+  const barWidth = Math.min(34, groupW * 0.32);
+  const barGap = 6;
+
+  function bar(x, value, color) {
+    const isNeg = value < 0;
+    const barH = Math.abs(value) * (isNeg ? negScale : posScale);
+    const y = isNeg ? zeroY : zeroY - barH;
+    const fill = isNeg ? "#C1502E" : color;
+    const labelY = isNeg ? y + Math.max(barH, 1) + 14 : y - 6;
+    return '<g>' +
+      '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + Math.max(barH, 1.5) + '" rx="3" fill="' + fill + '">' +
+        '<title>' + fmtMoney(value) + '</title>' +
+      '</rect>' +
+      '<text x="' + (x + barWidth / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="10" font-weight="700" fill="#1F2421">' + fmtMoney(value) + '</text>' +
+    '</g>';
+  }
+
+  const groups = months.map(function(m, i) {
+    const groupX = i * groupW;
+    const pairW = barWidth * 2 + barGap;
+    const startX = groupX + (groupW - pairW) / 2;
+    return bar(startX, m.gross_profit, "#F4B04C") +
+      bar(startX + barWidth + barGap, m.net_profit, "#2B6E5C") +
+      '<text x="' + (groupX + groupW / 2) + '" y="' + (height - 10) + '" text-anchor="middle" font-size="12" fill="#8A8578">' + m.label + '</text>';
+  }).join("");
+
+  const legend =
+    '<div style="display:flex; gap:16px; justify-content:center; margin-bottom:4px; font-size:12px; color:#4A4A42;">' +
+      '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#F4B04C; margin-right:5px;"></span>Gross Profit</span>' +
+      '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#2B6E5C; margin-right:5px;"></span>Net Profit</span>' +
+    '</div>';
+
+  if (!months.length) {
+    return legend + '<p style="color:#8A8578; font-size:13px; text-align:center;">No data yet for this range.</p>';
+  }
+
+  return legend +
+    '<svg viewBox="0 0 ' + width + ' ' + height + '" style="width:100%; height:auto; max-height:280px; display:block;">' +
+      '<line x1="4" y1="' + zeroY + '" x2="' + (width - 4) + '" y2="' + zeroY + '" stroke="#D8D3C4" stroke-width="1"/>' +
+      groups +
+    '</svg>';
 }
 
 // ---------- Report bubble breakdowns ----------
