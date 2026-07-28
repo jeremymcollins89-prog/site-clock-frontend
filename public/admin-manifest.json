@@ -2,7 +2,7 @@
   "name": "Coll Admin",
   "short_name": "Coll Admin",
   "description": "Manage employees, schedules, customers, and payroll for Coll Timeclock",
-  "start_url": "/admin.html",
+  "start_url": "/admin.html?pwa=admin2",
   "scope": "/admin.html",
   "display": "standalone",
   "orientation": "portrait",

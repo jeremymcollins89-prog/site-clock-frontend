@@ -2,7 +2,7 @@
   "name": "Coll Platform",
   "short_name": "Coll Platform",
   "description": "Cross-company monitoring for Coll Timeclock — companies, activity, billing",
-  "start_url": "/platform.html",
+  "start_url": "/platform.html?pwa=platform2",
   "scope": "/platform.html",
   "display": "standalone",
   "orientation": "portrait",
