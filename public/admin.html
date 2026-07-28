@@ -395,52 +395,34 @@
         </div>
       </div>
       <div class="card">
-        <h3 style="margin:0 0 4px; font-size:15px;">Routes</h3>
-        <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
-          Pulls in a day's scheduled jobs for one employee or a whole team, and orders the stops for the fastest round trip starting and ending back at the shop. Free to build.
-        </p>
-        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
-          <div style="flex:1; min-width:130px;">
-            <label style="font-size:12px; color:#8A8578;">Date</label>
-            <input type="date" id="route-date-input" onchange="loadRouteCandidates()" />
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
+          <div>
+            <h3 style="margin:0; font-size:15px;">Routes</h3>
+            <p style="font-size:12px; color:#8A8578; margin:4px 0 0;">
+              Optimized stop order for an employee or team's day, starting and ending back at the shop. Free to build.
+            </p>
           </div>
-          <div style="flex:2; min-width:160px;">
-            <label style="font-size:12px; color:#8A8578;">Employee or team</label>
-            <select id="route-target-select" onchange="loadRouteCandidates()">
-              <option value="">Select...</option>
-            </select>
-          </div>
-        </div>
-
-        <div id="route-candidates-section" style="display:none;">
-          <div style="font-size:12px; color:#8A8578; margin-bottom:6px;">Stops scheduled that day (uncheck any to leave out):</div>
-          <div id="route-candidates-list"></div>
-          <button class="btn-primary" style="width:auto; margin-top:10px;" onclick="buildRoute()">Optimize route</button>
-        </div>
-        <div id="route-candidates-empty" style="display:none; font-size:13px; color:#8A8578;">No scheduled jobs with a usable address found for that date/employee.</div>
-
-        <div id="route-detail-section" style="display:none; margin-top:14px; padding-top:14px; border-top:1.5px solid var(--line);">
-          <h4 id="route-detail-title" style="margin:0 0 8px; font-size:14px;"></h4>
-          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
-            <a id="route-maps-link" href="#" target="_blank" class="btn-secondary" style="width:auto; text-decoration:none; display:inline-block; text-align:center;">Preview in Google Maps</a>
-            <button class="btn-secondary" style="width:auto;" onclick="reoptimizeCurrentRoute()">Re-optimize</button>
-            <button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="deleteCurrentRoute()">Delete route</button>
-          </div>
-          <div id="route-stops-list"></div>
-          <div id="route-map" style="height:240px; border-radius:10px; margin-top:10px; border:1.5px solid var(--line);"></div>
+          <button class="btn-small" style="background:var(--rust);" onclick="openRouteSheet()">Build a Route</button>
         </div>
       </div>
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-          <h3 style="margin:0; font-size:15px;">Time Off Requests <span id="timeoff-pending-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
-          <button class="btn-secondary" style="width:auto;" onclick="toggleTimeOffHistory()">
-            <span id="timeoff-history-toggle-label">Show history</span>
-          </button>
+          <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleTimeOffSection()">
+            <span id="timeoff-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
+            Time Off Requests <span id="timeoff-pending-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
+          </h3>
         </div>
-        <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Approving adds it to the calendar below in bright yellow and notifies the employee.</p>
-        <div id="timeoff-pending-list"></div>
-        <div id="timeoff-history-section" style="display:none; margin-top:10px; padding-top:10px; border-top:1.5px solid var(--line);">
-          <div id="timeoff-history-list"></div>
+        <div id="timeoff-section-body" style="display:none; margin-top:8px;">
+          <div style="display:flex; justify-content:flex-end; margin-bottom:8px;">
+            <button class="btn-secondary" style="width:auto;" onclick="toggleTimeOffHistory()">
+              <span id="timeoff-history-toggle-label">Show history</span>
+            </button>
+          </div>
+          <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Approving adds it to the calendar below in bright yellow and notifies the employee.</p>
+          <div id="timeoff-pending-list"></div>
+          <div id="timeoff-history-section" style="display:none; margin-top:10px; padding-top:10px; border-top:1.5px solid var(--line);">
+            <div id="timeoff-history-list"></div>
+          </div>
         </div>
       </div>
       <div class="card">
@@ -984,6 +966,54 @@
   </div>
 </div>
 
+<div class="sheet" id="route-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeRouteSheet()">&times;</button>
+    <h2>Build a Route</h2>
+  </div>
+  <div class="sheet-body">
+    <p style="font-size:12px; color:#8A8578; margin:0 0 12px;">
+      Pulls in a day's scheduled jobs for one employee or a whole team, and orders the stops for the fastest round trip starting and ending back at the shop. Free to build -- no cost per route.
+    </p>
+    <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+      <div style="flex:1; min-width:130px;">
+        <label style="font-size:12px; color:#8A8578;">Date</label>
+        <input type="date" id="route-date-input" onchange="loadRouteCandidates()" />
+      </div>
+      <div style="flex:2; min-width:160px;">
+        <label style="font-size:12px; color:#8A8578;">Employee or team</label>
+        <select id="route-target-select" onchange="loadRouteCandidates()">
+          <option value="">Select...</option>
+        </select>
+      </div>
+    </div>
+
+    <div id="route-candidates-section" style="display:none;">
+      <div style="font-size:12px; color:#8A8578; margin-bottom:6px;">Stops scheduled that day (uncheck any to leave out):</div>
+      <div id="route-candidates-list"></div>
+      <button class="btn-primary" style="width:auto; margin-top:10px;" onclick="buildRoute()">Optimize route</button>
+    </div>
+    <div id="route-candidates-empty" style="display:none; font-size:13px; color:#8A8578;">No scheduled jobs with a usable address found for that date/employee.</div>
+
+    <div id="route-detail-section" style="display:none; margin-top:14px; padding-top:14px; border-top:1.5px solid var(--line);">
+      <h4 id="route-detail-title" style="margin:0 0 8px; font-size:14px;"></h4>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+        <a id="route-maps-link" href="#" target="_blank" class="btn-secondary" style="width:auto; text-decoration:none; display:inline-block; text-align:center;">Preview in Google Maps</a>
+        <button class="btn-secondary" style="width:auto;" onclick="reoptimizeCurrentRoute()">Re-optimize</button>
+        <button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="deleteCurrentRoute()">Delete route</button>
+      </div>
+      <div id="route-stops-list"></div>
+    </div>
+
+    <p style="font-size:11px; color:#8A8578; margin:14px 0 4px;">
+      <span style="color:#1E88FF;">&#9679;</span> on-the-clock employees &nbsp;
+      <span style="color:#2B6E5C;">&#9679;</span> shop &nbsp;
+      <span style="color:#C1502E;">&#9679;</span> route stops
+    </p>
+    <div id="route-map" style="height:260px; border-radius:10px; border:1.5px solid var(--line);"></div>
+  </div>
+</div>
+
 <div class="sheet" id="job-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="cancelJobSheet()">&times;</button>
@@ -1407,7 +1437,7 @@ const admin = {
   reorderRouteStops: (id, stopIds) => apiFetch(`/api/admin/routing/${id}/reorder`, { method: "PATCH", body: { stop_ids: stopIds } }),
   removeRouteStop: (routeId, stopId) => apiFetch(`/api/admin/routing/${routeId}/stops/${stopId}`, { method: "DELETE" }),
   deleteRoute: (id) => apiFetch(`/api/admin/routing/${id}`, { method: "DELETE" }),
-  getEmployeeLocation: (employeeId) => apiFetch(`/api/admin/routing/employee-location/${employeeId}`),
+  getOnClockLocations: () => apiFetch("/api/admin/routing/on-clock-locations"),
 
   listTimeOffRequests: (status) => apiFetch(`/api/admin/time-off-requests${status ? `?status=${status}` : ""}`),
   reviewTimeOffRequest: (id, status) => apiFetch(`/api/admin/time-off-requests/${id}`, { method: "PATCH", body: { status } }),
@@ -2625,6 +2655,33 @@ function renderRouteCandidatesList(candidates) {
   }).join("");
 }
 
+let timeOffSectionExpanded = false;
+
+function toggleTimeOffSection() {
+  timeOffSectionExpanded = !timeOffSectionExpanded;
+  applyTimeOffSectionState();
+}
+
+function applyTimeOffSectionState() {
+  const body = document.getElementById("timeoff-section-body");
+  const icon = document.getElementById("timeoff-toggle-icon");
+  if (body) body.style.display = timeOffSectionExpanded ? "block" : "none";
+  if (icon) icon.style.transform = timeOffSectionExpanded ? "rotate(90deg)" : "rotate(0deg)";
+}
+
+function openRouteSheet() {
+  populateRouteTargetOptions();
+  document.getElementById("route-sheet").classList.add("visible");
+  // Give the sheet a beat to actually become visible/sized before Leaflet
+  // measures the container -- initializing against a zero-size element
+  // (or one mid-transition) leaves the map blank until the next resize.
+  setTimeout(refreshRouteMap, 50);
+}
+
+function closeRouteSheet() {
+  document.getElementById("route-sheet").classList.remove("visible");
+}
+
 async function buildRoute() {
   const target = currentRouteTarget();
   const date = document.getElementById("route-date-input").value;
@@ -2658,7 +2715,7 @@ function renderRouteDetail(route) {
     mapsLink.style.display = "none";
   }
   renderRouteStopsList(route);
-  renderRouteMap(route);
+  refreshRouteMap();
 }
 
 function renderRouteStopsList(route) {
@@ -2719,6 +2776,7 @@ async function deleteCurrentRoute() {
     await admin.deleteRoute(route.id);
     document.getElementById("route-detail-section").style.display = "none";
     window.currentRoute = null;
+    refreshRouteMap();
   } catch (err) {
     alert(err.message || "Couldn't delete this route.");
   }
@@ -2735,7 +2793,13 @@ function routeStopIcon(label, color) {
   });
 }
 
-async function renderRouteMap(route) {
+// Renders the Routes sheet's map from scratch every time it's called: the
+// shop (if set), every currently on-the-clock employee's last-known pin
+// (regardless of which employee/team the open route is for -- this is meant
+// to give a general live view of where everyone is), and the current
+// route's numbered stops + dashed round-trip line, if one's been built.
+// Called on sheet open and after every build/reorder/remove/reoptimize/delete.
+async function refreshRouteMap() {
   const mapEl = document.getElementById("route-map");
   if (!mapEl || typeof L === "undefined") return;
   if (!routeMapInstance) {
@@ -2749,36 +2813,42 @@ async function renderRouteMap(route) {
   routeMapLayer = L.layerGroup().addTo(routeMapInstance);
 
   const points = [];
-  if (route.shop_location) {
-    L.marker([route.shop_location.lat, route.shop_location.lng], { icon: routeStopIcon("S", "#2B6E5C") })
-      .bindTooltip("Shop").addTo(routeMapLayer);
-    points.push([route.shop_location.lat, route.shop_location.lng]);
-  }
-  route.stops.forEach(function(stop, i) {
-    L.marker([stop.lat, stop.lng], { icon: routeStopIcon(String(i + 1), "#C1502E") })
-      .bindTooltip(stop.title).addTo(routeMapLayer);
-    points.push([stop.lat, stop.lng]);
-  });
-  if (route.shop_location && route.stops.length > 0) {
-    const line = [route.shop_location].concat(route.stops).concat([route.shop_location]).map(function(p) { return [p.lat, p.lng]; });
-    L.polyline(line, { color: "#8A8578", weight: 2, dashArray: "4,6" }).addTo(routeMapLayer);
-  }
+  let shop = null;
+  try {
+    const shopLoc = await admin.getShopLocation();
+    if (shopLoc && shopLoc.shop_lat != null && shopLoc.shop_lng != null) {
+      shop = { lat: shopLoc.shop_lat, lng: shopLoc.shop_lng };
+      L.marker([shop.lat, shop.lng], { icon: routeStopIcon("S", "#2B6E5C") }).bindTooltip("Shop").addTo(routeMapLayer);
+      points.push([shop.lat, shop.lng]);
+    }
+  } catch (err) { /* no shop location set yet -- fine, just skip that marker */ }
 
-  if (route.employee_id) {
-    try {
-      const loc = await admin.getEmployeeLocation(route.employee_id);
-      if (loc && loc.lat != null) {
-        L.marker([loc.lat, loc.lng], { icon: routeStopIcon("&#128205;", "#1E88FF") })
-          .bindTooltip("Employee's last known location").addTo(routeMapLayer);
-        points.push([loc.lat, loc.lng]);
-      }
-    } catch (err) { /* no location on file yet -- fine, just skip the marker */ }
+  try {
+    const onClock = await admin.getOnClockLocations();
+    onClock.forEach(function(loc) {
+      L.marker([loc.lat, loc.lng], { icon: routeStopIcon("&#128205;", "#1E88FF") })
+        .bindTooltip(loc.name + " (on the clock)").addTo(routeMapLayer);
+      points.push([loc.lat, loc.lng]);
+    });
+  } catch (err) { /* non-fatal -- map still shows shop + any route stops */ }
+
+  const route = window.currentRoute;
+  if (route && route.stops && route.stops.length > 0) {
+    route.stops.forEach(function(stop, i) {
+      L.marker([stop.lat, stop.lng], { icon: routeStopIcon(String(i + 1), "#C1502E") })
+        .bindTooltip(stop.title).addTo(routeMapLayer);
+      points.push([stop.lat, stop.lng]);
+    });
+    if (shop) {
+      const line = [shop].concat(route.stops).concat([shop]).map(function(p) { return [p.lat, p.lng]; });
+      L.polyline(line, { color: "#8A8578", weight: 2, dashArray: "4,6" }).addTo(routeMapLayer);
+    }
   }
 
   if (points.length > 0) {
     routeMapInstance.fitBounds(points, { padding: [24, 24] });
   }
-  setTimeout(function() { routeMapInstance.invalidateSize(); }, 100);
+  setTimeout(function() { if (routeMapInstance) routeMapInstance.invalidateSize(); }, 100);
 }
 
 async function renderScheduleCalendar() {
