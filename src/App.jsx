@@ -29,6 +29,11 @@ import {
 } from "./api.js";
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
+// Bottom-nav tab order, used by the swipe-to-switch-tabs gesture on the
+// main content area (see handleTabSwipeStart/End below) -- swiping left
+// moves forward through this list, swiping right moves back.
+const VIEW_ORDER = ["clock", "schedule", "customers", "chat"];
+
 const JOB_COLORS = {
   rust: "#FF4433",
   amber: "#FFA400",
@@ -1593,6 +1598,7 @@ const [emailInput, setEmailInput] = useState("");
 
   const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
   const [view, setView] = useState("clock"); // clock | schedule | customers | chat
+  const touchStartRef = useRef(null); // swipe-to-switch-tabs gesture state, see handleTabSwipeStart/End below
   const [schedule, setSchedule] = useState([]);
   const [scheduleLoading, setScheduleLoading] = useState(false);
   const [scheduleMonthAnchor, setScheduleMonthAnchor] = useState(() => {
@@ -2352,8 +2358,51 @@ const [emailInput, setEmailInput] = useState("");
     );
   }
 
+  // Swipe left/right on the main content area to move through the bottom
+  // tabs, like flipping between pages in a native app. Only the touchend
+  // delta decides whether this was a deliberate horizontal swipe (not a
+  // vertical scroll or a tap) -- touchmove is left alone so normal page
+  // scrolling inside a tab is never interrupted. Disabled while a sheet or
+  // modal is open so swiping inside one (e.g. scrolling a long list in the
+  // Route or Time Off sheet) can't accidentally change tabs underneath it.
+  function handleTabSwipeStart(e) {
+    if (showTimeOffSheet || showRouteSheet || showNewTeamChat) {
+      touchStartRef.current = null;
+      return;
+    }
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY, time: Date.now() };
+  }
+
+  function handleTabSwipeEnd(e) {
+    const start = touchStartRef.current;
+    touchStartRef.current = null;
+    if (!start || showTimeOffSheet || showRouteSheet || showNewTeamChat) return;
+
+    const t = e.changedTouches[0];
+    const deltaX = t.clientX - start.x;
+    const deltaY = t.clientY - start.y;
+    const elapsed = Date.now() - start.time;
+
+    if (elapsed > 600) return; // too slow to be a flick
+    if (Math.abs(deltaX) < 70) return; // too short to be deliberate
+    if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return; // more vertical than horizontal -- was a scroll
+
+    const idx = VIEW_ORDER.indexOf(view);
+    if (deltaX < 0 && idx < VIEW_ORDER.length - 1) {
+      setView(VIEW_ORDER[idx + 1]);
+    } else if (deltaX > 0 && idx > 0) {
+      setView(VIEW_ORDER[idx - 1]);
+    }
+  }
+
   return (
-    <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL }} className="w-full min-h-screen pb-16">
+    <div
+      style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL }}
+      className="w-full min-h-screen pb-16"
+      onTouchStart={handleTabSwipeStart}
+      onTouchEnd={handleTabSwipeEnd}
+    >
       <style>{FONT_IMPORT}</style>
       {activeAnimation === "fireworks" && <FireworksOverlay onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "birthday" && <BirthdayOverlay name={employee?.name} onDone={() => setActiveAnimation(null)} />}
