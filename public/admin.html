@@ -1082,13 +1082,18 @@
     <label>Email</label>
     <input id="customer-email-input" type="email" placeholder="customer@email.com" />
     <label>Street address</label>
-    <input id="customer-street-input" placeholder="123 Main St" />
+    <div style="position:relative;">
+      <input id="customer-street-input" placeholder="Start typing an address..." autocomplete="off"
+        oninput="onCustomerAddressInput()" onfocus="onCustomerAddressInput()"
+        onblur="setTimeout(hideCustomerAddressSuggestions, 150)" />
+      <div id="customer-address-suggestions" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:220px; overflow-y:auto;"></div>
+    </div>
     <label>City</label>
-    <input id="customer-city-input" placeholder="Denver" />
+    <input id="customer-city-input" placeholder="Denver" oninput="clearCustomerGeocodeStash()" />
     <label>State</label>
-    <input id="customer-state-input" placeholder="CO" />
+    <input id="customer-state-input" placeholder="CO" oninput="clearCustomerGeocodeStash()" />
     <label>Zip</label>
-    <input id="customer-zip-input" placeholder="80202" />
+    <input id="customer-zip-input" placeholder="80202" oninput="clearCustomerGeocodeStash()" />
     <label>Notes (optional)</label>
     <input id="customer-notes-input" placeholder="Any details worth remembering" />
     <button class="btn-primary" onclick="submitCustomer()">Save customer</button>
@@ -1446,6 +1451,8 @@ const admin = {
 
   listTimeOffRequests: (status) => apiFetch(`/api/admin/time-off-requests${status ? `?status=${status}` : ""}`),
   reviewTimeOffRequest: (id, status) => apiFetch(`/api/admin/time-off-requests/${id}`, { method: "PATCH", body: { status } }),
+
+  suggestAddress: (query) => apiFetch(`/api/admin/geocode/suggest?q=${encodeURIComponent(query)}`),
 
   listCustomers: () => apiFetch("/api/admin/customers"),
   addCustomer: (customer) => apiFetch("/api/admin/customers", { method: "POST", body: customer }),
@@ -3378,12 +3385,88 @@ function openCustomerSheet(customerId) {
   document.getElementById("customer-state-input").value = customer ? (customer.state || "") : "";
   document.getElementById("customer-zip-input").value = customer ? (customer.zip || "") : "";
   document.getElementById("customer-notes-input").value = customer ? (customer.notes || "") : "";
+  window.customerGeocodeStash = null;
+  hideCustomerAddressSuggestions();
   document.getElementById("customer-sheet").classList.add("visible");
 }
 function closeCustomerSheet() {
   document.getElementById("customer-sheet").classList.remove("visible");
   editingCustomerId = null;
+  window.customerGeocodeStash = null;
 }
+
+// ---------- Address autocomplete (predictive text, free via Nominatim) ----------
+// Debounced so this doesn't fire on every keystroke -- Nominatim's usage
+// policy is fine with autocomplete as long as requests are debounced and
+// stay under 1/sec, which this timer plus the server's own rate-limit
+// queue (see backend/utils/geocode.js) together guarantee.
+let customerAddressDebounce = null;
+let customerAddressRequestSeq = 0;
+
+function clearCustomerGeocodeStash() {
+  // Any manual edit to city/state/zip after picking a suggestion means the
+  // stashed lat/lng no longer matches what's actually in the fields --
+  // drop it so the save falls back to normal server-side geocoding instead
+  // of silently keeping a now-wrong pin.
+  window.customerGeocodeStash = null;
+}
+
+function onCustomerAddressInput() {
+  clearCustomerGeocodeStash();
+  const query = document.getElementById("customer-street-input").value.trim();
+  if (customerAddressDebounce) clearTimeout(customerAddressDebounce);
+  if (query.length < 4) {
+    hideCustomerAddressSuggestions();
+    return;
+  }
+  const seq = ++customerAddressRequestSeq;
+  customerAddressDebounce = setTimeout(async function() {
+    try {
+      const suggestions = await admin.suggestAddress(query);
+      // Ignore stale responses from an earlier keystroke that resolved
+      // after a more recent one was already sent.
+      if (seq !== customerAddressRequestSeq) return;
+      renderCustomerAddressSuggestions(suggestions);
+    } catch (err) {
+      // Non-fatal -- the admin can always just keep typing the address by hand.
+    }
+  }, 400);
+}
+
+function renderCustomerAddressSuggestions(suggestions) {
+  const wrap = document.getElementById("customer-address-suggestions");
+  if (!suggestions || suggestions.length === 0) {
+    hideCustomerAddressSuggestions();
+    return;
+  }
+  window.customerAddressSuggestions = suggestions;
+  wrap.innerHTML = suggestions.map(function(s, i) {
+    return '<div onclick="selectCustomerAddressSuggestion(' + i + ')" style="padding:8px 10px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line);">' +
+      escapeHtml(s.label) + '</div>';
+  }).join("");
+  wrap.style.display = "block";
+}
+
+function hideCustomerAddressSuggestions() {
+  const wrap = document.getElementById("customer-address-suggestions");
+  if (wrap) { wrap.style.display = "none"; wrap.innerHTML = ""; }
+  window.customerAddressSuggestions = null;
+}
+
+function selectCustomerAddressSuggestion(i) {
+  const s = (window.customerAddressSuggestions || [])[i];
+  if (!s) return;
+  document.getElementById("customer-street-input").value = s.street || "";
+  document.getElementById("customer-city-input").value = s.city || "";
+  document.getElementById("customer-state-input").value = s.state || "";
+  document.getElementById("customer-zip-input").value = s.zip || "";
+  // Nominatim already resolved this exact suggestion to a lat/lng -- stash
+  // it so submitCustomer() can send it straight through instead of the
+  // server re-geocoding the typed-out fields a second time.
+  window.customerGeocodeStash = { lat: s.lat, lng: s.lng };
+  hideCustomerAddressSuggestions();
+}
+
 async function submitCustomer() {
   const name = document.getElementById("customer-name-input").value.trim();
   const errEl = document.getElementById("customer-sheet-error");
@@ -3403,6 +3486,10 @@ async function submitCustomer() {
     zip: document.getElementById("customer-zip-input").value.trim(),
     notes: document.getElementById("customer-notes-input").value.trim(),
   };
+  if (window.customerGeocodeStash) {
+    payload.lat = window.customerGeocodeStash.lat;
+    payload.lng = window.customerGeocodeStash.lng;
+  }
   try {
     if (editingCustomerId) {
       await admin.updateCustomer(editingCustomerId, payload);
