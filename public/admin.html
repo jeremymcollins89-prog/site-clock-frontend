@@ -351,7 +351,7 @@
     <button onclick="doLogout()">Log out</button>
   </div>
 
-  <main class="content">
+  <main class="content" ontouchstart="handleTabSwipeStart(event)" ontouchend="handleTabSwipeEnd(event)">
 
     <section id="view-overview" class="view active">
       <div class="view-header"><h2>Overview</h2></div>
@@ -1718,6 +1718,50 @@ function showView(name) {
   document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
   window.scrollTo(0, 0);
   if (name === "settings") refreshStripeConnectCard();
+}
+
+// ---------- Swipe left/right to switch tabs (mobile touch) ----------
+// Matches the bottom-nav button order exactly, so a swipe always moves to
+// the visually-adjacent tab. Only the touchend delta decides whether this
+// was a deliberate horizontal swipe (not a vertical scroll or a tap) --
+// touchmove is left alone so normal scrolling inside a tab is never
+// interrupted. Disabled while any full-screen sheet is open (checked
+// generically via ".sheet.visible" rather than naming each one, since new
+// sheets get added often) so swiping inside one can't change tabs
+// underneath it.
+const NAV_VIEW_ORDER = ["overview", "employees", "schedule", "customers", "invoices", "reports", "chat", "settings"];
+let tabSwipeStart = null;
+
+function handleTabSwipeStart(e) {
+  if (document.querySelector(".sheet.visible")) { tabSwipeStart = null; return; }
+  const t = e.touches[0];
+  tabSwipeStart = { x: t.clientX, y: t.clientY, time: Date.now() };
+}
+
+function handleTabSwipeEnd(e) {
+  const start = tabSwipeStart;
+  tabSwipeStart = null;
+  if (!start || document.querySelector(".sheet.visible")) return;
+
+  const t = e.changedTouches[0];
+  const deltaX = t.clientX - start.x;
+  const deltaY = t.clientY - start.y;
+  const elapsed = Date.now() - start.time;
+
+  if (elapsed > 600) return; // too slow to be a flick
+  if (Math.abs(deltaX) < 70) return; // too short to be deliberate
+  if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return; // more vertical than horizontal -- was a scroll
+
+  const activeBtn = document.querySelector(".nav-btn.active");
+  const current = activeBtn ? activeBtn.dataset.view : null;
+  const idx = NAV_VIEW_ORDER.indexOf(current);
+  if (idx === -1) return;
+
+  if (deltaX < 0 && idx < NAV_VIEW_ORDER.length - 1) {
+    showView(NAV_VIEW_ORDER[idx + 1]);
+  } else if (deltaX > 0 && idx > 0) {
+    showView(NAV_VIEW_ORDER[idx - 1]);
+  }
 }
 
 // ---------- Shared helpers ----------
