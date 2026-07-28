@@ -3184,11 +3184,69 @@ function toggleJobTimeInput() {
 // job or invoice. Only available once the job/invoice actually has a saved
 // id -- both sheets hide this section for a brand-new, not-yet-saved record.
 window.attachmentsCache = window.attachmentsCache || {};
+// Files picked while creating a brand-new job, before it has a real ID to
+// attach to. Staged in memory here and actually uploaded once submitJob()
+// gets the new job's ID back -- see uploadPendingJobAttachments().
+window.pendingJobAttachments = window.pendingJobAttachments || [];
 
 function formatFileSize(bytes) {
   if (bytes < 1024) return bytes + " B";
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
   return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+}
+
+// Shared by both the "existing job/invoice" upload path and the "brand-new
+// job, not saved yet" staging path below -- reads the file as base64 and
+// sends it to the same upload endpoint either way.
+async function uploadAttachmentFile(entityType, entityId, file) {
+  if (file.size > 10 * 1024 * 1024) throw new Error("\"" + file.name + "\" is over the 10MB limit.");
+  const base64 = await new Promise(function(resolve, reject) {
+    const reader = new FileReader();
+    reader.onload = function() { resolve(String(reader.result).split(",")[1]); };
+    reader.onerror = function() { reject(new Error("Couldn't read \"" + file.name + "\".")); };
+    reader.readAsDataURL(file);
+  });
+  return admin.uploadAttachment(entityType, entityId, file.name, file.type || "application/octet-stream", base64);
+}
+
+function renderPendingJobAttachments() {
+  const container = document.getElementById("job-attachments-list");
+  if (!container) return;
+  if (window.pendingJobAttachments.length === 0) {
+    container.innerHTML = '<p style="font-size:12px; color:#8A8578;">No attachments yet.</p>';
+    return;
+  }
+  container.innerHTML = window.pendingJobAttachments.map(function(file, idx) {
+    return '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);">' +
+      '<span style="font-size:13px;">' + escapeHtml(file.name) + '</span>' +
+      '<span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">' +
+        '<span style="font-size:11px; color:#8A8578;">' + formatFileSize(file.size) + '</span>' +
+        '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:#B4231F; border-color:#B4231F;" ' +
+          'onclick="removePendingJobAttachment(' + idx + ')">Remove</button>' +
+      '</span>' +
+    '</div>';
+  }).join("");
+}
+
+function removePendingJobAttachment(idx) {
+  window.pendingJobAttachments.splice(idx, 1);
+  renderPendingJobAttachments();
+}
+
+// Called from submitJob() right after a brand-new job gets its real ID --
+// uploads whatever was staged above. One bad file doesn't block the rest;
+// the job itself is already saved by this point either way.
+async function uploadPendingJobAttachments(jobId) {
+  if (window.pendingJobAttachments.length === 0) return;
+  const files = window.pendingJobAttachments;
+  window.pendingJobAttachments = [];
+  for (const file of files) {
+    try {
+      await uploadAttachmentFile("job", jobId, file);
+    } catch (err) {
+      alert("Job saved, but couldn't attach \"" + file.name + "\": " + (err.message || "upload failed"));
+    }
+  }
 }
 
 async function renderAttachmentsList(containerId, entityType, entityId) {
@@ -3224,21 +3282,12 @@ async function handleAttachmentUpload(event, entityType, entityId, containerId) 
   const file = event.target.files[0];
   event.target.value = "";
   if (!file || !entityId) return;
-  if (file.size > 10 * 1024 * 1024) {
-    alert("That file is over the 10MB limit.");
-    return;
+  try {
+    await uploadAttachmentFile(entityType, entityId, file);
+    renderAttachmentsList(containerId, entityType, entityId);
+  } catch (err) {
+    alert(err.message || "Couldn't upload that file.");
   }
-  const reader = new FileReader();
-  reader.onload = async function() {
-    const base64 = String(reader.result).split(",")[1];
-    try {
-      await admin.uploadAttachment(entityType, entityId, file.name, file.type || "application/octet-stream", base64);
-      renderAttachmentsList(containerId, entityType, entityId);
-    } catch (err) {
-      alert(err.message || "Couldn't upload that file.");
-    }
-  };
-  reader.readAsDataURL(file);
 }
 
 async function viewAttachmentFile(id) {
@@ -3260,7 +3309,31 @@ async function deleteAttachmentFile(id, entityType, entityId, containerId) {
 }
 
 function onJobAttachmentFileSelected(event) {
-  handleAttachmentUpload(event, "job", editingJobId, "job-attachments-list");
+  const file = event.target.files[0];
+  event.target.value = "";
+  if (!file) return;
+  if (editingJobId) {
+    // Existing job -- upload right away, same as before.
+    handleAttachmentUploadFile(file, "job", editingJobId, "job-attachments-list");
+  } else {
+    // Brand-new job, not saved yet -- stage it and upload once submitJob()
+    // has a real job ID (see uploadPendingJobAttachments).
+    if (file.size > 10 * 1024 * 1024) {
+      alert("\"" + file.name + "\" is over the 10MB limit.");
+      return;
+    }
+    window.pendingJobAttachments.push(file);
+    renderPendingJobAttachments();
+  }
+}
+
+async function handleAttachmentUploadFile(file, entityType, entityId, containerId) {
+  try {
+    await uploadAttachmentFile(entityType, entityId, file);
+    renderAttachmentsList(containerId, entityType, entityId);
+  } catch (err) {
+    alert(err.message || "Couldn't upload that file.");
+  }
 }
 
 function onInvoiceAttachmentFileSelected(event) {
@@ -3312,9 +3385,16 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
     return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + escapeHtml(e.name) + '</label>';
   }).join("");
 
-  const attachmentsSection = document.getElementById("job-attachments-section");
-  attachmentsSection.style.display = jobId ? "" : "none";
-  if (jobId) renderAttachmentsList("job-attachments-list", "job", jobId);
+  // Shown for both new and existing jobs now -- new jobs stage files in
+  // memory (window.pendingJobAttachments) until the job is saved, existing
+  // jobs upload straight away. See onJobAttachmentFileSelected.
+  document.getElementById("job-attachments-section").style.display = "";
+  window.pendingJobAttachments = [];
+  if (jobId) {
+    renderAttachmentsList("job-attachments-list", "job", jobId);
+  } else {
+    renderPendingJobAttachments();
+  }
 
   document.getElementById("job-sheet").classList.add("visible");
 }
@@ -3376,15 +3456,17 @@ async function submitJob() {
   try {
     if (convertingQuoteToJobId) {
       const quoteId = convertingQuoteToJobId;
-      await admin.convertQuoteToJob(quoteId, payload);
+      const result = await admin.convertQuoteToJob(quoteId, payload);
       convertingQuoteToJobId = null;
+      await uploadPendingJobAttachments(result.job.id);
       closeJobSheet();
       await loadQuotes();
     } else if (editingJobId) {
       await admin.updateJob(editingJobId, payload);
       closeJobSheet();
     } else {
-      await admin.addJob(payload);
+      const created = await admin.addJob(payload);
+      await uploadPendingJobAttachments(created.id);
       closeJobSheet();
     }
     await renderScheduleCalendar();
