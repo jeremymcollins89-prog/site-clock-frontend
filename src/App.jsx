@@ -863,29 +863,8 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
   );
 }
 
-// Shown above the calendar on the Schedule tab when an admin has built and
-// optimized a route for this employee today (see admin-app's Routes card).
-// Just a compact button -- tapping it opens RouteSheet below, which has the
-// actual map + stop list + "Start Route" button.
-function TodaysRouteButton({ route, onOpen }) {
-  if (!route || !route.stops || route.stops.length === 0) return null;
-  return (
-    <button
-      onClick={onOpen}
-      className="w-full rounded-2xl p-4 mb-4 flex items-center justify-between"
-      style={{ background: "#fff", boxShadow: "0 4px 14px rgba(31,36,33,0.08)", fontFamily: "'IBM Plex Mono', monospace" }}
-    >
-      <span style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
-        <Navigation size={14} /> Today's route
-      </span>
-      <span className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
-        {route.stops.length} stop{route.stops.length === 1 ? "" : "s"} &rarr;
-      </span>
-    </button>
-  );
-}
-
-// Bottom sheet opened from TodaysRouteButton. Shows a Leaflet map with the
+// Bottom sheet opened from the "Assigned routes" pill button next to Time
+// off in CalendarView's header (see below). Shows a Leaflet map with the
 // numbered stops + a dashed round-trip line back to the shop, the same
 // ordered stop list that used to live in the card, and the "Start Route"
 // button that hands off to the real Google Maps app. Map only initializes
@@ -943,7 +922,8 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
     }, 100);
   }, [open, route]);
 
-  if (!open || !route) return null;
+  if (!open) return null;
+  const hasStops = route && route.stops && route.stops.length > 0;
 
   return (
     <div
@@ -967,45 +947,53 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
       >
         <div className="flex items-center justify-between mb-3">
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
-            <Navigation size={14} /> Today's route
+            <Navigation size={14} /> Assigned routes
           </h2>
           <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
 
-        <div ref={mapElRef} style={{ height: 220, borderRadius: 12, border: `1px solid ${LINE}`, marginBottom: 14 }} />
+        {!hasStops ? (
+          <p className="text-sm py-6 text-center" style={{ color: "#8A8578" }}>
+            No route assigned for today. Check back once your admin builds one.
+          </p>
+        ) : (
+          <>
+            <div ref={mapElRef} style={{ height: 220, borderRadius: 12, border: `1px solid ${LINE}`, marginBottom: 14 }} />
 
-        <div className="flex flex-col gap-1.5 mb-4">
-          {route.stops.map((stop, i) => (
-            <div key={stop.id} className="flex items-center gap-2 text-sm">
-              <span
-                className="flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0"
-                style={{ width: 20, height: 20, background: CHARCOAL, color: "#fff" }}
-              >
-                {i + 1}
-              </span>
-              <span>
-                {stop.title}
-                {stop.address_label ? ` · ${stop.address_label}` : ""}
-              </span>
+            <div className="flex flex-col gap-1.5 mb-4">
+              {route.stops.map((stop, i) => (
+                <div key={stop.id} className="flex items-center gap-2 text-sm">
+                  <span
+                    className="flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0"
+                    style={{ width: 20, height: 20, background: CHARCOAL, color: "#fff" }}
+                  >
+                    {i + 1}
+                  </span>
+                  <span>
+                    {stop.title}
+                    {stop.address_label ? ` · ${stop.address_label}` : ""}
+                  </span>
+                </div>
+              ))}
             </div>
-          ))}
-        </div>
 
-        <button
-          onClick={onStartRoute}
-          className="w-full rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
-          style={{ background: CHARCOAL, color: "#fff" }}
-        >
-          <Navigation size={14} /> Start route in Google Maps
-        </button>
+            <button
+              onClick={onStartRoute}
+              className="w-full rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
+              style={{ background: CHARCOAL, color: "#fff" }}
+            >
+              <Navigation size={14} /> Start route in Google Maps
+            </button>
+          </>
+        )}
       </div>
     </div>
   );
 }
 
-function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount }) {
+function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount, onOpenRoute, hasRouteToday }) {
   const [selectedDay, setSelectedDay] = useState(todayStr());
   const [selectedJob, setSelectedJob] = useState(null);
 
@@ -1037,6 +1025,18 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
           Schedule
         </h2>
         <div className="flex items-center gap-3">
+          <button
+            onClick={onOpenRoute}
+            className="text-xs font-medium flex items-center gap-1 rounded-lg px-2.5 py-1"
+            style={{ color: CHARCOAL, background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+          >
+            <Navigation size={12} /> Assigned routes
+            {hasRouteToday && (
+              <span style={{ background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                &bull;
+              </span>
+            )}
+          </button>
           <button
             onClick={onOpenTimeOff}
             className="text-xs font-medium flex items-center gap-1 rounded-lg px-2.5 py-1"
@@ -2371,7 +2371,6 @@ const [emailInput, setEmailInput] = useState("");
 
         {view === "schedule" ? (
           <>
-            <TodaysRouteButton route={todaysRoute} onOpen={() => setShowRouteSheet(true)} />
             <RouteSheet
               open={showRouteSheet}
               onClose={() => setShowRouteSheet(false)}
@@ -2387,6 +2386,8 @@ const [emailInput, setEmailInput] = useState("");
               onToday={goToday}
               onOpenTimeOff={openTimeOffSheet}
               timeOffPendingCount={timeOffRequests.filter((r) => r.status === "pending").length}
+              onOpenRoute={() => setShowRouteSheet(true)}
+              hasRouteToday={Boolean(todaysRoute && todaysRoute.stops && todaysRoute.stops.length > 0)}
             />
             <TimeOffSheet
               open={showTimeOffSheet}
