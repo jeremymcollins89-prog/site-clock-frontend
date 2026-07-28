@@ -2202,7 +2202,7 @@ async function renderEmployeeDetail(start, end) {
         ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="mailto:' + escapeHtml(ed.email) + '">' + escapeHtml(ed.email) + '</a></div>'
         : '<div style="font-size:13px; margin-bottom:6px; color:#8A8578;">Email: not set</div>') +
       (fullAddress
-        ? '<div style="font-size:13px; margin-bottom:8px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + ' (directions)</a></div>'
+        ? '<div style="font-size:13px; margin-bottom:8px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + '</a></div>'
         : '<div style="font-size:13px; margin-bottom:8px; color:#8A8578;">Address: not set</div>') +
       '<button class="btn-secondary" onclick="event.stopPropagation(); openEditEmployeeSheet(\'' + ed.id + '\');">Edit contact info</button>' +
     '</div>' +
@@ -2680,8 +2680,16 @@ async function retryGeocodeCandidates() {
   if (btn) { btn.disabled = true; btn.textContent = "Locating addresses..."; }
   try {
     const uniqueIds = Array.from(new Set(ids));
-    await admin.geocodeCandidates(uniqueIds);
+    const result = await admin.geocodeCandidates(uniqueIds);
     await loadRouteCandidates();
+    const outcomes = (result && result.results) || [];
+    const locatedCount = outcomes.filter(function(o) { return o.geocoded; }).length;
+    if (locatedCount < outcomes.length) {
+      alert(
+        "Located " + locatedCount + " of " + outcomes.length + " address(es). " +
+        "The rest couldn't be matched to a map location -- double check the street, city, state, and zip are entered correctly on that customer, then try again."
+      );
+    }
   } catch (err) {
     alert(err.message || "Couldn't locate those addresses.");
   } finally {
@@ -2953,7 +2961,7 @@ function renderDayJobCard(j) {
     (j.customer_name ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
       '<strong>' + escapeHtml(j.customer_name) + '</strong>' +
       (j.customer_phone ? '<br/><a class="link" href="' + escapeHtml(telUrl(j.customer_phone)) + '">' + escapeHtml(j.customer_phone) + '</a>' : "") +
-      (jobAddress ? '<br/><a class="link" href="' + escapeHtml(mapsUrl(jobAddress)) + '" target="_blank">' + escapeHtml(jobAddress) + ' (directions)</a>' : "") +
+      (jobAddress ? '<br/><a class="link" href="' + escapeHtml(mapsUrl(jobAddress)) + '" target="_blank">' + escapeHtml(jobAddress) + '</a>' : "") +
     '</div>' : '') +
     (j.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' + escapeHtml(j.notes) + '</div>' : '') +
     '<div style="margin-top:8px;">' + (assigned || '<span style="color:#8A8578; font-size:12px;">Nobody assigned yet</span>') + '</div>' +
@@ -3343,7 +3351,7 @@ function renderCustomersList() {
     const fullAddress = formatAddress(c);
     const details = (c.phone ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(telUrl(c.phone)) + '">' + escapeHtml(c.phone) + '</a></div>' : "") +
       (c.email ? '<div style="font-size:12.5px;"><a class="link" href="mailto:' + escapeHtml(c.email) + '">' + escapeHtml(c.email) + '</a></div>' : "") +
-      (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + ' (directions)</a></div>' : "");
+      (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + '</a></div>' : "");
     return '<div class="card">' +
       '<strong>' + escapeHtml(c.name) + '</strong>' +
       details +
