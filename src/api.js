@@ -90,6 +90,10 @@ async function cancelTimeOffRequest(id) {
   return apiFetch(`/api/schedule/time-off/${id}`, { method: "DELETE" });
 }
 
+async function getTodaysRoute() {
+  return apiFetch("/api/schedule/routing/today");
+}
+
 async function getChatUnreadCount() {
   return apiFetch("/api/chat/unread-count");
 }
@@ -182,6 +186,7 @@ export {
   getMyTimeOffRequests,
   requestTimeOff,
   cancelTimeOffRequest,
+  getTodaysRoute,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,

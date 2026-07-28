@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -14,6 +14,7 @@ import {
   getMyTimeOffRequests,
   requestTimeOff,
   cancelTimeOffRequest,
+  getTodaysRoute,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
@@ -862,6 +863,52 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
   );
 }
 
+// Shown above the calendar on the Schedule tab when an admin has built and
+// optimized a route for this employee today (see admin-app's Routes card).
+// Just a read-only ordered stop list plus a "Start Route" button -- the
+// employee doesn't reorder stops here, only the admin does.
+function TodaysRouteCard({ route, onStartRoute }) {
+  if (!route || !route.stops || route.stops.length === 0) return null;
+  return (
+    <div
+      className="rounded-2xl p-4 mb-4"
+      style={{ background: "#fff", boxShadow: "0 4px 14px rgba(31,36,33,0.08)", fontFamily: "'IBM Plex Mono', monospace" }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
+          <Navigation size={14} /> Today's route
+        </h2>
+        <span className="text-xs" style={{ color: "#8A8578" }}>
+          {route.stops.length} stop{route.stops.length === 1 ? "" : "s"}
+        </span>
+      </div>
+      <div className="flex flex-col gap-1.5 mb-3">
+        {route.stops.map((stop, i) => (
+          <div key={stop.id} className="flex items-center gap-2 text-sm">
+            <span
+              className="flex items-center justify-center rounded-full text-xs font-bold flex-shrink-0"
+              style={{ width: 20, height: 20, background: CHARCOAL, color: "#fff" }}
+            >
+              {i + 1}
+            </span>
+            <span>
+              {stop.title}
+              {stop.address_label ? ` · ${stop.address_label}` : ""}
+            </span>
+          </div>
+        ))}
+      </div>
+      <button
+        onClick={onStartRoute}
+        className="w-full rounded-xl py-2.5 text-sm font-medium flex items-center justify-center gap-2"
+        style={{ background: CHARCOAL, color: "#fff" }}
+      >
+        <Navigation size={14} /> Start route in Google Maps
+      </button>
+    </div>
+  );
+}
+
 function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount }) {
   const [selectedDay, setSelectedDay] = useState(todayStr());
   const [selectedJob, setSelectedJob] = useState(null);
@@ -1468,6 +1515,9 @@ const [emailInput, setEmailInput] = useState("");
   const [timeOffForm, setTimeOffForm] = useState({ start_date: "", end_date: "", note: "" });
   const [timeOffSubmitting, setTimeOffSubmitting] = useState(false);
   const [timeOffError, setTimeOffError] = useState("");
+  // Today's optimized route (built by the admin -- see admin-app/Routes
+  // card), if one's been assigned. Null means "none today", not "loading".
+  const [todaysRoute, setTodaysRoute] = useState(null);
   const [teamThreads, setTeamThreads] = useState([]);
   const [teamThreadsLoading, setTeamThreadsLoading] = useState(false);
   const [teamUnreadCount, setTeamUnreadCount] = useState(0);
@@ -1664,6 +1714,47 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  async function loadTodaysRoute() {
+    try {
+      const route = await getTodaysRoute();
+      setTodaysRoute(route);
+    } catch {
+      // non-fatal — no route card just won't show this cycle
+    }
+  }
+
+  // Opens the real Google Maps app with every stop pre-loaded in the
+  // optimized order, ending back at the shop -- a free deep link (no API
+  // key/cost). Uses the employee's current location as the starting point
+  // when available (a much more useful "origin" than the shop, since
+  // they're not usually standing at the shop when they tap this), falling
+  // back to the server-computed shop-to-shop link if location is denied,
+  // unavailable, or there's no shop location on file to fall back to.
+  function startRoute() {
+    if (!todaysRoute || todaysRoute.stops.length === 0) return;
+    const fallbackUrl = todaysRoute.maps_url;
+    if (!navigator.geolocation) {
+      if (fallbackUrl) window.open(fallbackUrl, "_blank");
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
+        const destination = todaysRoute.shop_location
+          ? `${todaysRoute.shop_location.lat},${todaysRoute.shop_location.lng}`
+          : origin;
+        const waypoints = todaysRoute.stops.map((s) => `${s.lat},${s.lng}`).join("|");
+        const params = new URLSearchParams({ api: "1", origin, destination, travelmode: "driving" });
+        if (waypoints) params.set("waypoints", waypoints);
+        window.open(`https://www.google.com/maps/dir/?${params.toString()}`, "_blank");
+      },
+      () => {
+        if (fallbackUrl) window.open(fallbackUrl, "_blank");
+      },
+      { enableHighAccuracy: true, maximumAge: 60000, timeout: 15000 }
+    );
+  }
+
   function openTimeOffSheet() {
     setTimeOffError("");
     setShowTimeOffSheet(true);
@@ -1840,6 +1931,7 @@ const [emailInput, setEmailInput] = useState("");
     if (view === "schedule" && loggedIn) {
       loadSchedule(scheduleMonthAnchor);
       loadTimeOffRequests();
+      loadTodaysRoute();
     }
     if (view === "customers" && loggedIn) loadCustomers();
     if (view === "chat" && loggedIn) {
@@ -2182,6 +2274,7 @@ const [emailInput, setEmailInput] = useState("");
 
         {view === "schedule" ? (
           <>
+            <TodaysRouteCard route={todaysRoute} onStartRoute={startRoute} />
             <CalendarView
               schedule={schedule}
               loading={scheduleLoading}

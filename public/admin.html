@@ -311,7 +311,19 @@
     border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.18);
     padding: 14px 16px; z-index: 3000; width: 230px; display: none;
   }
+  .route-stop-row {
+    display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+    border: 1.5px solid var(--line); border-radius: 8px; margin-bottom: 6px; background: #fff;
+  }
+  .route-stop-num {
+    width: 22px; height: 22px; border-radius: 50%; background: var(--charcoal); color: #fff;
+    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
+  }
 </style>
+<!-- Leaflet: free, no-API-key map rendering on top of OpenStreetMap tiles,
+     used only for the Routes stop-order preview map. -->
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 </head>
 <body>
 
@@ -380,6 +392,42 @@
         <div id="crews-section-body" style="display:none; margin-top:8px;">
           <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">A reusable group you can assign to a job all at once.</p>
           <div id="crews-list"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3 style="margin:0 0 4px; font-size:15px;">Routes</h3>
+        <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">
+          Pulls in a day's scheduled jobs for one employee or a whole team, and orders the stops for the fastest round trip starting and ending back at the shop. Free to build.
+        </p>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
+          <div style="flex:1; min-width:130px;">
+            <label style="font-size:12px; color:#8A8578;">Date</label>
+            <input type="date" id="route-date-input" onchange="loadRouteCandidates()" />
+          </div>
+          <div style="flex:2; min-width:160px;">
+            <label style="font-size:12px; color:#8A8578;">Employee or team</label>
+            <select id="route-target-select" onchange="loadRouteCandidates()">
+              <option value="">Select...</option>
+            </select>
+          </div>
+        </div>
+
+        <div id="route-candidates-section" style="display:none;">
+          <div style="font-size:12px; color:#8A8578; margin-bottom:6px;">Stops scheduled that day (uncheck any to leave out):</div>
+          <div id="route-candidates-list"></div>
+          <button class="btn-primary" style="width:auto; margin-top:10px;" onclick="buildRoute()">Optimize route</button>
+        </div>
+        <div id="route-candidates-empty" style="display:none; font-size:13px; color:#8A8578;">No scheduled jobs with a usable address found for that date/employee.</div>
+
+        <div id="route-detail-section" style="display:none; margin-top:14px; padding-top:14px; border-top:1.5px solid var(--line);">
+          <h4 id="route-detail-title" style="margin:0 0 8px; font-size:14px;"></h4>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
+            <a id="route-maps-link" href="#" target="_blank" class="btn-secondary" style="width:auto; text-decoration:none; display:inline-block; text-align:center;">Preview in Google Maps</a>
+            <button class="btn-secondary" style="width:auto;" onclick="reoptimizeCurrentRoute()">Re-optimize</button>
+            <button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="deleteCurrentRoute()">Delete route</button>
+          </div>
+          <div id="route-stops-list"></div>
+          <div id="route-map" style="height:240px; border-radius:10px; margin-top:10px; border:1.5px solid var(--line);"></div>
         </div>
       </div>
       <div class="card">
@@ -1348,6 +1396,19 @@ const admin = {
   updateJob: (id, patch) => apiFetch(`/api/admin/jobs/${id}`, { method: "PATCH", body: patch }),
   deleteJob: (id) => apiFetch(`/api/admin/jobs/${id}`, { method: "DELETE" }),
 
+  getRoutingCandidates: (params) => {
+    const qs = new URLSearchParams(params).toString();
+    return apiFetch(`/api/admin/routing/candidates${qs ? `?${qs}` : ""}`);
+  },
+  listRoutes: (date) => apiFetch(`/api/admin/routing${date ? `?date=${date}` : ""}`),
+  getRoute: (id) => apiFetch(`/api/admin/routing/${id}`),
+  buildRoute: (body) => apiFetch("/api/admin/routing", { method: "POST", body }),
+  reoptimizeRoute: (id) => apiFetch(`/api/admin/routing/${id}/reoptimize`, { method: "POST" }),
+  reorderRouteStops: (id, stopIds) => apiFetch(`/api/admin/routing/${id}/reorder`, { method: "PATCH", body: { stop_ids: stopIds } }),
+  removeRouteStop: (routeId, stopId) => apiFetch(`/api/admin/routing/${routeId}/stops/${stopId}`, { method: "DELETE" }),
+  deleteRoute: (id) => apiFetch(`/api/admin/routing/${id}`, { method: "DELETE" }),
+  getEmployeeLocation: (employeeId) => apiFetch(`/api/admin/routing/employee-location/${employeeId}`),
+
   listTimeOffRequests: (status) => apiFetch(`/api/admin/time-off-requests${status ? `?status=${status}` : ""}`),
   reviewTimeOffRequest: (id, status) => apiFetch(`/api/admin/time-off-requests/${id}`, { method: "PATCH", body: { status } }),
 
@@ -1753,6 +1814,7 @@ async function loadEmployees() {
     return;
   }
   window.allEmployees = rows;
+  populateRouteTargetOptions();
   const openEntryByEmployee = {};
   (overview.employees || []).forEach(function(oe) {
     if (oe.open_entry_id) openEntryByEmployee[oe.id] = oe.open_entry_id;
@@ -2242,6 +2304,7 @@ async function loadCrews() {
   const badge = document.getElementById("crews-count-badge");
   if (badge) badge.textContent = window.allCrews.length ? "(" + window.allCrews.length + ")" : "";
   renderCrewsList();
+  populateRouteTargetOptions();
 }
 
 // Typing (or just tapping into) the search box drops down a quick list of
@@ -2484,6 +2547,238 @@ async function reviewTimeOff(id, status) {
   } catch (err) {
     alert(err.message || "Couldn't update that request.");
   }
+}
+
+// ---------- Routes ----------
+let routeMapInstance = null;
+let routeMapLayer = null;
+
+function populateRouteTargetOptions() {
+  const select = document.getElementById("route-target-select");
+  if (!select) return;
+  const employees = (window.allEmployees || []).filter(function(e) { return e.active; });
+  const crews = window.allCrews || [];
+  let html = '<option value="">Select...</option>';
+  if (employees.length > 0) {
+    html += '<optgroup label="Employees">' +
+      employees.map(function(e) { return '<option value="employee:' + e.id + '">' + escapeHtml(e.name) + '</option>'; }).join("") +
+      '</optgroup>';
+  }
+  if (crews.length > 0) {
+    html += '<optgroup label="Teams">' +
+      crews.map(function(c) { return '<option value="crew:' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("") +
+      '</optgroup>';
+  }
+  select.innerHTML = html;
+
+  const dateInput = document.getElementById("route-date-input");
+  if (dateInput && !dateInput.value) dateInput.value = todayStr();
+}
+
+function currentRouteTarget() {
+  const select = document.getElementById("route-target-select");
+  const value = select ? select.value : "";
+  if (!value) return null;
+  const [kind, id] = value.split(":");
+  return { kind, id };
+}
+
+async function loadRouteCandidates() {
+  document.getElementById("route-detail-section").style.display = "none";
+  const target = currentRouteTarget();
+  const date = document.getElementById("route-date-input").value;
+  const candidatesSection = document.getElementById("route-candidates-section");
+  const emptyMsg = document.getElementById("route-candidates-empty");
+  if (!target || !date) {
+    candidatesSection.style.display = "none";
+    emptyMsg.style.display = "none";
+    return;
+  }
+  try {
+    const params = { date: date };
+    if (target.kind === "employee") params.employee_id = target.id; else params.crew_id = target.id;
+    const candidates = await admin.getRoutingCandidates(params);
+    window.routeCandidates = candidates;
+    if (candidates.length === 0) {
+      candidatesSection.style.display = "none";
+      emptyMsg.style.display = "block";
+      return;
+    }
+    emptyMsg.style.display = "none";
+    candidatesSection.style.display = "block";
+    renderRouteCandidatesList(candidates);
+  } catch (err) {
+    alert(err.message || "Couldn't load that day's jobs.");
+  }
+}
+
+function renderRouteCandidatesList(candidates) {
+  const wrap = document.getElementById("route-candidates-list");
+  wrap.innerHTML = candidates.map(function(c, i) {
+    const disabled = !c.geocoded;
+    const note = disabled ? ' <span style="color:#B4231F; font-size:11px;">(no address on file)</span>' : "";
+    return '<label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; ' +
+      (disabled ? 'opacity:0.5;' : '') + '">' +
+      '<input type="checkbox" data-idx="' + i + '" class="route-candidate-check" ' + (disabled ? 'disabled' : 'checked') + ' />' +
+      '<span>' + escapeHtml(c.title) + ' &middot; ' + escapeHtml(c.address_label) + '</span>' + note +
+      '</label>';
+  }).join("");
+}
+
+async function buildRoute() {
+  const target = currentRouteTarget();
+  const date = document.getElementById("route-date-input").value;
+  if (!target || !date) return;
+  const checks = document.querySelectorAll(".route-candidate-check:checked");
+  const jobIds = Array.from(checks).map(function(el) { return window.routeCandidates[Number(el.dataset.idx)].job_id; });
+  if (jobIds.length === 0) { alert("Select at least one stop."); return; }
+
+  const body = { date: date, job_ids: jobIds };
+  if (target.kind === "employee") body.employee_id = target.id; else body.crew_id = target.id;
+
+  try {
+    const route = await admin.buildRoute(body);
+    renderRouteDetail(route);
+  } catch (err) {
+    alert(err.message || "Couldn't build that route.");
+  }
+}
+
+function renderRouteDetail(route) {
+  window.currentRoute = route;
+  document.getElementById("route-detail-section").style.display = "block";
+  const who = route.employee_name || route.crew_name || "Route";
+  document.getElementById("route-detail-title").textContent =
+    who + " -- " + route.route_date + " (" + route.stops.length + " stop" + (route.stops.length === 1 ? "" : "s") + ")";
+  const mapsLink = document.getElementById("route-maps-link");
+  if (route.maps_url) {
+    mapsLink.href = route.maps_url;
+    mapsLink.style.display = "inline-block";
+  } else {
+    mapsLink.style.display = "none";
+  }
+  renderRouteStopsList(route);
+  renderRouteMap(route);
+}
+
+function renderRouteStopsList(route) {
+  const wrap = document.getElementById("route-stops-list");
+  wrap.innerHTML = route.stops.map(function(stop, i) {
+    return '<div class="route-stop-row">' +
+      '<span class="route-stop-num">' + (i + 1) + '</span>' +
+      '<span style="flex:1; font-size:13px;">' + escapeHtml(stop.title) + ' &middot; ' + escapeHtml(stop.address_label || "") + '</span>' +
+      '<button class="btn-secondary" style="width:auto; padding:4px 8px;" ' + (i === 0 ? "disabled" : "") + ' onclick="moveRouteStop(' + i + ', -1)">&uarr;</button>' +
+      '<button class="btn-secondary" style="width:auto; padding:4px 8px;" ' + (i === route.stops.length - 1 ? "disabled" : "") + ' onclick="moveRouteStop(' + i + ', 1)">&darr;</button>' +
+      '<button class="btn-secondary" style="width:auto; padding:4px 8px; color:#B4231F; border-color:#B4231F;" onclick="removeRouteStop(\'' + stop.id + '\')">Remove</button>' +
+      '</div>';
+  }).join("");
+}
+
+async function moveRouteStop(index, direction) {
+  const route = window.currentRoute;
+  const stops = route.stops.slice();
+  const target = index + direction;
+  if (target < 0 || target >= stops.length) return;
+  const tmp = stops[index];
+  stops[index] = stops[target];
+  stops[target] = tmp;
+  try {
+    const updated = await admin.reorderRouteStops(route.id, stops.map(function(s) { return s.id; }));
+    renderRouteDetail(updated);
+  } catch (err) {
+    alert(err.message || "Couldn't reorder stops.");
+  }
+}
+
+async function removeRouteStop(stopId) {
+  const route = window.currentRoute;
+  try {
+    const updated = await admin.removeRouteStop(route.id, stopId);
+    renderRouteDetail(updated);
+  } catch (err) {
+    alert(err.message || "Couldn't remove that stop.");
+  }
+}
+
+async function reoptimizeCurrentRoute() {
+  const route = window.currentRoute;
+  if (!route) return;
+  try {
+    const updated = await admin.reoptimizeRoute(route.id);
+    renderRouteDetail(updated);
+  } catch (err) {
+    alert(err.message || "Couldn't re-optimize this route.");
+  }
+}
+
+async function deleteCurrentRoute() {
+  const route = window.currentRoute;
+  if (!route) return;
+  if (!confirm("Delete this route? This can't be undone.")) return;
+  try {
+    await admin.deleteRoute(route.id);
+    document.getElementById("route-detail-section").style.display = "none";
+    window.currentRoute = null;
+  } catch (err) {
+    alert(err.message || "Couldn't delete this route.");
+  }
+}
+
+function routeStopIcon(label, color) {
+  return L.divIcon({
+    className: "",
+    html: '<div style="width:24px; height:24px; border-radius:50%; background:' + color + '; color:#fff; ' +
+      'display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; ' +
+      'box-shadow:0 2px 6px rgba(0,0,0,0.3);">' + label + '</div>',
+    iconSize: [24, 24],
+    iconAnchor: [12, 12],
+  });
+}
+
+async function renderRouteMap(route) {
+  const mapEl = document.getElementById("route-map");
+  if (!mapEl || typeof L === "undefined") return;
+  if (!routeMapInstance) {
+    routeMapInstance = L.map(mapEl);
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      attribution: "&copy; OpenStreetMap contributors",
+      maxZoom: 19,
+    }).addTo(routeMapInstance);
+  }
+  if (routeMapLayer) routeMapLayer.remove();
+  routeMapLayer = L.layerGroup().addTo(routeMapInstance);
+
+  const points = [];
+  if (route.shop_location) {
+    L.marker([route.shop_location.lat, route.shop_location.lng], { icon: routeStopIcon("S", "#2B6E5C") })
+      .bindTooltip("Shop").addTo(routeMapLayer);
+    points.push([route.shop_location.lat, route.shop_location.lng]);
+  }
+  route.stops.forEach(function(stop, i) {
+    L.marker([stop.lat, stop.lng], { icon: routeStopIcon(String(i + 1), "#C1502E") })
+      .bindTooltip(stop.title).addTo(routeMapLayer);
+    points.push([stop.lat, stop.lng]);
+  });
+  if (route.shop_location && route.stops.length > 0) {
+    const line = [route.shop_location].concat(route.stops).concat([route.shop_location]).map(function(p) { return [p.lat, p.lng]; });
+    L.polyline(line, { color: "#8A8578", weight: 2, dashArray: "4,6" }).addTo(routeMapLayer);
+  }
+
+  if (route.employee_id) {
+    try {
+      const loc = await admin.getEmployeeLocation(route.employee_id);
+      if (loc && loc.lat != null) {
+        L.marker([loc.lat, loc.lng], { icon: routeStopIcon("&#128205;", "#1E88FF") })
+          .bindTooltip("Employee's last known location").addTo(routeMapLayer);
+        points.push([loc.lat, loc.lng]);
+      }
+    } catch (err) { /* no location on file yet -- fine, just skip the marker */ }
+  }
+
+  if (points.length > 0) {
+    routeMapInstance.fitBounds(points, { padding: [24, 24] });
+  }
+  setTimeout(function() { routeMapInstance.invalidateSize(); }, 100);
 }
 
 async function renderScheduleCalendar() {
