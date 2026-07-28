@@ -1191,12 +1191,16 @@
   <div class="sheet-body">
     <p style="font-size:12px; color:#8A8578; margin-top:-4px;">This doesn't process a payment -- it just records how the customer paid.</p>
     <label>Payment method</label>
-    <select id="mark-paid-method-input">
+    <select id="mark-paid-method-input" onchange="toggleMarkPaidCheckNumberField()">
       <option value="check">Check</option>
       <option value="cash">Cash</option>
       <option value="card">Card</option>
       <option value="other">Other</option>
     </select>
+    <div id="mark-paid-check-number-wrap">
+      <label>Check number (optional)</label>
+      <input id="mark-paid-check-number-input" placeholder="e.g. 1042" />
+    </div>
     <button class="btn-primary" onclick="submitMarkPaid()">Confirm</button>
     <div id="mark-paid-error" class="error"></div>
   </div>
@@ -1490,8 +1494,8 @@ const admin = {
   updateInvoice: (id, patch) => apiFetch(`/api/admin/invoices/${id}`, { method: "PATCH", body: patch }),
   deleteInvoice: (id) => apiFetch(`/api/admin/invoices/${id}`, { method: "DELETE" }),
   sendInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/send`, { method: "POST" }),
-  markInvoicePaid: (id, paymentMethod) =>
-    apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod } }),
+  markInvoicePaid: (id, paymentMethod, checkNumber) =>
+    apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod, check_number: checkNumber } }),
   voidInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/void`, { method: "PATCH" }),
   resendInvoiceReceipt: (id, email) =>
     apiFetch(`/api/admin/invoices/${id}/resend-receipt`, { method: "POST", body: { email: email || "" } }),
@@ -4096,6 +4100,7 @@ function renderTransactionsList() {
       ? '<span class="badge badge-online">Online</span>'
       : '<span class="badge badge-in-person">In person / phone</span>';
     const methodLabel = methodLabels[inv.payment_method] || "Other";
+    const checkNumberSuffix = inv.payment_method === "check" && inv.check_number ? " #" + escapeHtml(inv.check_number) : "";
     return '<div class="card">' +
       '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
         '<div>' +
@@ -4105,7 +4110,7 @@ function renderTransactionsList() {
         '<strong>' + fmtMoney(inv.total) + '</strong>' +
       '</div>' +
       '<div style="font-size:12px; color:#8A8578; margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
-        '<span>' + String(inv.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + '</span>' + channelBadge +
+        '<span>' + String(inv.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + checkNumberSuffix + '</span>' + channelBadge +
       '</div>' +
       '<div style="display:flex; gap:6px; margin-top:8px;">' +
         '<button class="btn-small" style="flex:1; background:var(--charcoal);" onclick="viewInvoicePdf(\'' + inv.id + '\')">Receipt</button>' +
@@ -4429,6 +4434,9 @@ async function sendInvoiceConfirm() {
 function openMarkPaidSheet(id) {
   markPaidInvoiceId = id || editingInvoiceId;
   document.getElementById("mark-paid-error").style.display = "none";
+  document.getElementById("mark-paid-method-input").value = "check";
+  document.getElementById("mark-paid-check-number-input").value = "";
+  toggleMarkPaidCheckNumberField();
   document.getElementById("mark-paid-sheet").classList.add("visible");
 }
 
@@ -4437,11 +4445,20 @@ function closeMarkPaidSheet() {
   markPaidInvoiceId = null;
 }
 
+// Check number only makes sense when the payment method is actually
+// "Check" -- hidden the rest of the time so the sheet doesn't ask for
+// irrelevant info when marking something paid by card/cash/other.
+function toggleMarkPaidCheckNumberField() {
+  const isCheck = document.getElementById("mark-paid-method-input").value === "check";
+  document.getElementById("mark-paid-check-number-wrap").style.display = isCheck ? "" : "none";
+}
+
 async function submitMarkPaid() {
   const method = document.getElementById("mark-paid-method-input").value;
+  const checkNumber = document.getElementById("mark-paid-check-number-input").value.trim();
   const errEl = document.getElementById("mark-paid-error");
   try {
-    await admin.markInvoicePaid(markPaidInvoiceId, method);
+    await admin.markInvoicePaid(markPaidInvoiceId, method, checkNumber);
     closeMarkPaidSheet();
     closeInvoiceSheet();
     await loadInvoices();
