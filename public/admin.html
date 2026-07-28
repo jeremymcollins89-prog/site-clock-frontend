@@ -991,6 +991,9 @@
     <div id="route-candidates-section" style="display:none;">
       <div style="font-size:12px; color:#8A8578; margin-bottom:6px;">Stops scheduled that day (uncheck any to leave out):</div>
       <div id="route-candidates-list"></div>
+      <div id="route-geocode-retry-wrap" style="display:none; margin-top:8px;">
+        <button id="route-geocode-retry-btn" class="btn-secondary" style="width:auto;" onclick="retryGeocodeCandidates()">Retry locating addresses</button>
+      </div>
       <button class="btn-primary" style="width:auto; margin-top:10px;" onclick="buildRoute()">Optimize route</button>
     </div>
     <div id="route-candidates-empty" style="display:none; font-size:13px; color:#8A8578;">No scheduled jobs with a usable address found for that date/employee.</div>
@@ -1438,6 +1441,8 @@ const admin = {
   removeRouteStop: (routeId, stopId) => apiFetch(`/api/admin/routing/${routeId}/stops/${stopId}`, { method: "DELETE" }),
   deleteRoute: (id) => apiFetch(`/api/admin/routing/${id}`, { method: "DELETE" }),
   getOnClockLocations: () => apiFetch("/api/admin/routing/on-clock-locations"),
+  geocodeCandidates: (customerIds) =>
+    apiFetch("/api/admin/routing/geocode-candidates", { method: "POST", body: { customer_ids: customerIds } }),
 
   listTimeOffRequests: (status) => apiFetch(`/api/admin/time-off-requests${status ? `?status=${status}` : ""}`),
   reviewTimeOffRequest: (id, status) => apiFetch(`/api/admin/time-off-requests/${id}`, { method: "PATCH", body: { status } }),
@@ -2646,13 +2651,42 @@ function renderRouteCandidatesList(candidates) {
   const wrap = document.getElementById("route-candidates-list");
   wrap.innerHTML = candidates.map(function(c, i) {
     const disabled = !c.geocoded;
-    const note = disabled ? ' <span style="color:#B4231F; font-size:11px;">(no address on file)</span>' : "";
+    // "Ungeocoded" doesn't mean the address field is empty -- c.address_label
+    // is built from street/city/state/zip regardless. It means we have an
+    // address on file but haven't successfully looked up its map coordinates
+    // yet (most often a customer added before route-building existed). The
+    // retry button below fixes this without touching the Customers tab.
+    const note = disabled ? ' <span style="color:#B4231F; font-size:11px;">(address not yet located on the map)</span>' : "";
     return '<label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; ' +
       (disabled ? 'opacity:0.5;' : '') + '">' +
       '<input type="checkbox" data-idx="' + i + '" class="route-candidate-check" ' + (disabled ? 'disabled' : 'checked') + ' />' +
       '<span>' + escapeHtml(c.title) + ' &middot; ' + escapeHtml(c.address_label) + '</span>' + note +
       '</label>';
   }).join("");
+
+  const ungeocodedIds = candidates.filter(function(c) { return !c.geocoded && c.customer_id; }).map(function(c) { return c.customer_id; });
+  const retryWrap = document.getElementById("route-geocode-retry-wrap");
+  if (retryWrap) {
+    retryWrap.style.display = ungeocodedIds.length > 0 ? "block" : "none";
+  }
+}
+
+async function retryGeocodeCandidates() {
+  const ids = (window.routeCandidates || [])
+    .filter(function(c) { return !c.geocoded && c.customer_id; })
+    .map(function(c) { return c.customer_id; });
+  if (ids.length === 0) return;
+  const btn = document.getElementById("route-geocode-retry-btn");
+  if (btn) { btn.disabled = true; btn.textContent = "Locating addresses..."; }
+  try {
+    const uniqueIds = Array.from(new Set(ids));
+    await admin.geocodeCandidates(uniqueIds);
+    await loadRouteCandidates();
+  } catch (err) {
+    alert(err.message || "Couldn't locate those addresses.");
+  } finally {
+    if (btn) { btn.disabled = false; btn.textContent = "Retry locating addresses"; }
+  }
 }
 
 let timeOffSectionExpanded = false;
