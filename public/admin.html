@@ -1002,6 +1002,7 @@
       <h4 id="route-detail-title" style="margin:0 0 8px; font-size:14px;"></h4>
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:10px;">
         <a id="route-maps-link" href="#" target="_blank" class="btn-secondary" style="width:auto; text-decoration:none; display:inline-block; text-align:center;">Preview in Google Maps</a>
+        <button class="btn-primary" style="width:auto;" onclick="sendCurrentRoute()">Send route</button>
         <button class="btn-secondary" style="width:auto;" onclick="reoptimizeCurrentRoute()">Re-optimize</button>
         <button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="deleteCurrentRoute()">Delete route</button>
       </div>
@@ -1442,6 +1443,7 @@ const admin = {
   getRoute: (id) => apiFetch(`/api/admin/routing/${id}`),
   buildRoute: (body) => apiFetch("/api/admin/routing", { method: "POST", body }),
   reoptimizeRoute: (id) => apiFetch(`/api/admin/routing/${id}/reoptimize`, { method: "POST" }),
+  sendRoute: (id) => apiFetch(`/api/admin/routing/${id}/send`, { method: "POST" }),
   reorderRouteStops: (id, stopIds) => apiFetch(`/api/admin/routing/${id}/reorder`, { method: "PATCH", body: { stop_ids: stopIds } }),
   removeRouteStop: (routeId, stopId) => apiFetch(`/api/admin/routing/${routeId}/stops/${stopId}`, { method: "DELETE" }),
   deleteRoute: (id) => apiFetch(`/api/admin/routing/${id}`, { method: "DELETE" }),
@@ -2847,6 +2849,20 @@ async function removeRouteStop(stopId) {
     renderRouteDetail(updated);
   } catch (err) {
     alert(err.message || "Couldn't remove that stop.");
+  }
+}
+
+async function sendCurrentRoute() {
+  const route = window.currentRoute;
+  if (!route) return;
+  try {
+    const result = await admin.sendRoute(route.id);
+    const count = result && typeof result.notified === "number" ? result.notified : 0;
+    alert(count > 0
+      ? "Route sent to " + count + " employee" + (count === 1 ? "" : "s") + "."
+      : "Nothing to send -- this route has no assigned employee or team.");
+  } catch (err) {
+    alert(err.message || "Couldn't send this route.");
   }
 }
 

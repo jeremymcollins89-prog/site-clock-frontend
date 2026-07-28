@@ -929,6 +929,10 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
 
   if (!open) return null;
   const hasStops = route && route.stops && route.stops.length > 0;
+  const now = new Date();
+  const todayStr = now.getFullYear() + "-" + String(now.getMonth() + 1).padStart(2, "0") + "-" + String(now.getDate()).padStart(2, "0");
+  const routeDateStr = route && route.route_date ? String(route.route_date).slice(0, 10) : null;
+  const isRouteToday = routeDateStr === todayStr;
 
   return (
     <div
@@ -950,7 +954,7 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
           fontFamily: "'IBM Plex Mono', monospace",
         }}
       >
-        <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center justify-between mb-1">
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
             <Navigation size={14} /> Assigned routes
           </h2>
@@ -959,9 +963,15 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
           </button>
         </div>
 
+        {hasStops && !isRouteToday && (
+          <p className="text-xs mb-2" style={{ color: "#8A8578" }}>
+            For {formatDateShort(routeDateStr)} — not today
+          </p>
+        )}
+
         {!hasStops ? (
           <p className="text-sm py-6 text-center" style={{ color: "#8A8578" }}>
-            No route assigned for today. Check back once your admin builds one.
+            No route assigned right now. Check back once your admin builds one.
           </p>
         ) : (
           <>
