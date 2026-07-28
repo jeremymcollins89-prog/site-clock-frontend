@@ -94,6 +94,32 @@ async function getTodaysRoute() {
   return apiFetch("/api/schedule/routing/today");
 }
 
+// Read-only attachment access for the employee app -- metadata list plus a
+// blob-URL viewer, mirroring the pattern used in the admin pages'
+// viewAttachment. Employees can look at what's attached to a job but never
+// upload or delete (that's admin-only, see routes/attachments.js).
+async function getJobAttachments(jobId) {
+  return apiFetch(`/api/schedule/jobs/${jobId}/attachments`);
+}
+
+async function viewAttachment(id) {
+  const token = getToken();
+  const res = await fetch(`${API_BASE_URL}/api/schedule/attachments/${id}`, {
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let message = "Couldn't load that file.";
+    try {
+      const data = await res.json();
+      if (data.error) message = data.error;
+    } catch {}
+    throw new Error(message);
+  }
+  const blob = await res.blob();
+  const blobUrl = URL.createObjectURL(blob);
+  window.open(blobUrl, "_blank");
+}
+
 async function getChatUnreadCount() {
   return apiFetch("/api/chat/unread-count");
 }
@@ -187,6 +213,8 @@ export {
   requestTimeOff,
   cancelTimeOffRequest,
   getTodaysRoute,
+  getJobAttachments,
+  viewAttachment,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,

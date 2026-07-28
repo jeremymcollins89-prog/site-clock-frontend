@@ -15,6 +15,8 @@ import {
   requestTimeOff,
   cancelTimeOffRequest,
   getTodaysRoute,
+  getJobAttachments,
+  viewAttachment,
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
@@ -629,7 +631,31 @@ function EventCard({ job, onSelect }) {
 // Bottom-sheet with the full picture for one job: customer name, a tel:
 // link for the phone, a Google Maps directions link for the address, and
 // any notes. Tapping the dimmed backdrop closes it, same as the admin apps.
+function formatAttachmentSize(bytes) {
+  if (!bytes && bytes !== 0) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
 function JobDetailSheet({ job, onClose }) {
+  const [attachments, setAttachments] = useState([]);
+  const [attachmentsLoading, setAttachmentsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!job || job.event_type !== "job") {
+      setAttachments([]);
+      return;
+    }
+    let cancelled = false;
+    setAttachmentsLoading(true);
+    getJobAttachments(job.id)
+      .then((rows) => { if (!cancelled) setAttachments(rows); })
+      .catch(() => { if (!cancelled) setAttachments([]); })
+      .finally(() => { if (!cancelled) setAttachmentsLoading(false); });
+    return () => { cancelled = true; };
+  }, [job && job.id]);
+
   if (!job) return null;
   const jobAddress = formatAddress(job.customer_street, job.customer_city, job.customer_state, job.customer_zip);
   const dateLabel =
@@ -719,6 +745,29 @@ function JobDetailSheet({ job, onClose }) {
           <p className="text-sm mt-3 pt-3" style={{ color: "#5C6660", borderTop: `1px solid ${LINE}` }}>
             {job.notes}
           </p>
+        )}
+
+        {job.event_type === "job" && (attachmentsLoading || attachments.length > 0) && (
+          <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${LINE}` }}>
+            <div className="text-xs font-medium mb-2" style={{ color: "#8A8578" }}>Attachments</div>
+            {attachmentsLoading ? (
+              <div className="text-xs" style={{ color: "#8A8578" }}>Loading…</div>
+            ) : (
+              attachments.map((a) => (
+                <button
+                  key={a.id}
+                  onClick={() => viewAttachment(a.id).catch((err) => alert(err.message))}
+                  className="flex items-center justify-between w-full text-left text-sm mb-1"
+                  style={{ background: "transparent", border: "none", padding: "6px 0", color: RUST }}
+                >
+                  <span className="underline truncate">{a.file_name}</span>
+                  <span className="text-xs flex-shrink-0 ml-2" style={{ color: "#8A8578" }}>
+                    {formatAttachmentSize(a.file_size)}
+                  </span>
+                </button>
+              ))
+            )}
+          </div>
         )}
       </div>
     </div>
