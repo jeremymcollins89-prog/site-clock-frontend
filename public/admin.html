@@ -209,8 +209,13 @@
   .chat-composer input { flex: 1; margin-bottom: 0; }
 
   /* ---------- Employees ---------- */
-  .emp-card { display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
-  .emp-card .actions button { margin-left: 6px; }
+  /* flex-wrap lets the action buttons drop to their own row instead of
+     spilling past the card's rounded edge when a row has Edit +
+     Deactivate/Reactivate + Force clock out all at once (narrow phones
+     don't have room for all three plus the name on one line). */
+  .emp-card { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 8px; cursor: pointer; }
+  .emp-card .actions { display: flex; flex-wrap: wrap; gap: 6px; justify-content: flex-end; }
+  .emp-card .actions button { margin-left: 0; }
   .stat-row { display: flex; gap: 22px; margin: 12px 0 16px; }
   .stat-label { font-size: 10.5px; color: #8A8578; text-transform: uppercase; letter-spacing: 0.03em; }
   .stat-value {
