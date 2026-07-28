@@ -15,6 +15,7 @@ import {
   requestTimeOff,
   cancelTimeOffRequest,
   getTodaysRoute,
+  getCompanyLogo,
   getJobAttachments,
   viewAttachment,
   getChatUnreadCount,
@@ -1640,6 +1641,11 @@ export default function TimeClock() {
   const [checkingSession, setCheckingSession] = useState(true);
   const [loggedIn, setLoggedIn] = useState(false);
   const [employee, setEmployee] = useState(null);
+  // Company's uploaded logo (see admin apps' Settings > company logo card),
+  // shown in the header in place of the generic app name -- mirrors what
+  // the desktop/mobile admin apps already do. Null means none uploaded, so
+  // the header falls back to the plain "Site Clock" text.
+  const [companyLogo, setCompanyLogo] = useState(null);
 
 const [emailInput, setEmailInput] = useState("");
   const [pinInput, setPinInput] = useState("");
@@ -1817,6 +1823,7 @@ const [emailInput, setEmailInput] = useState("");
         setLoggedIn(true);
         await refreshFromServer();
         setupPushNotifications();
+        getCompanyLogo().then((data) => setCompanyLogo(data.logo)).catch(() => {});
       }
       setCheckingSession(false);
     })();
@@ -2187,6 +2194,7 @@ const [emailInput, setEmailInput] = useState("");
       setPinInput("");
       await refreshFromServer();
       setupPushNotifications();
+      getCompanyLogo().then((data) => setCompanyLogo(data.logo)).catch(() => {});
     } catch (err) {
       setLoginError(err.message || "Login failed.");
     }
@@ -2212,6 +2220,7 @@ const [emailInput, setEmailInput] = useState("");
     logout();
     setLoggedIn(false);
     setEmployee(null);
+    setCompanyLogo(null);
     setStatus("off");
     setEntryId(null);
     setLog([]);
@@ -2467,10 +2476,18 @@ const [emailInput, setEmailInput] = useState("");
       {activeAnimation === "birthday" && <BirthdayOverlay name={employee?.name} onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "rocket" && <RocketLaunchOverlay onDone={() => setActiveAnimation(null)} />}
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
-        <div className="flex items-baseline justify-between mb-1">
-          <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
-            Site Clock
-          </h1>
+        <div className="flex items-center justify-between mb-1">
+          {companyLogo ? (
+            <img
+              src={companyLogo}
+              alt="Company logo"
+              style={{ maxHeight: 40, maxWidth: 180, borderRadius: 6, background: "#fff", padding: 3, objectFit: "contain" }}
+            />
+          ) : (
+            <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
+              Site Clock
+            </h1>
+          )}
           <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
             <LogOut size={12} /> {employee?.name}
           </button>

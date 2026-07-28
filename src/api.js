@@ -94,6 +94,12 @@ async function getTodaysRoute() {
   return apiFetch("/api/schedule/routing/today");
 }
 
+// Read-only mirror of the admin apps' company-logo card -- lets the header
+// show the same branding the admin apps do instead of the generic app name.
+async function getCompanyLogo() {
+  return apiFetch("/api/schedule/company-logo");
+}
+
 // Read-only attachment access for the employee app -- metadata list plus a
 // blob-URL viewer, mirroring the pattern used in the admin pages'
 // viewAttachment. Employees can look at what's attached to a job but never
@@ -213,6 +219,7 @@ export {
   requestTimeOff,
   cancelTimeOffRequest,
   getTodaysRoute,
+  getCompanyLogo,
   getJobAttachments,
   viewAttachment,
   getChatUnreadCount,
