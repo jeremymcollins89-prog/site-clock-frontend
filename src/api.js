@@ -34,7 +34,15 @@ async function apiFetch(path, { method = "GET", body } = {}) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (parseErr) {
+    // The server returned something that isn't JSON at all (a plain
+    // 404/502 error page rather than our API actually responding) --
+    // surface a clear message instead of a cryptic parse error.
+    throw new Error(`The server didn't respond as expected (status ${res.status}). Please try again in a moment.`);
+  }
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
@@ -92,6 +100,22 @@ async function cancelTimeOffRequest(id) {
 
 async function getTodaysRoute() {
   return apiFetch("/api/schedule/routing/today");
+}
+
+// Only ever returns pull sheets tied to a job this employee is assigned to
+// (solo/manual pull sheets aren't tied to any job, so they never show up
+// here). Calling this list is also what clears the "new pull sheet" badge --
+// see GET /api/schedule/pull-sheets on the backend.
+async function getMyPullSheets() {
+  return apiFetch("/api/schedule/pull-sheets");
+}
+
+async function getPullSheetsUnseenCount() {
+  return apiFetch("/api/schedule/pull-sheets/unseen-count");
+}
+
+async function getMyPullSheet(id) {
+  return apiFetch(`/api/schedule/pull-sheets/${id}`);
 }
 
 // Read-only mirror of the admin apps' company-logo card -- lets the header
@@ -234,4 +258,7 @@ export {
   getVapidPublicKey,
   subscribePush,
   unsubscribePush,
+  getMyPullSheets,
+  getPullSheetsUnseenCount,
+  getMyPullSheet,
 };

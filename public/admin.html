@@ -222,6 +222,7 @@
     font-size: 22px; font-weight: 800;
     background: linear-gradient(135deg, var(--charcoal), #3a4440);
     -webkit-background-clip: text; background-clip: text; color: transparent;
+    overflow-wrap: break-word; word-break: break-word;
   }
   .stat-value.accent {
     background: linear-gradient(135deg, var(--rust), var(--rust-deep));
@@ -1516,7 +1517,16 @@ async function apiFetch(path, { method = "GET", body } = {}) {
     },
     body: body ? JSON.stringify(body) : undefined,
   });
-  const data = await res.json();
+  let data;
+  try {
+    data = await res.json();
+  } catch (parseErr) {
+    // The server returned something that isn't JSON at all -- a plain
+    // 404/502 error page rather than our API actually responding. Surfacing
+    // the raw parse error ("Unexpected token < in JSON") is meaningless, so
+    // give a message that points at the real, actionable cause instead.
+    throw new Error(`The server didn't respond as expected (status ${res.status}). If you just deployed an update, give it a minute and try again.`);
+  }
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }

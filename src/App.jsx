@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -29,6 +29,8 @@ import {
   sendTeamMessage,
   getVapidPublicKey,
   subscribePush,
+  getMyPullSheets,
+  getPullSheetsUnseenCount,
 } from "./api.js";
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
@@ -918,6 +920,95 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
   );
 }
 
+const PULL_SHEET_STATUS_STYLE = {
+  open: { bg: "#FBEFD6", color: "#8A5A00", label: "Open" },
+  fulfilled: { bg: "#DDEFE6", color: "#0A7A45", label: "Fulfilled" },
+};
+
+// Bottom sheet reachable from the "Pull sheets" entry in CalendarView's
+// hamburger menu. Read-only for employees -- an admin builds and fulfills
+// pull sheets in the admin app; this is just a copy of what's being pulled
+// for a job they're assigned to, so they know what's already been grabbed
+// off the shelf without having to ask. Only ever shows job-based sheets
+// (built from a quote/invoice tied to a job the employee is on) -- solo/
+// manual pull sheets aren't tied to any job and never appear here (see
+// GET /api/schedule/pull-sheets on the backend).
+function PullSheetsSheet({ open, onClose, pullSheets, loading }) {
+  if (!open) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 100 }}
+      className="flex items-end"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: PAPER,
+          width: "100%",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
+          padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
+            <ClipboardList size={14} /> Pull sheets
+          </h2>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+            &times;
+          </button>
+        </div>
+
+        {loading ? (
+          <p className="text-xs py-6 text-center" style={{ color: "#8A8578" }}>Loading...</p>
+        ) : pullSheets.length === 0 ? (
+          <p className="text-xs py-6 text-center" style={{ color: "#8A8578" }}>
+            No pull sheets for your jobs yet.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-2">
+            {pullSheets.map((sheet) => {
+              const style = PULL_SHEET_STATUS_STYLE[sheet.status] || PULL_SHEET_STATUS_STYLE.open;
+              return (
+                <div key={sheet.id} style={{ background: "#fff", border: `1px solid ${LINE}` }} className="rounded-xl p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-sm font-medium">{sheet.source_label}</span>
+                    <span
+                      className="rounded"
+                      style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: style.bg, color: style.color }}
+                    >
+                      {style.label}
+                    </span>
+                  </div>
+                  {sheet.customer_name && (
+                    <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{sheet.customer_name}</div>
+                  )}
+                  <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>
+                    Built {formatDateShort(sheet.created_at)}
+                  </div>
+                  <div className="mt-2 flex flex-col gap-1">
+                    {sheet.items.map((item) => (
+                      <div key={item.id} className="flex items-center justify-between text-sm">
+                        <span>{item.name}</span>
+                        <span style={{ color: "#8A8578" }}>x{item.quantity}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Bottom sheet opened from the "Assigned routes" pill button next to Time
 // off in CalendarView's header (see below). Shows a Leaflet map with the
 // numbered stops + a dashed round-trip line back to the shop, the same
@@ -1058,11 +1149,11 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
   );
 }
 
-function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount, onOpenRoute, hasRouteToday }) {
+function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount, onOpenRoute, hasRouteToday, onOpenPullSheets, pullSheetsCount }) {
   const [selectedDay, setSelectedDay] = useState(todayStr());
   const [selectedJob, setSelectedJob] = useState(null);
   const [showScheduleMenu, setShowScheduleMenu] = useState(false);
-  const hasScheduleMenuBadge = hasRouteToday || timeOffPendingCount > 0;
+  const hasScheduleMenuBadge = hasRouteToday || timeOffPendingCount > 0 || pullSheetsCount > 0;
 
   const jobsByDate = {};
   schedule.forEach((job) => {
@@ -1141,6 +1232,19 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                     {timeOffPendingCount > 0 && (
                       <span style={{ marginLeft: "auto", background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
                         {timeOffPendingCount}
+                      </span>
+                    )}
+                  </button>
+                  <div style={{ height: 1, background: LINE }} />
+                  <button
+                    onClick={() => { setShowScheduleMenu(false); onOpenPullSheets(); }}
+                    className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
+                    style={{ color: CHARCOAL, background: "#fff", border: "none", textAlign: "left" }}
+                  >
+                    <ClipboardList size={14} /> Pull sheets
+                    {pullSheetsCount > 0 && (
+                      <span style={{ marginLeft: "auto", background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                        {pullSheetsCount}
                       </span>
                     )}
                   </button>
@@ -1712,6 +1816,10 @@ const [emailInput, setEmailInput] = useState("");
   const [scheduleUnseenCount, setScheduleUnseenCount] = useState(0);
   const [showTimeOffSheet, setShowTimeOffSheet] = useState(false);
   const [showRouteSheet, setShowRouteSheet] = useState(false);
+  const [showPullSheetsSheet, setShowPullSheetsSheet] = useState(false);
+  const [pullSheets, setPullSheets] = useState([]);
+  const [pullSheetsLoading, setPullSheetsLoading] = useState(false);
+  const [pullSheetsUnseenCount, setPullSheetsUnseenCount] = useState(0);
   const [timeOffRequests, setTimeOffRequests] = useState([]);
   const [timeOffLoading, setTimeOffLoading] = useState(false);
   const [timeOffForm, setTimeOffForm] = useState({ start_date: "", end_date: "", note: "" });
@@ -1926,6 +2034,36 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  // Full list, with items included, for every quote/invoice-based pull
+  // sheet tied to a job this employee is assigned to. The menu badge count
+  // is just "how many of these are still open" (mirrors the Time off
+  // badge's pending count), so keep it in sync with whatever was just
+  // loaded rather than a separate "seen" concept.
+  async function loadPullSheets() {
+    setPullSheetsLoading(true);
+    try {
+      const rows = await getMyPullSheets();
+      setPullSheets(rows);
+      setPullSheetsUnseenCount(rows.filter((r) => r.status === "open").length);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setPullSheetsLoading(false);
+    }
+  }
+
+  // Lightweight background poll for the menu badge (see interval effect
+  // below) -- avoids fetching every pull sheet's full item list just to
+  // show a count.
+  async function refreshPullSheetsUnseenCount() {
+    try {
+      const { count } = await getPullSheetsUnseenCount();
+      setPullSheetsUnseenCount(count);
+    } catch {
+      // non-fatal — badge just won't update this cycle
+    }
+  }
+
   // Opens the real Google Maps app with every stop pre-loaded in the
   // optimized order, ending back at the shop -- a free deep link (no API
   // key/cost). Uses the employee's current location as the starting point
@@ -2135,6 +2273,7 @@ const [emailInput, setEmailInput] = useState("");
       loadSchedule(scheduleMonthAnchor);
       loadTimeOffRequests();
       loadTodaysRoute();
+      loadPullSheets();
     }
     if (view === "customers" && loggedIn) loadCustomers();
     if (view === "chat" && loggedIn) {
@@ -2155,10 +2294,12 @@ const [emailInput, setEmailInput] = useState("");
     refreshChatUnreadCount();
     refreshScheduleUnseenCount();
     refreshTeamUnreadCount();
+    if (view !== "schedule") refreshPullSheetsUnseenCount();
     const interval = setInterval(() => {
       if (view !== "chat" || chatSubtab !== "direct") refreshChatUnreadCount();
       if (view !== "schedule") refreshScheduleUnseenCount();
       if (view !== "chat" || chatSubtab !== "team") refreshTeamUnreadCount();
+      if (view !== "schedule") refreshPullSheetsUnseenCount();
     }, 15000);
     return () => clearInterval(interval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2536,6 +2677,12 @@ const [emailInput, setEmailInput] = useState("");
               route={todaysRoute}
               onStartRoute={startRoute}
             />
+            <PullSheetsSheet
+              open={showPullSheetsSheet}
+              onClose={() => setShowPullSheetsSheet(false)}
+              pullSheets={pullSheets}
+              loading={pullSheetsLoading}
+            />
             <CalendarView
               schedule={schedule}
               loading={scheduleLoading}
@@ -2547,6 +2694,8 @@ const [emailInput, setEmailInput] = useState("");
               timeOffPendingCount={timeOffRequests.filter((r) => r.status === "pending").length}
               onOpenRoute={() => setShowRouteSheet(true)}
               hasRouteToday={Boolean(todaysRoute && todaysRoute.stops && todaysRoute.stops.length > 0)}
+              onOpenPullSheets={() => { setShowPullSheetsSheet(true); loadPullSheets(); }}
+              pullSheetsCount={pullSheetsUnseenCount}
             />
             <TimeOffSheet
               open={showTimeOffSheet}
