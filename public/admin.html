@@ -644,7 +644,10 @@
     <section id="view-inventory" class="view">
       <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
         <h2>Inventory</h2>
-        <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="goToNewCatalogItem()">+ New item</button>
+        <div style="display:flex; gap:6px;">
+          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="openBuildPullSheetSheet()">Build Pull Sheet</button>
+          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="goToNewCatalogItem()">+ New item</button>
+        </div>
       </div>
 
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
@@ -664,6 +667,18 @@
           <table>
             <thead><tr><th>Item</th><th>Available</th><th>On hold</th><th>Unit cost</th><th>Total value</th></tr></thead>
             <tbody id="inventory-items-body"></tbody>
+          </table>
+        </div>
+
+        <div class="card" style="margin-top:16px;">
+          <h3 style="margin-top:0; font-size:15px;">Pull sheets</h3>
+          <p style="font-size:12px; color:#8A8578; margin-top:-8px;">
+            Picking lists built from a quote or invoice's inventory-tracked items. Marking one fulfilled removes those
+            quantities from stock -- building one on its own doesn't change any numbers yet.
+          </p>
+          <table>
+            <thead><tr><th>Job</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
+            <tbody id="pull-sheets-list-body"></tbody>
           </table>
         </div>
       </div>
@@ -1385,6 +1400,33 @@
   </div>
 </div>
 
+<div class="sheet" id="pull-sheet-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closePullSheetSheet()">&times;</button>
+    <h2 id="pull-sheet-sheet-title">Build pull sheet</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="pull-sheet-sheet-error" class="error" style="display:none;"></div>
+
+    <div id="pull-sheet-picker-step">
+      <p style="font-size:12px; color:#8A8578;">Choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
+      <div id="pull-sheet-source-list"></div>
+    </div>
+
+    <div id="pull-sheet-detail-step" style="display:none;">
+      <div id="pull-sheet-detail-header" style="margin-bottom:10px; font-size:13px; color:#8A8578;"></div>
+      <table>
+        <thead><tr><th>Item</th><th>Quantity</th></tr></thead>
+        <tbody id="pull-sheet-detail-items"></tbody>
+      </table>
+      <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-small" style="background:var(--charcoal);" onclick="viewPullSheetPdf(currentPullSheetId)">Print / PDF</button>
+        <button class="btn-primary" id="pull-sheet-fulfill-btn" onclick="fulfillPullSheetFromSheet()">Mark fulfilled</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <div class="sheet" id="report-breakdown-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeReportBreakdownSheet()">&times;</button>
@@ -1672,6 +1714,34 @@ const admin = {
 
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
   getInventory: () => apiFetch("/api/admin/inventory"),
+  getPullSheetSources: () => apiFetch("/api/admin/pull-sheets/sources"),
+  listPullSheets: () => apiFetch("/api/admin/pull-sheets"),
+  getPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`),
+  buildPullSheet: (sourceType, sourceId) =>
+    apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: sourceType, source_id: sourceId } }),
+  fulfillPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}/fulfill`, { method: "PATCH" }),
+  deletePullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`, { method: "DELETE" }),
+  // Same blob-URL pattern as viewInvoicePdf.
+  viewPullSheetPdf: async (id) => {
+    const token = getToken();
+    const res = await fetch(`${API_BASE_URL}/api/admin/pull-sheets/${id}/pdf`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) {
+      let message = "Couldn't load pull sheet PDF";
+      try {
+        const data = await res.json();
+        message = data.error || message;
+      } catch (parseErr) {
+        // response wasn't JSON -- keep the generic message
+      }
+      throw new Error(message);
+    }
+    const blob = await res.blob();
+    const blobUrl = URL.createObjectURL(blob);
+    window.open(blobUrl, "_blank");
+    return true;
+  },
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
   deleteCatalogItem: (id) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "DELETE" }),
@@ -1838,7 +1908,7 @@ function showView(name) {
   document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
   window.scrollTo(0, 0);
   if (name === "settings") refreshStripeConnectCard();
-  if (name === "inventory") loadInventory();
+  if (name === "inventory") { loadInventory(); loadPullSheets(); }
 }
 
 // ---------- Swipe left/right to switch tabs (mobile touch) ----------
@@ -5679,6 +5749,155 @@ async function saveInventorySettingsRow(itemId) {
     errEl.textContent = err.message || "Couldn't save this item's inventory settings.";
     errEl.style.display = "block";
   }
+}
+
+// ---------- Pull sheets ----------
+// A picking list built from a specific quote or invoice's inventory-tracked
+// line items. Building one is just a snapshot (admin.buildPullSheet) -- no
+// stock numbers change until it's marked fulfilled, which is the one action
+// that actually removes those quantities from stock.
+let currentPullSheetId = null;
+
+async function loadPullSheets() {
+  const body = document.getElementById("pull-sheets-list-body");
+  if (!body) return;
+  try {
+    const sheets = await admin.listPullSheets();
+    if (sheets.length === 0) {
+      body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">No pull sheets built yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = sheets.map(function(s) {
+      const statusBadge = s.status === "fulfilled"
+        ? '<span style="color: var(--teal); font-weight:600;">Fulfilled</span>'
+        : '<span style="color:#8A8578;">Open</span>';
+      const actions = '<button class="save-btn" style="background: var(--teal-deep); margin-right:6px;" onclick="viewPullSheetPdf(\'' + s.id + '\')">Print</button>' +
+        (s.status === "open"
+          ? '<button class="save-btn" style="background: var(--teal); margin-right:6px;" onclick="fulfillPullSheetFromList(\'' + s.id + '\')">Fulfill</button>' +
+            '<button class="save-btn" style="background: #C1502E;" onclick="deletePullSheetConfirm(\'' + s.id + '\')">Delete</button>'
+          : '');
+      return '<tr>' +
+        '<td>' + escapeHtml(s.source_label || "") + '</td>' +
+        '<td>' + escapeHtml(s.customer_name || "") + '</td>' +
+        '<td>' + s.item_count + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td style="white-space:nowrap;">' + actions + '</td>' +
+      '</tr>';
+    }).join("");
+  } catch (err) {
+    body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">Couldn\'t load pull sheets.</td></tr>';
+  }
+}
+
+async function openBuildPullSheetSheet() {
+  currentPullSheetId = null;
+  document.getElementById("pull-sheet-sheet-title").textContent = "Build pull sheet";
+  document.getElementById("pull-sheet-sheet-error").style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "";
+  document.getElementById("pull-sheet-detail-step").style.display = "none";
+  const list = document.getElementById("pull-sheet-source-list");
+  list.innerHTML = '<p style="font-size:12px; color:#8A8578;">Loading...</p>';
+  document.getElementById("pull-sheet-sheet").classList.add("visible");
+
+  try {
+    const sources = await admin.getPullSheetSources();
+    const rows = [].concat(
+      sources.quotes.map(function(q) { return { source_type: "quote", id: q.id, label: "Quote #" + q.number, customer_name: q.customer_name }; }),
+      sources.invoices.map(function(i) { return { source_type: "invoice", id: i.id, label: "Invoice #" + i.number, customer_name: i.customer_name }; })
+    );
+    if (rows.length === 0) {
+      list.innerHTML = '<p style="font-size:12px; color:#8A8578;">No open quotes or invoices have inventory-tracked items left to pull.</p>';
+      return;
+    }
+    list.innerHTML = rows.map(function(r) {
+      return '<div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;" ' +
+        'onclick="selectPullSheetSource(\'' + r.source_type + '\', \'' + r.id + '\')">' +
+        '<div><strong>' + escapeHtml(r.label) + '</strong><div style="font-size:12px; color:#8A8578;">' + escapeHtml(r.customer_name) + '</div></div>' +
+        '<span style="color:#8A8578;">&rsaquo;</span>' +
+      '</div>';
+    }).join("");
+  } catch (err) {
+    list.innerHTML = '<p style="font-size:12px; color:#8A8578;">Couldn\'t load quotes/invoices.</p>';
+  }
+}
+
+async function selectPullSheetSource(sourceType, sourceId) {
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  errEl.style.display = "none";
+  try {
+    const sheet = await admin.buildPullSheet(sourceType, sourceId);
+    currentPullSheetId = sheet.id;
+    renderPullSheetDetailStep(sheet);
+    loadPullSheets();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't build pull sheet.";
+    errEl.style.display = "block";
+  }
+}
+
+function renderPullSheetDetailStep(sheet) {
+  document.getElementById("pull-sheet-sheet-title").textContent = sheet.source_label || "Pull sheet";
+  document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-detail-step").style.display = "";
+  document.getElementById("pull-sheet-detail-header").textContent =
+    (sheet.customer_name || "") + (sheet.status === "fulfilled" ? " -- fulfilled" : " -- not yet fulfilled");
+  document.getElementById("pull-sheet-detail-items").innerHTML = (sheet.items || []).map(function(item) {
+    return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td></tr>';
+  }).join("");
+  const fulfillBtn = document.getElementById("pull-sheet-fulfill-btn");
+  fulfillBtn.style.display = sheet.status === "fulfilled" ? "none" : "";
+}
+
+async function fulfillPullSheetFromSheet() {
+  if (!currentPullSheetId) return;
+  if (!confirm("Mark this pull sheet fulfilled? This removes these quantities from stock.")) return;
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  errEl.style.display = "none";
+  try {
+    await admin.fulfillPullSheet(currentPullSheetId);
+    const sheet = await admin.getPullSheet(currentPullSheetId);
+    renderPullSheetDetailStep(sheet);
+    loadPullSheets();
+    if (document.getElementById("inventory-items-body")) loadInventory();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't mark this pull sheet fulfilled.";
+    errEl.style.display = "block";
+  }
+}
+
+async function fulfillPullSheetFromList(id) {
+  if (!confirm("Mark this pull sheet fulfilled? This removes these quantities from stock.")) return;
+  try {
+    await admin.fulfillPullSheet(id);
+    loadPullSheets();
+    if (document.getElementById("inventory-items-body")) loadInventory();
+  } catch (err) {
+    alert(err.message || "Couldn't mark this pull sheet fulfilled.");
+  }
+}
+
+async function deletePullSheetConfirm(id) {
+  if (!confirm("Delete this pull sheet? This only removes the sheet itself -- it hasn't changed any inventory yet.")) return;
+  try {
+    await admin.deletePullSheet(id);
+    loadPullSheets();
+  } catch (err) {
+    alert(err.message || "Couldn't delete this pull sheet.");
+  }
+}
+
+async function viewPullSheetPdf(id) {
+  if (!id) return;
+  try {
+    await admin.viewPullSheetPdf(id);
+  } catch (err) {
+    alert(err.message || "Couldn't open that pull sheet's PDF.");
+  }
+}
+
+function closePullSheetSheet() {
+  document.getElementById("pull-sheet-sheet").classList.remove("visible");
+  currentPullSheetId = null;
 }
 
 // ---------- Catalog items ----------
