@@ -549,7 +549,10 @@
               all optional -- if a row has a Quantity or Cost, inventory tracking turns on for that item automatically. Rows
               matching an existing item's name are skipped.
             </p>
-            <div id="catalog-items-list"></div>
+            <button class="btn-small" id="catalog-list-toggle-btn" style="background:var(--charcoal); margin-top:2px;" onclick="toggleCatalogItemsList()">Show catalog items</button>
+            <div id="catalog-items-list-wrapper" style="display:none; margin-top:8px;">
+              <div id="catalog-items-list"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -639,7 +642,10 @@
     </section>
 
     <section id="view-inventory" class="view">
-      <div class="view-header"><h2>Inventory</h2></div>
+      <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+        <h2>Inventory</h2>
+        <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="goToNewCatalogItem()">+ New item</button>
+      </div>
 
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
         <button class="billing-subtab-btn active" data-inventory-subtab="items" onclick="showInventorySubtab('items')">Items</button>
@@ -5561,6 +5567,15 @@ function renderNetProfitBreakdown(summary, breakdown, start, end) {
 }
 
 // ---------- Inventory ----------
+// Jumps over to Billing -> Catalog and opens the new-item sheet directly, so
+// adding a brand-new item to track doesn't require first finding the
+// Catalog sub-tab on your own.
+function goToNewCatalogItem() {
+  showView("invoices");
+  showBillingSubtab("catalog");
+  openCatalogItemSheet();
+}
+
 function showInventorySubtab(name) {
   document.querySelectorAll("[data-inventory-subtab]").forEach(function(b) {
     b.classList.toggle("active", b.dataset.inventorySubtab === name);
@@ -5674,18 +5689,46 @@ async function saveInventorySettingsRow(itemId) {
 window.allCatalogItems = [];
 let editingCatalogItemId = null;
 
+// The full item list is collapsed behind a toggle by default -- with
+// potentially hundreds of catalog items (see the inventory bulk import),
+// showing every one of them as soon as you land on the Catalog sub-tab made
+// it unusable. The quick search dropdown above still works either way for
+// jumping straight to one item; this only affects the full always-there list.
+let catalogListExpanded = false;
+
+function applyCatalogListExpandedState() {
+  const wrapper = document.getElementById("catalog-items-list-wrapper");
+  const btn = document.getElementById("catalog-list-toggle-btn");
+  if (!wrapper || !btn) return;
+  wrapper.style.display = catalogListExpanded ? "" : "none";
+  btn.textContent = catalogListExpanded ? "Hide catalog items" : "Show catalog items";
+}
+
+function toggleCatalogItemsList() {
+  catalogListExpanded = !catalogListExpanded;
+  applyCatalogListExpandedState();
+}
+
 async function loadCatalogItems() {
   window.allCatalogItems = await admin.listCatalogItems();
   const badge = document.getElementById("catalog-count-badge");
   if (badge) badge.textContent = window.allCatalogItems.length ? "(" + window.allCatalogItems.length + ")" : "";
   renderCatalogItemsList();
+  applyCatalogListExpandedState();
   populateInvoiceCatalogPicker();
   populateQuoteCatalogPicker();
   renderBillingOverview();
 }
 
+// Typing an actual search term also auto-expands the full list below so its
+// (now filtered) rows are visible too, without an extra click.
 function onCatalogSearchInput() {
   renderCatalogSearchDropdown();
+  const searchInput = document.getElementById("catalog-search-input");
+  if (searchInput && searchInput.value.trim() && !catalogListExpanded) {
+    catalogListExpanded = true;
+    applyCatalogListExpandedState();
+  }
   renderCatalogItemsList();
 }
 
