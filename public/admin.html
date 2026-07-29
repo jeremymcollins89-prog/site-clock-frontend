@@ -636,6 +636,42 @@
       </div>
     </section>
 
+    <section id="view-inventory" class="view">
+      <div class="view-header"><h2>Inventory</h2></div>
+
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
+        <button class="billing-subtab-btn active" data-inventory-subtab="items" onclick="showInventorySubtab('items')">Items</button>
+        <button class="billing-subtab-btn" data-inventory-subtab="settings" onclick="showInventorySubtab('settings')">Settings</button>
+      </div>
+
+      <div id="inventory-subtab-items">
+        <div id="inventory-summary-bubbles" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;"></div>
+        <div class="card">
+          <h3 style="margin-top:0; font-size:15px;">Inventory</h3>
+          <p style="font-size:12px; color:#8A8578; margin-top:-8px;">
+            Items quoted or invoiced show up "on hold" here until that invoice is paid, at which point they're removed
+            from stock for good. Turn tracking on for a catalog item and set its starting quantity/cost in the
+            Settings tab above.
+          </p>
+          <table>
+            <thead><tr><th>Item</th><th>Available</th><th>On hold</th><th>Unit cost</th><th>Total value</th></tr></thead>
+            <tbody id="inventory-items-body"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="inventory-subtab-settings" style="display:none;">
+        <div class="card">
+          <h3 style="margin-top:0; font-size:15px;">Inventory settings</h3>
+          <p style="font-size:12px; color:#8A8578; margin-top:-8px;">
+            Turn on tracking for any catalog item, set its quantity on hand and cost, and set the low inventory
+            level that triggers an alert. Editing quantity on hand here is also how you record a restock.
+          </p>
+          <div id="inventory-settings-list"></div>
+        </div>
+      </div>
+    </section>
+
     <section id="view-reports" class="view">
       <div class="view-header"><h2>Reports</h2></div>
       <div class="card">
@@ -835,6 +871,7 @@
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
     <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Billing</button>
+    <button class="nav-btn" data-view="inventory" onclick="showView('inventory')"><span class="dot"></span>Inventory</button>
     <button class="nav-btn" data-view="reports" onclick="showView('reports')"><span class="dot"></span>Reports</button>
     <button class="nav-btn" data-view="chat" onclick="showView('chat')"><span class="nav-badge" id="chat-nav-badge" style="display:none;"></span><span class="dot"></span>Chat</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
@@ -1626,6 +1663,7 @@ const admin = {
   deleteExpense: (id) => apiFetch(`/api/admin/expenses/${id}`, { method: "DELETE" }),
 
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
+  getInventory: () => apiFetch("/api/admin/inventory"),
   addCatalogItem: (item) => apiFetch("/api/admin/catalog-items", { method: "POST", body: item }),
   updateCatalogItem: (id, patch) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "PATCH", body: patch }),
   deleteCatalogItem: (id) => apiFetch(`/api/admin/catalog-items/${id}`, { method: "DELETE" }),
@@ -1792,6 +1830,7 @@ function showView(name) {
   document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
   window.scrollTo(0, 0);
   if (name === "settings") refreshStripeConnectCard();
+  if (name === "inventory") loadInventory();
 }
 
 // ---------- Swipe left/right to switch tabs (mobile touch) ----------
@@ -1803,7 +1842,7 @@ function showView(name) {
 // generically via ".sheet.visible" rather than naming each one, since new
 // sheets get added often) so swiping inside one can't change tabs
 // underneath it.
-const NAV_VIEW_ORDER = ["overview", "employees", "schedule", "customers", "invoices", "reports", "chat", "settings"];
+const NAV_VIEW_ORDER = ["overview", "employees", "schedule", "customers", "invoices", "inventory", "reports", "chat", "settings"];
 let tabSwipeStart = null;
 
 function handleTabSwipeStart(e) {
@@ -4267,6 +4306,10 @@ function addInvoiceLineItemRow(item) {
   const list = document.getElementById("invoice-line-items-list");
   const row = document.createElement("div");
   row.className = "line-item-row";
+  // Carries the catalog item this row was added from (if any) so inventory
+  // holds can be placed/released for the right item -- not shown in the UI,
+  // just tagged on the row for readInvoiceLineItems() to pick back up.
+  row.dataset.catalogItemId = item && item.catalog_item_id ? item.catalog_item_id : "";
   row.innerHTML =
     '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? item.description.replace(/"/g, "&quot;") : "") + '" oninput="recalcInvoiceTotals()" />' +
     '<div style="display:flex; gap:8px;">' +
@@ -4292,6 +4335,7 @@ function readInvoiceLineItems() {
       description: row.querySelector(".line-item-desc").value.trim(),
       quantity: Number(row.querySelector(".line-item-qty").value) || 0,
       unit_price: Number(row.querySelector(".line-item-price").value) || 0,
+      catalog_item_id: row.dataset.catalogItemId || null,
     };
   });
 }
@@ -4709,6 +4753,9 @@ function addQuoteLineItemRow(item) {
   const list = document.getElementById("quote-line-items-list");
   const row = document.createElement("div");
   row.className = "line-item-row";
+  // Same catalog-item tagging as addInvoiceLineItemRow() -- lets inventory
+  // holds be placed/released for the right item on quote save.
+  row.dataset.catalogItemId = item && item.catalog_item_id ? item.catalog_item_id : "";
   row.innerHTML =
     '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? item.description.replace(/"/g, "&quot;") : "") + '" oninput="recalcQuoteTotals()" />' +
     '<div style="display:flex; gap:8px;">' +
@@ -4734,6 +4781,7 @@ function readQuoteLineItems() {
       description: row.querySelector(".line-item-desc").value.trim(),
       quantity: Number(row.querySelector(".line-item-qty").value) || 0,
       unit_price: Number(row.querySelector(".line-item-price").value) || 0,
+      catalog_item_id: row.dataset.catalogItemId || null,
     };
   });
 }
@@ -4807,7 +4855,7 @@ function addLineItemFromCatalogToQuote() {
   const picker = document.getElementById("quote-catalog-picker");
   if (!picker.value) return;
   const item = (window.allCatalogItems || []).find(function(i) { return i.id === picker.value; });
-  if (item) addQuoteLineItemRow({ description: item.name, quantity: 1, unit_price: item.unit_price });
+  if (item) addQuoteLineItemRow({ description: item.name, quantity: 1, unit_price: item.unit_price, catalog_item_id: item.id });
   picker.value = "";
 }
 
@@ -5510,6 +5558,112 @@ function renderNetProfitBreakdown(summary, breakdown, start, end) {
     '</div>';
 }
 
+// ---------- Inventory ----------
+function showInventorySubtab(name) {
+  document.querySelectorAll("[data-inventory-subtab]").forEach(function(b) {
+    b.classList.toggle("active", b.dataset.inventorySubtab === name);
+  });
+  document.getElementById("inventory-subtab-items").style.display = name === "items" ? "" : "none";
+  document.getElementById("inventory-subtab-settings").style.display = name === "settings" ? "" : "none";
+  if (name === "settings") renderInventorySettingsList();
+}
+
+async function loadInventory() {
+  const bubblesEl = document.getElementById("inventory-summary-bubbles");
+  const bodyEl = document.getElementById("inventory-items-body");
+  try {
+    const data = await admin.getInventory();
+    bubblesEl.innerHTML =
+      renderReportStatCard("Total inventory value", fmtMoney(data.total_value)) +
+      renderReportStatCard("Total on hold", fmtMoney(data.total_on_hold_value));
+
+    if (data.items.length === 0) {
+      bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">' +
+        'No items are tracked yet -- turn on tracking for a catalog item in the Settings tab above.</td></tr>';
+      return;
+    }
+    bodyEl.innerHTML = data.items.map(function(item) {
+      const totalValue = Number(item.quantity_on_hand) * Number(item.unit_cost || 0);
+      return '<tr>' +
+        '<td>' + escapeHtml(item.name) + '</td>' +
+        '<td>' + item.quantity_available + '</td>' +
+        '<td>' + item.quantity_on_hold + '</td>' +
+        '<td>' + fmtMoney(item.unit_cost || 0) + '</td>' +
+        '<td>' + fmtMoney(totalValue) + '</td>' +
+      '</tr>';
+    }).join("");
+  } catch (err) {
+    bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">Couldn\'t load inventory.</td></tr>';
+  }
+}
+
+// Lists every catalog item (not just tracked ones) so tracking can be turned
+// on for the first time. Relies on window.allCatalogItems already being
+// loaded by loadCatalogItems() (called at startup and whenever the Catalog
+// sub-tab changes), rather than fetching separately.
+function renderInventorySettingsList() {
+  const list = document.getElementById("inventory-settings-list");
+  const items = window.allCatalogItems || [];
+  if (items.length === 0) {
+    list.innerHTML = '<p style="font-size:13px; color:#8A8578;">No catalog items yet -- add one in Billing &rarr; Catalog first.</p>';
+    return;
+  }
+  list.innerHTML = items.map(function(item) {
+    return '<div class="card" style="margin-bottom:10px;" id="inv-setting-row-' + item.id + '">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">' +
+        '<strong>' + escapeHtml(item.name) + '</strong>' +
+        '<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; margin-bottom:0;">' +
+          '<input type="checkbox" id="inv-track-' + item.id + '" ' + (item.track_inventory ? "checked" : "") + ' style="width:auto; padding:0; margin:0;" /> Track inventory' +
+        '</label>' +
+      '</div>' +
+      '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">' +
+        '<div style="flex:1; min-width:120px;">' +
+          '<label style="font-size:11px; color:#8A8578; display:block; margin-bottom:4px;">Quantity on hand</label>' +
+          '<input type="number" min="0" step="1" id="inv-qty-' + item.id + '" value="' + (item.quantity_on_hand || 0) + '" style="margin-bottom:0;" />' +
+        '</div>' +
+        '<div style="flex:1; min-width:120px;">' +
+          '<label style="font-size:11px; color:#8A8578; display:block; margin-bottom:4px;">Unit cost</label>' +
+          '<input type="number" min="0" step="0.01" id="inv-cost-' + item.id + '" value="' + (item.unit_cost != null ? Number(item.unit_cost) : "") + '" style="margin-bottom:0;" />' +
+        '</div>' +
+        '<div style="flex:1; min-width:120px;">' +
+          '<label style="font-size:11px; color:#8A8578; display:block; margin-bottom:4px;">Low stock alert level</label>' +
+          '<input type="number" min="0" step="1" id="inv-threshold-' + item.id + '" placeholder="Off" value="' + (item.low_stock_threshold != null ? item.low_stock_threshold : "") + '" style="margin-bottom:0;" />' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:10px;">' +
+        '<button class="btn-primary" style="width:auto;" onclick="saveInventorySettingsRow(\'' + item.id + '\')">Save</button>' +
+        '<span id="inv-setting-success-' + item.id + '" style="display:none; color: var(--teal); font-size:12px; margin-left:10px;">Saved.</span>' +
+        '<span id="inv-setting-error-' + item.id + '" class="error" style="display:none; margin:8px 0 0;"></span>' +
+      '</div>' +
+    '</div>';
+  }).join("");
+}
+
+async function saveInventorySettingsRow(itemId) {
+  const successEl = document.getElementById("inv-setting-success-" + itemId);
+  const errEl = document.getElementById("inv-setting-error-" + itemId);
+  successEl.style.display = "none";
+  errEl.style.display = "none";
+
+  const thresholdRaw = document.getElementById("inv-threshold-" + itemId).value;
+  const costRaw = document.getElementById("inv-cost-" + itemId).value;
+  const payload = {
+    track_inventory: document.getElementById("inv-track-" + itemId).checked,
+    quantity_on_hand: Number(document.getElementById("inv-qty-" + itemId).value) || 0,
+    unit_cost: costRaw === "" ? null : Number(costRaw),
+    low_stock_threshold: thresholdRaw === "" ? null : Number(thresholdRaw),
+  };
+  try {
+    await admin.updateCatalogItem(itemId, payload);
+    successEl.style.display = "inline";
+    await loadCatalogItems();
+    if (document.getElementById("inventory-items-body")) loadInventory();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save this item's inventory settings.";
+    errEl.style.display = "block";
+  }
+}
+
 // ---------- Catalog items ----------
 // A reusable list of recurring invoice line items (name + default price) so
 // common charges don't need to be retyped on every invoice. Picking one
@@ -5616,7 +5770,7 @@ function addLineItemFromCatalog() {
   const picker = document.getElementById("invoice-catalog-picker");
   if (!picker.value) return;
   const item = (window.allCatalogItems || []).find(function(i) { return i.id === picker.value; });
-  if (item) addInvoiceLineItemRow({ description: item.name, quantity: 1, unit_price: item.unit_price });
+  if (item) addInvoiceLineItemRow({ description: item.name, quantity: 1, unit_price: item.unit_price, catalog_item_id: item.id });
   picker.value = "";
 }
 
