@@ -545,7 +545,9 @@
           <div style="margin-top:8px;">
             <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
             <p style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">
-              Import an Excel (.xlsx) or CSV file with a Name column (Price/Unit Price/Cost/Rate is optional). Rows matching an existing item's name are skipped.
+              Import an Excel (.xlsx) or CSV file with a Name column. Unit Price, Quantity (on hand), and Unit Cost columns are
+              all optional -- if a row has a Quantity or Cost, inventory tracking turns on for that item automatically. Rows
+              matching an existing item's name are skipped.
             </p>
             <div id="catalog-items-list"></div>
           </div>
@@ -5826,8 +5828,10 @@ async function deleteCatalogItemConfirm(id) {
 // CSV (parseCsv) and Excel (SheetJS) sources can share one mapping
 // function -- the two file types just produce that 2D array differently.
 const CATALOG_FIELD_ALIASES = {
-  name: ["name", "item", "item name", "product", "product name", "service", "description"],
-  unit_price: ["unit price", "price", "cost", "rate", "unit cost", "amount"],
+  name: ["name", "item", "item name", "product", "product name", "service", "description", "item description"],
+  unit_price: ["unit price", "price", "rate", "amount", "sell price", "selling price"],
+  quantity_on_hand: ["quantity", "qty", "quantity on hand", "qty on hand", "on hand", "stock", "in stock"],
+  unit_cost: ["unit cost", "cost", "cost each", "cost per unit", "your cost", "cost $ each"],
 };
 
 function mapRowsToCatalogItems(rows) {
@@ -5845,6 +5849,14 @@ function mapRowsToCatalogItems(rows) {
     if (fieldIndex.unit_price !== undefined) {
       const raw = r[fieldIndex.unit_price];
       obj.unit_price = raw == null || raw === "" ? 0 : Number(String(raw).replace(/[$,]/g, "")) || 0;
+    }
+    if (fieldIndex.quantity_on_hand !== undefined) {
+      const raw = r[fieldIndex.quantity_on_hand];
+      if (raw !== null && raw !== "") obj.quantity_on_hand = Number(String(raw).replace(/[$,]/g, "")) || 0;
+    }
+    if (fieldIndex.unit_cost !== undefined) {
+      const raw = r[fieldIndex.unit_cost];
+      if (raw !== null && raw !== "") obj.unit_cost = Number(String(raw).replace(/[$,]/g, "")) || 0;
     }
     return obj;
   }).filter(function(o) { return o.name; });
@@ -5883,11 +5895,13 @@ async function handleCatalogImportFile(event) {
     const result = await admin.importCatalogItems(items);
     const skippedDup = result.skipped.filter(function(s) { return s.reason === "duplicate"; }).length;
     const skippedNoName = result.skipped.filter(function(s) { return s.reason === "missing_name"; }).length;
-    let msg = "Imported " + result.imported + " catalog item(s).";
-    if (skippedDup > 0) msg += "\nSkipped " + skippedDup + " that already exist.";
+    let msg = "Imported " + result.imported + " new catalog item(s).";
+    if (result.updated > 0) msg += "\nUpdated " + result.updated + " existing item(s) with quantity/cost from this file.";
+    if (skippedDup > 0) msg += "\nSkipped " + skippedDup + " that already exist with no changes to make.";
     if (skippedNoName > 0) msg += "\nSkipped " + skippedNoName + " with no name.";
     alert(msg);
     loadCatalogItems();
+    if (document.getElementById("inventory-items-body")) loadInventory();
   } catch (err) {
     alert(err.message || "Couldn't import that file.");
   }
