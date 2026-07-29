@@ -737,6 +737,16 @@
       </div>
 
       <div class="card">
+        <h3 style="margin-top:0; font-size:15px;">Overview profit bubbles</h3>
+        <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Show the Gross Profit and Net Profit bubbles for the current month at the top of the Overview tab.</p>
+        <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; margin-bottom:0;">
+          <input type="checkbox" id="show-profit-bubbles-checkbox" onchange="saveShowProfitBubbles()" style="width:auto; padding:0; margin:0;" />
+          Show profit bubbles on Overview
+        </label>
+        <div id="show-profit-bubbles-error" class="error"></div>
+      </div>
+
+      <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Pay schedule</h3>
         <p style="font-size:12px; color:#8A8578; margin-top:-4px;">Controls what "Submit Hours for Payroll" bundles together.</p>
         <label>Pay frequency</label>
@@ -1444,6 +1454,8 @@ const admin = {
 
   getLongShiftAlert: () => apiFetch("/api/admin/long-shift-alert"),
   updateLongShiftAlert: (hours) => apiFetch("/api/admin/long-shift-alert", { method: "PATCH", body: { long_shift_alert_hours: hours } }),
+  getShowProfitBubbles: () => apiFetch("/api/admin/show-profit-bubbles"),
+  updateShowProfitBubbles: (show) => apiFetch("/api/admin/show-profit-bubbles", { method: "PATCH", body: { show_profit_bubbles: show } }),
 
   getPaySchedule: () => apiFetch("/api/admin/pay-schedule"),
   updatePaySchedule: (patch) => apiFetch("/api/admin/pay-schedule", { method: "PATCH", body: patch }),
@@ -1705,6 +1717,7 @@ function showApp() {
   loadPayrollEmail();
   populateLongShiftAlertOptions();
   loadLongShiftAlert();
+  loadShowProfitBubbles();
   loadPaySchedule();
   loadChatThreads();
   loadTeamChatThreads();
@@ -1924,8 +1937,15 @@ async function loadOverviewProfitBubbles() {
 }
 
 async function loadOverview() {
-  loadOverviewProfitBubbles();
   const data = await admin.getOverview();
+  // Gated by the "Overview profit bubbles" toggle in Settings -- comes back
+  // on the same /overview response so this doesn't cost an extra round trip.
+  const bubblesEl = document.getElementById("overview-profit-bubbles");
+  if (data.show_profit_bubbles) {
+    loadOverviewProfitBubbles();
+  } else if (bubblesEl) {
+    bubblesEl.innerHTML = "";
+  }
   const activeOnly = data.employees.filter(function(e) { return e.active; });
   const list = document.getElementById("overview-list");
   // Same threshold as the Settings tab's "Long shift alert" (null means the
@@ -6097,6 +6117,30 @@ function populateLongShiftAlertOptions() {
     opt.value = String(h);
     opt.textContent = h === 1 ? "1 hour" : h + " hours";
     select.appendChild(opt);
+  }
+}
+
+async function loadShowProfitBubbles() {
+  try {
+    const data = await admin.getShowProfitBubbles();
+    document.getElementById("show-profit-bubbles-checkbox").checked = data.show_profit_bubbles !== false;
+  } catch (err) { /* non-fatal -- leave checkbox at its default (checked) */ }
+}
+
+// Saves immediately on toggle rather than requiring a separate Save button --
+// this is a single on/off switch, not a form with several fields to review
+// together like the other Settings cards.
+async function saveShowProfitBubbles() {
+  const checkbox = document.getElementById("show-profit-bubbles-checkbox");
+  const errEl = document.getElementById("show-profit-bubbles-error");
+  errEl.style.display = "none";
+  try {
+    await admin.updateShowProfitBubbles(checkbox.checked);
+    if (document.getElementById("overview-list")) loadOverview();
+  } catch (err) {
+    checkbox.checked = !checkbox.checked;
+    errEl.textContent = err.message || "Couldn't save that setting.";
+    errEl.style.display = "block";
   }
 }
 
