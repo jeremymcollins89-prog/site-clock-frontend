@@ -1986,12 +1986,20 @@ function showView(name) {
 // interrupted. Disabled while any full-screen sheet is open (checked
 // generically via ".sheet.visible" rather than naming each one, since new
 // sheets get added often) so swiping inside one can't change tabs
-// underneath it.
+// underneath it. Also disabled entirely on the Inventory tab -- its stat
+// bubbles and tables (see .table-scroll) already scroll sideways, so a
+// tab-switch swipe on top of that just fights whatever the person's
+// actually trying to look at and yanks them off the page.
 const NAV_VIEW_ORDER = ["overview", "employees", "schedule", "customers", "invoices", "inventory", "reports", "chat", "settings"];
+const NO_SWIPE_VIEWS = ["inventory"];
 let tabSwipeStart = null;
 
 function handleTabSwipeStart(e) {
-  if (document.querySelector(".sheet.visible")) { tabSwipeStart = null; return; }
+  const activeBtn = document.querySelector(".nav-btn.active");
+  if (document.querySelector(".sheet.visible") || NO_SWIPE_VIEWS.includes(activeBtn && activeBtn.dataset.view)) {
+    tabSwipeStart = null;
+    return;
+  }
   const t = e.touches[0];
   tabSwipeStart = { x: t.clientX, y: t.clientY, time: Date.now() };
 }
