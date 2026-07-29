@@ -1248,6 +1248,7 @@
     <p id="invoice-save-hint" style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">Saving emails this invoice to the customer right away, unless they don't have an email on file.</p>
     <button class="btn-primary" id="invoice-save-btn" onclick="submitInvoice()">Save &amp; send to customer</button>
     <button class="btn-small" id="invoice-viewpdf-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="viewInvoicePdf(editingInvoiceId)">View PDF</button>
+    <button class="btn-small" id="invoice-pullsheet-btn" style="display:none; width:100%; margin-top:10px; background: var(--teal-deep);" onclick="buildPullSheetForSource('invoice', editingInvoiceId)">Build Pull Sheet</button>
     <button class="btn-small" id="invoice-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendInvoiceConfirm()">Send to customer</button>
     <button class="btn-small" id="invoice-markpaid-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="openMarkPaidSheet()">Mark paid</button>
     <button class="btn-small" id="invoice-void-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="voidInvoiceConfirm()">Void</button>
@@ -1347,6 +1348,7 @@
 
     <button class="btn-primary" id="quote-save-btn" onclick="submitQuote()">Save draft</button>
     <button class="btn-small" id="quote-viewpdf-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="viewQuotePdf(editingQuoteId)">View PDF</button>
+    <button class="btn-small" id="quote-pullsheet-btn" style="display:none; width:100%; margin-top:10px; background: var(--teal-deep);" onclick="buildPullSheetForSource('quote', editingQuoteId)">Build Pull Sheet</button>
     <button class="btn-small" id="quote-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendQuoteConfirm()">Send to customer</button>
     <button class="btn-small" id="quote-accept-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="markQuoteAcceptedConfirm()">Mark accepted</button>
     <button class="btn-small" id="quote-decline-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="markQuoteDeclinedConfirm()">Mark declined</button>
@@ -1409,8 +1411,29 @@
     <div id="pull-sheet-sheet-error" class="error" style="display:none;"></div>
 
     <div id="pull-sheet-picker-step">
-      <p style="font-size:12px; color:#8A8578;">Choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
+      <button class="btn-small" style="background:var(--charcoal); margin-bottom:12px;" onclick="openManualPullSheetStep()">Start a blank pull sheet</button>
+      <p style="font-size:12px; color:#8A8578;">Or choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
       <div id="pull-sheet-source-list"></div>
+    </div>
+
+    <div id="pull-sheet-manual-step" style="display:none;">
+      <label>What's this for? (optional)</label>
+      <input id="pull-sheet-manual-label" placeholder="e.g. Restocking the van" />
+      <label>Item</label>
+      <select id="pull-sheet-manual-item-picker"></select>
+      <label>Quantity</label>
+      <div style="display:flex; gap:8px;">
+        <input id="pull-sheet-manual-qty-input" type="number" min="1" step="1" placeholder="Qty" style="flex:1;" />
+        <button class="btn-small" style="background:var(--charcoal); width:auto; white-space:nowrap;" onclick="addManualPullSheetItem()">Add</button>
+      </div>
+      <table style="margin-top:10px;">
+        <thead><tr><th>Item</th><th>Quantity</th><th></th></tr></thead>
+        <tbody id="pull-sheet-manual-items-body"></tbody>
+      </table>
+      <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-small" style="background:var(--charcoal);" onclick="backToPullSheetPicker()">Back</button>
+        <button class="btn-primary" onclick="submitManualPullSheet()">Create pull sheet</button>
+      </div>
     </div>
 
     <div id="pull-sheet-detail-step" style="display:none;">
@@ -1719,6 +1742,8 @@ const admin = {
   getPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`),
   buildPullSheet: (sourceType, sourceId) =>
     apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: sourceType, source_id: sourceId } }),
+  buildManualPullSheet: (items, label) =>
+    apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: "manual", items, label } }),
   fulfillPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}/fulfill`, { method: "PATCH" }),
   deletePullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`, { method: "DELETE" }),
   // Same blob-URL pattern as viewInvoicePdf.
@@ -4501,6 +4526,7 @@ async function openInvoiceSheet(invoiceId) {
   document.getElementById("invoice-save-btn").style.display = isDraft ? "" : "none";
   document.getElementById("invoice-save-hint").style.display = isDraft ? "" : "none";
   document.getElementById("invoice-viewpdf-btn").style.display = invoice ? "" : "none";
+  document.getElementById("invoice-pullsheet-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
   document.getElementById("invoice-send-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
   document.getElementById("invoice-send-btn").textContent = invoice && invoice.status !== "draft" ? "Resend to customer" : "Send to customer";
   document.getElementById("invoice-markpaid-btn").style.display = invoice && invoice.status === "sent" ? "" : "none";
@@ -4988,6 +5014,7 @@ async function openQuoteSheet(quoteId) {
   document.getElementById("quote-save-btn").style.display = isEditable ? "" : "none";
   document.getElementById("quote-save-btn").textContent = !quote ? "Save & send" : (isDraft ? "Save draft" : "Save changes");
   document.getElementById("quote-viewpdf-btn").style.display = quote ? "" : "none";
+  document.getElementById("quote-pullsheet-btn").style.display = quote && quote.status !== "declined" ? "" : "none";
   document.getElementById("quote-send-btn").style.display = quote && isEditable ? "" : "none";
   document.getElementById("quote-send-btn").textContent = quote && quote.status === "sent" ? "Resend to customer" : "Send to customer";
   document.getElementById("quote-accept-btn").style.display = quote && ["draft", "sent"].includes(quote.status) ? "" : "none";
@@ -5757,6 +5784,23 @@ async function saveInventorySettingsRow(itemId) {
 // stock numbers change until it's marked fulfilled, which is the one action
 // that actually removes those quantities from stock.
 let currentPullSheetId = null;
+let manualPullSheetItems = [];
+
+// Opens the sheet straight to the detail step for one specific quote/invoice
+// -- used by the Build Pull Sheet button on the quote/invoice sheet itself,
+// so building one for the job you're already looking at doesn't require
+// going to the Inventory tab and picking it back out of a list.
+async function buildPullSheetForSource(sourceType, sourceId) {
+  if (!sourceId) return;
+  currentPullSheetId = null;
+  document.getElementById("pull-sheet-sheet-title").textContent = "Build pull sheet";
+  document.getElementById("pull-sheet-sheet-error").style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-manual-step").style.display = "none";
+  document.getElementById("pull-sheet-detail-step").style.display = "none";
+  document.getElementById("pull-sheet-sheet").classList.add("visible");
+  await selectPullSheetSource(sourceType, sourceId);
+}
 
 async function loadPullSheets() {
   const body = document.getElementById("pull-sheets-list-body");
@@ -5794,11 +5838,15 @@ async function openBuildPullSheetSheet() {
   document.getElementById("pull-sheet-sheet-title").textContent = "Build pull sheet";
   document.getElementById("pull-sheet-sheet-error").style.display = "none";
   document.getElementById("pull-sheet-picker-step").style.display = "";
+  document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "none";
+  document.getElementById("pull-sheet-sheet").classList.add("visible");
+  await renderPullSheetSourceList();
+}
+
+async function renderPullSheetSourceList() {
   const list = document.getElementById("pull-sheet-source-list");
   list.innerHTML = '<p style="font-size:12px; color:#8A8578;">Loading...</p>';
-  document.getElementById("pull-sheet-sheet").classList.add("visible");
-
   try {
     const sources = await admin.getPullSheetSources();
     const rows = [].concat(
@@ -5821,6 +5869,91 @@ async function openBuildPullSheetSheet() {
   }
 }
 
+// ---- Solo / standalone pull sheets (not tied to any quote or invoice) ----
+function openManualPullSheetStep() {
+  manualPullSheetItems = [];
+  document.getElementById("pull-sheet-sheet-error").style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-manual-step").style.display = "";
+  document.getElementById("pull-sheet-manual-label").value = "";
+  document.getElementById("pull-sheet-manual-qty-input").value = "";
+
+  const picker = document.getElementById("pull-sheet-manual-item-picker");
+  const trackedItems = (window.allCatalogItems || []).filter(function(i) { return i.track_inventory; });
+  if (trackedItems.length === 0) {
+    picker.innerHTML = '<option value="">No inventory-tracked items yet</option>';
+  } else {
+    picker.innerHTML = '<option value="">Pick an item...</option>' +
+      trackedItems.map(function(i) {
+        const available = Number(i.quantity_on_hand) - Number(i.quantity_on_hold);
+        return '<option value="' + i.id + '">' + escapeHtml(i.name) + ' (' + available + ' available)</option>';
+      }).join("");
+  }
+  renderManualPullSheetItemsTable();
+}
+
+function backToPullSheetPicker() {
+  document.getElementById("pull-sheet-manual-step").style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "";
+}
+
+function addManualPullSheetItem() {
+  const picker = document.getElementById("pull-sheet-manual-item-picker");
+  const qtyInput = document.getElementById("pull-sheet-manual-qty-input");
+  const itemId = picker.value;
+  const quantity = Math.round(Number(qtyInput.value));
+  if (!itemId || !quantity || quantity <= 0) return;
+  const item = (window.allCatalogItems || []).find(function(i) { return i.id === itemId; });
+  if (!item) return;
+
+  const existing = manualPullSheetItems.find(function(i) { return i.catalog_item_id === itemId; });
+  if (existing) {
+    existing.quantity += quantity;
+  } else {
+    manualPullSheetItems.push({ catalog_item_id: itemId, name: item.name, quantity: quantity });
+  }
+  picker.value = "";
+  qtyInput.value = "";
+  renderManualPullSheetItemsTable();
+}
+
+function removeManualPullSheetItem(itemId) {
+  manualPullSheetItems = manualPullSheetItems.filter(function(i) { return i.catalog_item_id !== itemId; });
+  renderManualPullSheetItemsTable();
+}
+
+function renderManualPullSheetItemsTable() {
+  const body = document.getElementById("pull-sheet-manual-items-body");
+  if (manualPullSheetItems.length === 0) {
+    body.innerHTML = '<tr><td colspan="3" style="text-align:center; color:#8A8578; padding:10px;">No items added yet.</td></tr>';
+    return;
+  }
+  body.innerHTML = manualPullSheetItems.map(function(item) {
+    return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td>' +
+      '<td><button class="save-btn" style="background: #C1502E;" onclick="removeManualPullSheetItem(\'' + item.catalog_item_id + '\')">Remove</button></td></tr>';
+  }).join("");
+}
+
+async function submitManualPullSheet() {
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  errEl.style.display = "none";
+  if (manualPullSheetItems.length === 0) {
+    errEl.textContent = "Add at least one item first.";
+    errEl.style.display = "block";
+    return;
+  }
+  const label = document.getElementById("pull-sheet-manual-label").value.trim();
+  try {
+    const sheet = await admin.buildManualPullSheet(manualPullSheetItems, label);
+    currentPullSheetId = sheet.id;
+    renderPullSheetDetailStep(sheet);
+    loadPullSheets();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't build pull sheet.";
+    errEl.style.display = "block";
+  }
+}
+
 async function selectPullSheetSource(sourceType, sourceId) {
   const errEl = document.getElementById("pull-sheet-sheet-error");
   errEl.style.display = "none";
@@ -5832,12 +5965,20 @@ async function selectPullSheetSource(sourceType, sourceId) {
   } catch (err) {
     errEl.textContent = err.message || "Couldn't build pull sheet.";
     errEl.style.display = "block";
+    // Fall back to the picker so the sheet isn't left showing nothing --
+    // matters when this was reached via buildPullSheetForSource, which skips
+    // the picker on the way in.
+    if (document.getElementById("pull-sheet-detail-step").style.display === "none") {
+      document.getElementById("pull-sheet-picker-step").style.display = "";
+      renderPullSheetSourceList();
+    }
   }
 }
 
 function renderPullSheetDetailStep(sheet) {
   document.getElementById("pull-sheet-sheet-title").textContent = sheet.source_label || "Pull sheet";
   document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "";
   document.getElementById("pull-sheet-detail-header").textContent =
     (sheet.customer_name || "") + (sheet.status === "fulfilled" ? " -- fulfilled" : " -- not yet fulfilled");
@@ -5898,6 +6039,7 @@ async function viewPullSheetPdf(id) {
 function closePullSheetSheet() {
   document.getElementById("pull-sheet-sheet").classList.remove("visible");
   currentPullSheetId = null;
+  manualPullSheetItems = [];
 }
 
 // ---------- Catalog items ----------
