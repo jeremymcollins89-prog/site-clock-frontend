@@ -72,6 +72,22 @@
     padding: 18px; margin-bottom: 14px;
     box-shadow: 0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05);
   }
+  /* Wraps every <table> (inventory, pull sheets) so a table wider than the
+     phone screen scrolls sideways within its own card instead of blowing
+     out the whole page's width -- without this, the browser just makes the
+     entire page as wide as the table, which cuts content off the left edge
+     until you scroll the whole page over. */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
+  .table-scroll table { min-width: 100%; }
+  table { border-collapse: collapse; white-space: nowrap; }
+  th, td { text-align: left; padding: 9px 10px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+  th:first-child, td:first-child { padding-left: 0; white-space: normal; min-width: 110px; }
+  th:last-child, td:last-child { padding-right: 0; }
+  thead th {
+    font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.04em;
+    color: #8A8578; font-weight: 700; border-bottom: 1.5px solid var(--line);
+  }
+  tbody tr:last-child td { border-bottom: none; }
   .badge {
     display: inline-block; font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: 700;
   }
@@ -667,10 +683,12 @@
             from stock for good. Turn tracking on for a catalog item and set its starting quantity/cost in the
             Settings tab above.
           </p>
-          <table>
-            <thead><tr><th>Item</th><th>Available</th><th>On hold</th><th>Unit cost</th><th>Total value</th></tr></thead>
-            <tbody id="inventory-items-body"></tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Item</th><th>Available</th><th>On hold</th><th>Unit cost</th><th>Total value</th></tr></thead>
+              <tbody id="inventory-items-body"></tbody>
+            </table>
+          </div>
         </div>
 
         <div class="card" style="margin-top:16px;">
@@ -679,10 +697,12 @@
             Picking lists built from a quote or invoice's inventory-tracked items. Marking one fulfilled removes those
             quantities from stock -- building one on its own doesn't change any numbers yet.
           </p>
-          <table>
-            <thead><tr><th>Job</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
-            <tbody id="pull-sheets-list-body"></tbody>
-          </table>
+          <div class="table-scroll">
+            <table>
+              <thead><tr><th>Job</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
+              <tbody id="pull-sheets-list-body"></tbody>
+            </table>
+          </div>
         </div>
       </div>
 
@@ -1429,10 +1449,12 @@
         <input id="pull-sheet-manual-qty-input" type="number" min="1" step="1" placeholder="Qty" style="flex:1;" />
         <button class="btn-small" style="background:var(--charcoal); width:auto; white-space:nowrap;" onclick="addManualPullSheetItem()">Add</button>
       </div>
-      <table style="margin-top:10px;">
-        <thead><tr><th>Item</th><th>Quantity</th><th></th></tr></thead>
-        <tbody id="pull-sheet-manual-items-body"></tbody>
-      </table>
+      <div class="table-scroll" style="margin-top:10px;">
+        <table>
+          <thead><tr><th>Item</th><th>Quantity</th><th></th></tr></thead>
+          <tbody id="pull-sheet-manual-items-body"></tbody>
+        </table>
+      </div>
       <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn-small" style="background:var(--charcoal);" onclick="backToPullSheetPicker()">Back</button>
         <button class="btn-primary" onclick="submitManualPullSheet()">Create pull sheet</button>
@@ -1441,10 +1463,12 @@
 
     <div id="pull-sheet-detail-step" style="display:none;">
       <div id="pull-sheet-detail-header" style="margin-bottom:10px; font-size:13px; color:#8A8578;"></div>
-      <table>
-        <thead><tr><th>Item</th><th>Quantity</th></tr></thead>
-        <tbody id="pull-sheet-detail-items"></tbody>
-      </table>
+      <div class="table-scroll">
+        <table>
+          <thead><tr><th>Item</th><th>Quantity</th></tr></thead>
+          <tbody id="pull-sheet-detail-items"></tbody>
+        </table>
+      </div>
       <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn-small" style="background:var(--charcoal);" onclick="viewPullSheetPdf(currentPullSheetId)">Print / PDF</button>
         <button class="btn-primary" id="pull-sheet-fulfill-btn" onclick="fulfillPullSheetFromSheet()">Mark fulfilled</button>
