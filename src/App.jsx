@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu } from "lucide-react";
 import {
   login,
   restoreSession,
@@ -1061,6 +1061,8 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
 function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth, onToday, onOpenTimeOff, timeOffPendingCount, onOpenRoute, hasRouteToday }) {
   const [selectedDay, setSelectedDay] = useState(todayStr());
   const [selectedJob, setSelectedJob] = useState(null);
+  const [showScheduleMenu, setShowScheduleMenu] = useState(false);
+  const hasScheduleMenuBadge = hasRouteToday || timeOffPendingCount > 0;
 
   const jobsByDate = {};
   schedule.forEach((job) => {
@@ -1090,30 +1092,62 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
           Schedule
         </h2>
         <div className="flex items-center gap-3">
-          <button
-            onClick={onOpenRoute}
-            className="text-xs font-medium flex items-center gap-1 rounded-lg px-2.5 py-1"
-            style={{ color: CHARCOAL, background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
-          >
-            <Navigation size={12} /> Assigned routes
-            {hasRouteToday && (
-              <span style={{ background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
-                &bull;
-              </span>
+          <div style={{ position: "relative" }}>
+            <button
+              onClick={() => setShowScheduleMenu((v) => !v)}
+              aria-label="Schedule menu"
+              className="rounded-lg px-2 py-1.5 flex items-center justify-center"
+              style={{ position: "relative", color: CHARCOAL, background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+            >
+              <Menu size={16} />
+              {hasScheduleMenuBadge && (
+                <span
+                  style={{
+                    position: "absolute", top: -2, right: -2, width: 9, height: 9,
+                    borderRadius: "50%", background: RUST, border: "1.5px solid #fff",
+                  }}
+                />
+              )}
+            </button>
+            {showScheduleMenu && (
+              <>
+                <div onClick={() => setShowScheduleMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                <div
+                  style={{
+                    position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
+                    background: "#fff", borderRadius: 12, minWidth: 190, overflow: "hidden",
+                    boxShadow: "0 10px 28px rgba(31,36,33,0.18)",
+                  }}
+                >
+                  <button
+                    onClick={() => { setShowScheduleMenu(false); onOpenRoute(); }}
+                    className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
+                    style={{ color: CHARCOAL, background: "#fff", border: "none", textAlign: "left" }}
+                  >
+                    <Navigation size={14} /> Assigned routes
+                    {hasRouteToday && (
+                      <span style={{ marginLeft: "auto", background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                        &bull;
+                      </span>
+                    )}
+                  </button>
+                  <div style={{ height: 1, background: LINE }} />
+                  <button
+                    onClick={() => { setShowScheduleMenu(false); onOpenTimeOff(); }}
+                    className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
+                    style={{ color: CHARCOAL, background: "#fff", border: "none", textAlign: "left" }}
+                  >
+                    <Plane size={14} /> Time off
+                    {timeOffPendingCount > 0 && (
+                      <span style={{ marginLeft: "auto", background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
+                        {timeOffPendingCount}
+                      </span>
+                    )}
+                  </button>
+                </div>
+              </>
             )}
-          </button>
-          <button
-            onClick={onOpenTimeOff}
-            className="text-xs font-medium flex items-center gap-1 rounded-lg px-2.5 py-1"
-            style={{ color: CHARCOAL, background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
-          >
-            <Plane size={12} /> Time off
-            {timeOffPendingCount > 0 && (
-              <span style={{ background: RUST, color: "#fff", fontSize: 9, fontWeight: 800, borderRadius: 20, padding: "1px 5px" }}>
-                {timeOffPendingCount}
-              </span>
-            )}
-          </button>
+          </div>
           <button
             onClick={() => {
               onToday();
