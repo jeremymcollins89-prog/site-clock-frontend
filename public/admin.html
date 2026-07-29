@@ -150,12 +150,14 @@
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
     background: #fff; border-top: 1px solid var(--line);
     display: flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
+  .bottom-nav::-webkit-scrollbar { display: none; }
   .nav-btn {
     position: relative;
-    flex: 1; background: transparent; border: none; padding: 6px 2px;
+    flex: 0 0 auto; min-width: 68px; background: transparent; border: none; padding: 6px 8px;
     display: flex; flex-direction: column; align-items: center; gap: 3px;
-    color: #8A8578; font-size: 10.5px; font-weight: 600;
+    color: #8A8578; font-size: 10.5px; font-weight: 600; white-space: nowrap;
   }
   .nav-btn .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--line); }
   .nav-btn.active { color: var(--rust); }
@@ -1942,6 +1944,12 @@ function showView(name) {
   document.querySelectorAll(".nav-btn").forEach(function(b) { b.classList.toggle("active", b.dataset.view === name); });
   document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
   window.scrollTo(0, 0);
+  // The bottom nav now scrolls horizontally (see .bottom-nav) instead of
+  // squeezing every tab to fit -- keep whichever tab is active scrolled
+  // into view so switching tabs (e.g. via swipe, or a notification tap)
+  // never leaves the active one hidden off-screen.
+  const activeNavBtn = document.querySelector('.nav-btn[data-view="' + name + '"]');
+  if (activeNavBtn) activeNavBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   if (name === "settings") refreshStripeConnectCard();
   if (name === "inventory") { loadInventory(); loadPullSheets(); }
 }
