@@ -2114,7 +2114,8 @@ function eachDateStrInRange(startStr, endStr, cb) {
 // Home screen Gross/Net Profit bubbles -- same month-to-date figures as the
 // Reports tab (reuses computeProfits/renderReportStatCard so the numbers and
 // the itemized breakdown modal always agree with Reports), just surfaced
-// here too since profit is the number Jeremy checks most often.
+// here too since profit is the number Jeremy checks most often. Shown as a
+// % change vs. the same number of days last month rather than a $ amount.
 async function loadOverviewProfitBubbles() {
   const el = document.getElementById("overview-profit-bubbles");
   if (!el) return;
@@ -2122,11 +2123,16 @@ async function loadOverviewProfitBubbles() {
     const today = new Date();
     const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
     const start = dateToStr(monthStart), end = dateToStr(today);
-    const data = await admin.getReportSummary(start, end);
+    const prevMonthStart = addMonths(monthStart, -1), prevMonthEnd = addMonths(today, -1);
+    const [data, prevData] = await Promise.all([
+      admin.getReportSummary(start, end),
+      admin.getReportSummary(dateToStr(prevMonthStart), dateToStr(prevMonthEnd)),
+    ]);
     const profits = computeProfits(data);
+    const prevProfits = computeProfits(prevData);
     el.innerHTML =
-      renderReportStatCard("Gross Profit (this month)", fmtMoney(profits.grossProfit), null, null, reportBubbleOnclick("gross", start, end)) +
-      renderReportStatCard("Net Profit (this month)", fmtMoney(profits.netProfit), null, null, reportBubbleOnclick("net", start, end));
+      renderReportStatCard("Gross Profit (this month)", pctValueHtml(profitChangeParts(profits.grossProfit, prevProfits.grossProfit)), "vs. last month", null, reportBubbleOnclick("gross", start, end)) +
+      renderReportStatCard("Net Profit (this month)", pctValueHtml(profitChangeParts(profits.netProfit, prevProfits.netProfit)), "vs. last month", null, reportBubbleOnclick("net", start, end));
   } catch (err) {
     // non-fatal -- just leave the bubbles empty rather than breaking Overview
     el.innerHTML = "";
@@ -5320,6 +5326,17 @@ function profitChangeParts(current, previous) {
   return { text: sign + fmtMoney(Math.abs(delta)), direction: direction };
 }
 
+// Gross/Net Profit bubbles show a % change vs. the prior period instead of
+// a raw dollar figure -- Jeremy wants profit read as a trend at a glance
+// rather than an amount. changeParts is null when there's no prior period
+// to compare against (e.g. the Last Year column in the YoY view, which
+// would need a third year of data to get a baseline).
+function pctValueHtml(changeParts) {
+  if (!changeParts) return '<span style="color:#8A8578;">—</span>';
+  const color = changeParts.direction === "up" ? "#1E8E5A" : changeParts.direction === "down" ? "#C1502E" : "#8A8578";
+  return '<span style="color:' + color + ';">' + changeParts.text + '</span>';
+}
+
 function renderReportStatCard(label, value, sub, changeParts, onclick) {
   const changeHtml = changeParts
     ? '<span class="report-stat-change ' + changeParts.direction + '">' + changeParts.text + '</span>'
@@ -5418,8 +5435,8 @@ async function loadReportSummary() {
             renderReportStatCard("Labor hours", fmtHours(thisYearData.labor_hours), "labor cost " + fmtMoney(thisYearData.labor_cost), pctChangeParts(thisYearData.labor_hours, lastYearData.labor_hours, true), reportBubbleOnclick("labor", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Invoiced", fmtMoney(thisYearData.invoice_total), thisYearData.invoice_count + " invoices", pctChangeParts(thisYearData.invoice_total, lastYearData.invoice_total), reportBubbleOnclick("invoiced", thisYearStart, thisYearEnd)) +
             renderReportStatCard("Paid", fmtMoney(thisYearData.paid_invoice_total), thisYearData.paid_invoice_count + " invoices", pctChangeParts(thisYearData.paid_invoice_total, lastYearData.paid_invoice_total), reportBubbleOnclick("paid", thisYearStart, thisYearEnd)) +
-            renderReportStatCard("Gross Profit", fmtMoney(thisYearProfits.grossProfit), null, profitChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit), reportBubbleOnclick("gross", thisYearStart, thisYearEnd)) +
-            renderReportStatCard("Net Profit", fmtMoney(thisYearProfits.netProfit), null, profitChangeParts(thisYearProfits.netProfit, lastYearProfits.netProfit), reportBubbleOnclick("net", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Gross Profit", pctValueHtml(profitChangeParts(thisYearProfits.grossProfit, lastYearProfits.grossProfit)), "vs. last year", null, reportBubbleOnclick("gross", thisYearStart, thisYearEnd)) +
+            renderReportStatCard("Net Profit", pctValueHtml(profitChangeParts(thisYearProfits.netProfit, lastYearProfits.netProfit)), "vs. last year", null, reportBubbleOnclick("net", thisYearStart, thisYearEnd)) +
           '</div>' +
         '</div>' +
         '<div>' +
@@ -5428,8 +5445,8 @@ async function loadReportSummary() {
             renderReportStatCard("Labor hours", fmtHours(lastYearData.labor_hours), "labor cost " + fmtMoney(lastYearData.labor_cost), null, reportBubbleOnclick("labor", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Invoiced", fmtMoney(lastYearData.invoice_total), lastYearData.invoice_count + " invoices", null, reportBubbleOnclick("invoiced", lastYearStart, lastYearEnd)) +
             renderReportStatCard("Paid", fmtMoney(lastYearData.paid_invoice_total), lastYearData.paid_invoice_count + " invoices", null, reportBubbleOnclick("paid", lastYearStart, lastYearEnd)) +
-            renderReportStatCard("Gross Profit", fmtMoney(lastYearProfits.grossProfit), null, null, reportBubbleOnclick("gross", lastYearStart, lastYearEnd)) +
-            renderReportStatCard("Net Profit", fmtMoney(lastYearProfits.netProfit), null, null, reportBubbleOnclick("net", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Gross Profit", pctValueHtml(null), "no prior year to compare", null, reportBubbleOnclick("gross", lastYearStart, lastYearEnd)) +
+            renderReportStatCard("Net Profit", pctValueHtml(null), "no prior year to compare", null, reportBubbleOnclick("net", lastYearStart, lastYearEnd)) +
           '</div>' +
         '</div>';
       return;
@@ -5449,8 +5466,8 @@ async function loadReportSummary() {
         renderReportStatCard("Labor hours", fmtHours(data.labor_hours), "labor cost " + fmtMoney(data.labor_cost), pctChangeParts(data.labor_hours, prevData.labor_hours, true), reportBubbleOnclick("labor", rangeStart, rangeEnd)) +
         renderReportStatCard("Invoiced", fmtMoney(data.invoice_total), data.invoice_count + " invoices", pctChangeParts(data.invoice_total, prevData.invoice_total), reportBubbleOnclick("invoiced", rangeStart, rangeEnd)) +
         renderReportStatCard("Paid", fmtMoney(data.paid_invoice_total), data.paid_invoice_count + " invoices", pctChangeParts(data.paid_invoice_total, prevData.paid_invoice_total), reportBubbleOnclick("paid", rangeStart, rangeEnd)) +
-        renderReportStatCard("Gross Profit", fmtMoney(profits.grossProfit), null, profitChangeParts(profits.grossProfit, prevProfits.grossProfit), reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
-        renderReportStatCard("Net Profit", fmtMoney(profits.netProfit), null, profitChangeParts(profits.netProfit, prevProfits.netProfit), reportBubbleOnclick("net", rangeStart, rangeEnd)) +
+        renderReportStatCard("Gross Profit", pctValueHtml(profitChangeParts(profits.grossProfit, prevProfits.grossProfit)), "vs. prior period", null, reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
+        renderReportStatCard("Net Profit", pctValueHtml(profitChangeParts(profits.netProfit, prevProfits.netProfit)), "vs. prior period", null, reportBubbleOnclick("net", rangeStart, rangeEnd)) +
       '</div>' +
       '<div style="margin-top:10px; font-size:12px; color:#8A8578;">' + rangeStart + ' – ' + rangeEnd +
         ' vs. ' + dateToStr(bounds.prevStart) + ' – ' + dateToStr(bounds.prevEnd) + '</div>';
@@ -5492,17 +5509,23 @@ function renderMonthlyProfitChart(months) {
   const barWidth = Math.min(34, groupW * 0.32);
   const barGap = 6;
 
-  function bar(x, value, color) {
+  // Bar height still tracks the actual $ magnitude (needed so the chart
+  // reads as a trend line at a glance), but the printed label on each bar
+  // is the % change vs. the same month's bar in the previous group --
+  // prevValue is null for the first month in the trailing range since
+  // there's no earlier bar in this chart to compare against.
+  function bar(x, value, prevValue, color) {
     const isNeg = value < 0;
     const barH = Math.abs(value) * (isNeg ? negScale : posScale);
     const y = isNeg ? zeroY : zeroY - barH;
     const fill = isNeg ? "#C1502E" : color;
     const labelY = isNeg ? y + Math.max(barH, 1) + 14 : y - 6;
+    const labelText = prevValue === null ? "—" : profitChangeParts(value, prevValue).text;
     return '<g>' +
       '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + Math.max(barH, 1.5) + '" rx="3" fill="' + fill + '">' +
         '<title>' + fmtMoney(value) + '</title>' +
       '</rect>' +
-      '<text x="' + (x + barWidth / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="10" font-weight="700" fill="#1F2421">' + fmtMoney(value) + '</text>' +
+      '<text x="' + (x + barWidth / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="10" font-weight="700" fill="#1F2421">' + labelText + '</text>' +
     '</g>';
   }
 
@@ -5510,8 +5533,9 @@ function renderMonthlyProfitChart(months) {
     const groupX = i * groupW;
     const pairW = barWidth * 2 + barGap;
     const startX = groupX + (groupW - pairW) / 2;
-    return bar(startX, m.gross_profit, "#F4B04C") +
-      bar(startX + barWidth + barGap, m.net_profit, "#2B6E5C") +
+    const prev = i > 0 ? months[i - 1] : null;
+    return bar(startX, m.gross_profit, prev ? prev.gross_profit : null, "#F4B04C") +
+      bar(startX + barWidth + barGap, m.net_profit, prev ? prev.net_profit : null, "#2B6E5C") +
       '<text x="' + (groupX + groupW / 2) + '" y="' + (height - 10) + '" text-anchor="middle" font-size="12" fill="#8A8578">' + m.label + '</text>';
   }).join("");
 
