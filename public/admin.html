@@ -5880,6 +5880,13 @@ function openItemHoldSource(sourceType, id) {
 // on for the first time. Relies on window.allCatalogItems already being
 // loaded by loadCatalogItems() (called at startup and whenever the Catalog
 // sub-tab changes), rather than fetching separately.
+// Spreadsheet-style grid for editing inventory in bulk (e.g. after a big
+// order comes in and a lot of quantities need updating at once). Each field
+// saves itself the moment you leave it (blur/change) -- no per-row Save
+// button to tap through. Search filters by name, and Up/Down arrow (or
+// Enter/Shift+Enter) jumps to the same field on the next/previous visible
+// row so you can type a whole column of numbers without hunting for the
+// next box; Tab still moves across fields the normal browser way.
 function renderInventorySettingsList() {
   const list = document.getElementById("inventory-settings-list");
   const items = window.allCatalogItems || [];
@@ -5887,59 +5894,91 @@ function renderInventorySettingsList() {
     list.innerHTML = '<p style="font-size:13px; color:#8A8578;">No catalog items yet -- add one in the Catalog tab above first.</p>';
     return;
   }
-  list.innerHTML = items.map(function(item) {
-    return '<div class="card" style="margin-bottom:10px;" id="inv-setting-row-' + item.id + '">' +
-      '<div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">' +
-        '<strong>' + escapeHtml(item.name) + '</strong>' +
-        '<label style="display:flex; align-items:center; gap:6px; font-size:13px; cursor:pointer; margin-bottom:0;">' +
-          '<input type="checkbox" id="inv-track-' + item.id + '" ' + (item.track_inventory ? "checked" : "") + ' style="width:auto; padding:0; margin:0;" /> Track inventory' +
-        '</label>' +
-      '</div>' +
-      '<div style="display:flex; gap:10px; flex-wrap:wrap; margin-top:10px;">' +
-        '<div style="flex:1; min-width:120px;">' +
-          '<label style="font-size:11px; color:#8A8578; display:block; margin-bottom:4px;">Quantity on hand</label>' +
-          '<input type="number" min="0" step="1" id="inv-qty-' + item.id + '" value="' + (item.quantity_on_hand || 0) + '" style="margin-bottom:0;" />' +
-        '</div>' +
-        '<div style="flex:1; min-width:120px;">' +
-          '<label style="font-size:11px; color:#8A8578; display:block; margin-bottom:4px;">Unit cost</label>' +
-          '<input type="number" min="0" step="0.01" id="inv-cost-' + item.id + '" value="' + (item.unit_cost != null ? Number(item.unit_cost) : "") + '" style="margin-bottom:0;" />' +
-        '</div>' +
-        '<div style="flex:1; min-width:120px;">' +
-          '<label style="font-size:11px; color:#8A8578; display:block; margin-bottom:4px;">Low stock alert level</label>' +
-          '<input type="number" min="0" step="1" id="inv-threshold-' + item.id + '" placeholder="Off" value="' + (item.low_stock_threshold != null ? item.low_stock_threshold : "") + '" style="margin-bottom:0;" />' +
-        '</div>' +
-      '</div>' +
-      '<div style="margin-top:10px;">' +
-        '<button class="btn-primary" style="width:auto;" onclick="saveInventorySettingsRow(\'' + item.id + '\')">Save</button>' +
-        '<span id="inv-setting-success-' + item.id + '" style="display:none; color: var(--teal); font-size:12px; margin-left:10px;">Saved.</span>' +
-        '<span id="inv-setting-error-' + item.id + '" class="error" style="display:none; margin:8px 0 0;"></span>' +
-      '</div>' +
+  list.innerHTML =
+    '<input id="inventory-settings-search" type="text" placeholder="Search items to edit..." autocomplete="off" ' +
+      'oninput="filterInventorySettingsList()" style="max-width:280px;" />' +
+    '<div class="table-scroll" style="margin-top:10px;">' +
+    '<table>' +
+      '<thead><tr><th>Item</th><th>Track</th><th>Qty on hand</th><th>Unit cost</th><th>Low stock alert</th><th></th></tr></thead>' +
+      '<tbody>' +
+      items.map(function(item) {
+        const qty = item.quantity_on_hand || 0;
+        const cost = item.unit_cost != null ? Number(item.unit_cost) : "";
+        const threshold = item.low_stock_threshold != null ? item.low_stock_threshold : "";
+        return '<tr data-name="' + escapeHtml(item.name.toLowerCase()) + '">' +
+          '<td>' + escapeHtml(item.name) + '</td>' +
+          '<td><input type="checkbox" ' + (item.track_inventory ? "checked" : "") +
+            ' onchange="saveInventoryField(\'' + item.id + '\', \'track_inventory\', this.checked)" style="width:auto;" /></td>' +
+          '<td><input type="number" min="0" step="1" class="inv-grid-input" data-col="qty" value="' + qty + '" style="width:90px;" ' +
+            'onblur="saveInventoryField(\'' + item.id + '\', \'quantity_on_hand\', this.value)" /></td>' +
+          '<td><input type="number" min="0" step="0.01" class="inv-grid-input" data-col="cost" value="' + cost + '" style="width:90px;" ' +
+            'onblur="saveInventoryField(\'' + item.id + '\', \'unit_cost\', this.value)" /></td>' +
+          '<td><input type="number" min="0" step="1" class="inv-grid-input" data-col="threshold" placeholder="Off" value="' + threshold + '" style="width:90px;" ' +
+            'onblur="saveInventoryField(\'' + item.id + '\', \'low_stock_threshold\', this.value)" /></td>' +
+          '<td><span class="inv-row-status" id="inv-status-' + item.id + '" style="font-size:11px;"></span></td>' +
+        '</tr>';
+      }).join("") +
+      '</tbody>' +
+    '</table>' +
     '</div>';
-  }).join("");
+  // Property assignment (not addEventListener) so re-rendering this list
+  // never stacks up duplicate listeners on the wrapper.
+  list.onkeydown = handleInventoryGridKeydown;
 }
 
-async function saveInventorySettingsRow(itemId) {
-  const successEl = document.getElementById("inv-setting-success-" + itemId);
-  const errEl = document.getElementById("inv-setting-error-" + itemId);
-  successEl.style.display = "none";
-  errEl.style.display = "none";
+function filterInventorySettingsList() {
+  const q = document.getElementById("inventory-settings-search").value.trim().toLowerCase();
+  document.querySelectorAll("#inventory-settings-list tbody tr").forEach(function(tr) {
+    tr.style.display = !q || (tr.dataset.name || "").includes(q) ? "" : "none";
+  });
+}
 
-  const thresholdRaw = document.getElementById("inv-threshold-" + itemId).value;
-  const costRaw = document.getElementById("inv-cost-" + itemId).value;
-  const payload = {
-    track_inventory: document.getElementById("inv-track-" + itemId).checked,
-    quantity_on_hand: Number(document.getElementById("inv-qty-" + itemId).value) || 0,
-    unit_cost: costRaw === "" ? null : Number(costRaw),
-    low_stock_threshold: thresholdRaw === "" ? null : Number(thresholdRaw),
-  };
+// Up/Down move to the same column on the next/previous visible row; Enter
+// does the same as Down (Shift+Enter as Up), matching how a spreadsheet
+// lets you fill a column without switching to the mouse. Left/Right and Tab
+// are left alone -- Tab already moves across fields in DOM order for free.
+function handleInventoryGridKeydown(e) {
+  const el = e.target;
+  if (!el.classList || !el.classList.contains("inv-grid-input")) return;
+  const advance = e.key === "ArrowDown" || (e.key === "Enter" && !e.shiftKey);
+  const retreat = e.key === "ArrowUp" || (e.key === "Enter" && e.shiftKey);
+  if (!advance && !retreat) return;
+  e.preventDefault();
+  const col = el.dataset.col;
+  const inputs = Array.from(document.querySelectorAll('#inventory-settings-list .inv-grid-input[data-col="' + col + '"]'))
+    .filter(function(inp) { return inp.closest("tr").style.display !== "none"; });
+  const idx = inputs.indexOf(el);
+  if (idx === -1) return;
+  const next = inputs[advance ? idx + 1 : idx - 1];
+  if (next) { next.focus(); next.select(); }
+}
+
+async function saveInventoryField(itemId, field, rawValue) {
+  const statusEl = document.getElementById("inv-status-" + itemId);
+  const value = field === "track_inventory" ? !!rawValue
+    : field === "quantity_on_hand" ? (Number(rawValue) || 0)
+    : (rawValue === "" ? null : Number(rawValue));
+  const payload = {};
+  payload[field] = value;
   try {
     await admin.updateCatalogItem(itemId, payload);
-    successEl.style.display = "inline";
-    await loadCatalogItems();
+    // Patch the cached item directly instead of a full reload -- keeps
+    // whatever cell you're about to tab/arrow into from being torn down
+    // mid-entry while typing through a long list of changes.
+    const cached = (window.allCatalogItems || []).find(function(i) { return i.id === itemId; });
+    if (cached) cached[field] = value;
+    if (statusEl) {
+      statusEl.textContent = "Saved";
+      statusEl.style.color = "var(--teal)";
+      clearTimeout(statusEl._fadeTimer);
+      statusEl._fadeTimer = setTimeout(function() { statusEl.textContent = ""; }, 1500);
+    }
     if (document.getElementById("inventory-items-body")) loadInventory();
   } catch (err) {
-    errEl.textContent = err.message || "Couldn't save this item's inventory settings.";
-    errEl.style.display = "block";
+    if (statusEl) {
+      statusEl.textContent = err.message || "Error";
+      statusEl.style.color = "var(--rust)";
+    }
   }
 }
 
