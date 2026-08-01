@@ -909,7 +909,7 @@
     <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
     <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
     <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Billing</button>
-    <button class="nav-btn" data-view="inventory" onclick="showView('inventory')"><span class="dot"></span>Inventory</button>
+    <button class="nav-btn" data-view="inventory" onclick="showView('inventory')"><span class="nav-badge" id="pull-sheets-nav-badge" style="display:none;"></span><span class="dot"></span>Inventory</button>
     <button class="nav-btn" data-view="reports" onclick="showView('reports')"><span class="dot"></span>Reports</button>
     <button class="nav-btn" data-view="chat" onclick="showView('chat')"><span class="nav-badge" id="chat-nav-badge" style="display:none;"></span><span class="dot"></span>Chat</button>
     <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
@@ -1903,9 +1903,11 @@ function showApp() {
   loadPaySchedule();
   loadChatThreads();
   loadTeamChatThreads();
+  loadPullSheets();
   setInterval(loadOverview, 60000);
   setInterval(loadChatThreads, 15000);
   setInterval(loadTeamChatThreads, 15000);
+  setInterval(loadPullSheets, 15000);
   setupAdminPushNotifications();
 
   // If this page was opened by tapping a chat push notification (see the
@@ -5940,11 +5942,28 @@ async function buildPullSheetForSource(sourceType, sourceId) {
   await selectPullSheetSource(sourceType, sourceId);
 }
 
+// Badge on the bottom Inventory nav button -- counts pull sheets an
+// employee has marked "pulled" and are waiting on a review/fulfill from
+// you. Not shown for plain "open" ones (nothing to review yet) or
+// "fulfilled" ones (already handled). Mirrors the chat unread badge.
+function updatePullSheetsNavBadge(sheets) {
+  const badge = document.getElementById("pull-sheets-nav-badge");
+  if (!badge) return;
+  const count = sheets.filter(function(s) { return s.status === "pulled"; }).length;
+  if (count > 0) {
+    badge.textContent = count;
+    badge.style.display = "inline-block";
+  } else {
+    badge.style.display = "none";
+  }
+}
+
 async function loadPullSheets() {
   const body = document.getElementById("pull-sheets-list-body");
   if (!body) return;
   try {
     const sheets = await admin.listPullSheets();
+    updatePullSheetsNavBadge(sheets);
     if (sheets.length === 0) {
       body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">No pull sheets built yet.</td></tr>';
       return;
