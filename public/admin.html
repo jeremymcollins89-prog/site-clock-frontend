@@ -5974,7 +5974,8 @@ async function loadPullSheets() {
         : s.status === "pulled"
         ? '<span style="color: var(--amber-deep); font-weight:600;">Reported</span>'
         : '<span style="color:#8A8578;">Open</span>';
-      const actions = '<button class="save-btn" style="background: var(--teal-deep); margin-right:6px;" onclick="viewPullSheetPdf(\'' + s.id + '\')">Print</button>' +
+      const actions = '<button class="save-btn" style="background: var(--charcoal); margin-right:6px;" onclick="viewPullSheetDetail(\'' + s.id + '\')">View</button>' +
+        '<button class="save-btn" style="background: var(--teal-deep); margin-right:6px;" onclick="viewPullSheetPdf(\'' + s.id + '\')">Print</button>' +
         (s.status !== "fulfilled"
           ? '<button class="save-btn" style="background: var(--teal); margin-right:6px;" onclick="fulfillPullSheetFromList(\'' + s.id + '\')">Fulfill</button>' +
             '<button class="save-btn" style="background: #C1502E;" onclick="deletePullSheetConfirm(\'' + s.id + '\')">Delete</button>'
@@ -6206,6 +6207,27 @@ async function deletePullSheetConfirm(id) {
     loadPullSheets();
   } catch (err) {
     alert(err.message || "Couldn't delete this pull sheet.");
+  }
+}
+
+// Opens the same build/detail modal used when creating a pull sheet, but
+// for an already-existing one tapped from the list -- lets you see what
+// an employee actually reported (and Fulfill/Cancel from there) without
+// having to print the PDF just to check.
+async function viewPullSheetDetail(id) {
+  const errEl = document.getElementById("pull-sheet-modal-error");
+  errEl.style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-manual-step").style.display = "none";
+  document.getElementById("pull-sheet-detail-step").style.display = "none";
+  document.getElementById("pull-sheet-modal").classList.add("visible");
+  try {
+    const sheet = await admin.getPullSheet(id);
+    currentPullSheetId = sheet.id;
+    renderPullSheetDetailStep(sheet);
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't load this pull sheet.";
+    errEl.style.display = "block";
   }
 }
 
