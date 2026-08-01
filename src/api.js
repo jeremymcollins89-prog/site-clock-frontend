@@ -102,10 +102,11 @@ async function getTodaysRoute() {
   return apiFetch("/api/schedule/routing/today");
 }
 
-// Only ever returns pull sheets tied to a job this employee is assigned to
-// (solo/manual pull sheets aren't tied to any job, so they never show up
-// here). Calling this list is also what clears the "new pull sheet" badge --
-// see GET /api/schedule/pull-sheets on the backend.
+// Every pull sheet in the company, regardless of source type or job --
+// visible to every employee, not just whoever's assigned to the job it was
+// built from (an earlier version scoped this to job assignments, but many
+// quotes/invoices aren't tied to a job at all, which meant those pull
+// sheets never reached anyone).
 async function getMyPullSheets() {
   return apiFetch("/api/schedule/pull-sheets");
 }
@@ -116,6 +117,14 @@ async function getPullSheetsUnseenCount() {
 
 async function getMyPullSheet(id) {
   return apiFetch(`/api/schedule/pull-sheets/${id}`);
+}
+
+// Reports what was actually grabbed off the shelf for each item -- purely
+// informational, does not touch real inventory (the admin's Mark Fulfilled
+// button is what actually consumes stock, using these reported quantities).
+// items: [{ id, quantity_pulled }]
+async function submitPulledQuantities(id, items) {
+  return apiFetch(`/api/schedule/pull-sheets/${id}/pulled`, { method: "PATCH", body: { items } });
 }
 
 // Read-only mirror of the admin apps' company-logo card -- lets the header
@@ -261,4 +270,5 @@ export {
   getMyPullSheets,
   getPullSheetsUnseenCount,
   getMyPullSheet,
+  submitPulledQuantities,
 };

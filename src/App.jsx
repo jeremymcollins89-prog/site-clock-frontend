@@ -31,6 +31,7 @@ import {
   subscribePush,
   getMyPullSheets,
   getPullSheetsUnseenCount,
+  submitPulledQuantities,
 } from "./api.js";
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
@@ -921,19 +922,112 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
 }
 
 const PULL_SHEET_STATUS_STYLE = {
-  open: { bg: "#FBEFD6", color: "#8A5A00", label: "Open" },
+  open: { bg: LINE, color: "#5C6660", label: "Open" },
+  pulled: { bg: "#FBEFD6", color: "#8A5A00", label: "Reported" },
   fulfilled: { bg: "#DDEFE6", color: "#0A7A45", label: "Fulfilled" },
 };
 
+// One pull sheet's card inside PullSheetsSheet below. Owns its own draft
+// quantity-pulled inputs (keyed by item id, seeded from whatever's already
+// been reported, falling back to the requested quantity) so typing in one
+// card never touches another. Read-only once fulfilled -- at that point
+// the admin has already used these numbers to actually remove stock, so
+// there's nothing left to report.
+function PullSheetCard({ sheet, onSubmitPulled }) {
+  const [qtys, setQtys] = useState(() =>
+    Object.fromEntries(sheet.items.map((i) => [i.id, String(i.quantity_pulled != null ? i.quantity_pulled : i.quantity)]))
+  );
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [error, setError] = useState("");
+  const style = PULL_SHEET_STATUS_STYLE[sheet.status] || PULL_SHEET_STATUS_STYLE.open;
+  const isFulfilled = sheet.status === "fulfilled";
+
+  async function handleSave() {
+    setSaving(true);
+    setSaved(false);
+    setError("");
+    try {
+      const items = sheet.items.map((i) => ({ id: i.id, quantity_pulled: qtys[i.id] }));
+      await onSubmitPulled(sheet.id, items);
+      setSaved(true);
+    } catch (err) {
+      setError(err.message || "Couldn't save what you pulled.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div style={{ background: "#fff", border: `1px solid ${LINE}` }} className="rounded-xl p-3">
+      <div className="flex items-center justify-between gap-2">
+        <span className="text-sm font-medium">{sheet.source_label}</span>
+        <span
+          className="rounded"
+          style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: style.bg, color: style.color }}
+        >
+          {style.label}
+        </span>
+      </div>
+      {sheet.customer_name && (
+        <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{sheet.customer_name}</div>
+      )}
+      <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>
+        Built {formatDateShort(sheet.created_at)}
+      </div>
+
+      <div className="mt-2 flex flex-col gap-1.5">
+        {sheet.items.map((item) => (
+          <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
+            <span className="flex-1">{item.name}</span>
+            <span className="text-xs" style={{ color: "#8A8578" }}>of {item.quantity}</span>
+            {isFulfilled ? (
+              <span style={{ color: "#8A8578" }}>{item.quantity_pulled != null ? item.quantity_pulled : item.quantity}</span>
+            ) : (
+              <input
+                type="number"
+                min="0"
+                step="1"
+                value={qtys[item.id]}
+                onChange={(e) => setQtys((q) => ({ ...q, [item.id]: e.target.value }))}
+                style={{ width: 56, border: `1px solid ${LINE}`, background: "#fff" }}
+                className="rounded-lg px-2 py-1 text-sm text-right"
+              />
+            )}
+          </div>
+        ))}
+      </div>
+
+      {!isFulfilled && (
+        <>
+          {error && (
+            <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-2 mt-2 text-xs">
+              {error}
+            </div>
+          )}
+          <button
+            onClick={handleSave}
+            disabled={saving}
+            style={{ background: CHARCOAL, color: "#fff", opacity: saving ? 0.6 : 1 }}
+            className="w-full rounded-lg py-2 text-xs font-medium mt-2"
+          >
+            {saving ? "Saving..." : saved ? "Saved" : "Mark as pulled"}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 // Bottom sheet reachable from the "Pull sheets" entry in CalendarView's
-// hamburger menu. Read-only for employees -- an admin builds and fulfills
-// pull sheets in the admin app; this is just a copy of what's being pulled
-// for a job they're assigned to, so they know what's already been grabbed
-// off the shelf without having to ask. Only ever shows job-based sheets
-// (built from a quote/invoice tied to a job the employee is on) -- solo/
-// manual pull sheets aren't tied to any job and never appear here (see
-// GET /api/schedule/pull-sheets on the backend).
-function PullSheetsSheet({ open, onClose, pullSheets, loading }) {
+// hamburger menu. Visible to every employee, for every pull sheet in the
+// company -- an admin builds them in the admin app, and can either build
+// from a quote/invoice (tied to a job) or a solo/manual sheet not tied to
+// any job at all; both show up here the same way. Employees can report the
+// actual quantity they pulled per item (see PullSheetCard above), but that's
+// purely informational -- the admin's own "Mark fulfilled" step in the
+// admin app is still what actually removes anything from real inventory.
+function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled }) {
   if (!open) return null;
   return (
     <div
@@ -968,40 +1062,13 @@ function PullSheetsSheet({ open, onClose, pullSheets, loading }) {
           <p className="text-xs py-6 text-center" style={{ color: "#8A8578" }}>Loading...</p>
         ) : pullSheets.length === 0 ? (
           <p className="text-xs py-6 text-center" style={{ color: "#8A8578" }}>
-            No pull sheets for your jobs yet.
+            No pull sheets yet.
           </p>
         ) : (
           <div className="flex flex-col gap-2">
-            {pullSheets.map((sheet) => {
-              const style = PULL_SHEET_STATUS_STYLE[sheet.status] || PULL_SHEET_STATUS_STYLE.open;
-              return (
-                <div key={sheet.id} style={{ background: "#fff", border: `1px solid ${LINE}` }} className="rounded-xl p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-sm font-medium">{sheet.source_label}</span>
-                    <span
-                      className="rounded"
-                      style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: style.bg, color: style.color }}
-                    >
-                      {style.label}
-                    </span>
-                  </div>
-                  {sheet.customer_name && (
-                    <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{sheet.customer_name}</div>
-                  )}
-                  <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>
-                    Built {formatDateShort(sheet.created_at)}
-                  </div>
-                  <div className="mt-2 flex flex-col gap-1">
-                    {sheet.items.map((item) => (
-                      <div key={item.id} className="flex items-center justify-between text-sm">
-                        <span>{item.name}</span>
-                        <span style={{ color: "#8A8578" }}>x{item.quantity}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+            {pullSheets.map((sheet) => (
+              <PullSheetCard key={sheet.id} sheet={sheet} onSubmitPulled={onSubmitPulled} />
+            ))}
           </div>
         )}
       </div>
@@ -2034,17 +2101,17 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
-  // Full list, with items included, for every quote/invoice-based pull
-  // sheet tied to a job this employee is assigned to. The menu badge count
-  // is just "how many of these are still open" (mirrors the Time off
-  // badge's pending count), so keep it in sync with whatever was just
-  // loaded rather than a separate "seen" concept.
+  // Full list, with items included, for every pull sheet in the company
+  // (see getMyPullSheets). The menu badge count is "how many still need
+  // attention" -- not yet fulfilled, whether or not someone's already
+  // reported quantities on them -- mirroring what GET
+  // /api/schedule/pull-sheets/unseen-count counts server-side.
   async function loadPullSheets() {
     setPullSheetsLoading(true);
     try {
       const rows = await getMyPullSheets();
       setPullSheets(rows);
-      setPullSheetsUnseenCount(rows.filter((r) => r.status === "open").length);
+      setPullSheetsUnseenCount(rows.filter((r) => r.status !== "fulfilled").length);
     } catch {
       // non-fatal — leave whatever was last loaded
     } finally {
@@ -2062,6 +2129,15 @@ const [emailInput, setEmailInput] = useState("");
     } catch {
       // non-fatal — badge just won't update this cycle
     }
+  }
+
+  // Called by PullSheetCard when an employee taps "Mark as pulled" --
+  // reports actual quantities, then refreshes the list so the card's
+  // status badge and badge count reflect the change. Throws on failure so
+  // the card itself can show the error inline (see PullSheetCard).
+  async function submitPulledForSheet(sheetId, items) {
+    await submitPulledQuantities(sheetId, items);
+    await loadPullSheets();
   }
 
   // Opens the real Google Maps app with every stop pre-loaded in the
@@ -2682,6 +2758,7 @@ const [emailInput, setEmailInput] = useState("");
               onClose={() => setShowPullSheetsSheet(false)}
               pullSheets={pullSheets}
               loading={pullSheetsLoading}
+              onSubmitPulled={submitPulledForSheet}
             />
             <CalendarView
               schedule={schedule}

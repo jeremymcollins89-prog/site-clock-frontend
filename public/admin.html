@@ -1465,12 +1465,13 @@
       <div id="pull-sheet-detail-header" style="margin-bottom:10px; font-size:13px; color:#8A8578;"></div>
       <div class="table-scroll">
         <table>
-          <thead><tr><th>Item</th><th>Quantity</th></tr></thead>
+          <thead><tr><th>Item</th><th>Requested</th><th>Pulled</th></tr></thead>
           <tbody id="pull-sheet-detail-items"></tbody>
         </table>
       </div>
       <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn-small" style="background:var(--charcoal);" onclick="viewPullSheetPdf(currentPullSheetId)">Print / PDF</button>
+        <button class="btn-small" id="pull-sheet-cancel-btn" style="background:#C1502E;" onclick="cancelPullSheetFromSheet()">Cancel pull sheet</button>
         <button class="btn-primary" id="pull-sheet-fulfill-btn" onclick="fulfillPullSheetFromSheet()">Mark fulfilled</button>
       </div>
     </div>
@@ -5864,9 +5865,11 @@ async function loadPullSheets() {
     body.innerHTML = sheets.map(function(s) {
       const statusBadge = s.status === "fulfilled"
         ? '<span style="color: var(--teal); font-weight:600;">Fulfilled</span>'
+        : s.status === "pulled"
+        ? '<span style="color: var(--amber-deep); font-weight:600;">Reported</span>'
         : '<span style="color:#8A8578;">Open</span>';
       const actions = '<button class="save-btn" style="background: var(--teal-deep); margin-right:6px;" onclick="viewPullSheetPdf(\'' + s.id + '\')">Print</button>' +
-        (s.status === "open"
+        (s.status !== "fulfilled"
           ? '<button class="save-btn" style="background: var(--teal); margin-right:6px;" onclick="fulfillPullSheetFromList(\'' + s.id + '\')">Fulfill</button>' +
             '<button class="save-btn" style="background: #C1502E;" onclick="deletePullSheetConfirm(\'' + s.id + '\')">Delete</button>'
           : '');
@@ -6030,13 +6033,36 @@ function renderPullSheetDetailStep(sheet) {
   document.getElementById("pull-sheet-picker-step").style.display = "none";
   document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "";
-  document.getElementById("pull-sheet-detail-header").textContent =
-    (sheet.customer_name || "") + (sheet.status === "fulfilled" ? " -- fulfilled" : " -- not yet fulfilled");
+  const statusLabel = sheet.status === "fulfilled" ? " -- fulfilled"
+    : sheet.status === "pulled" ? " -- reported by employee, not yet fulfilled"
+    : " -- not yet fulfilled";
+  document.getElementById("pull-sheet-detail-header").textContent = (sheet.customer_name || "") + statusLabel;
   document.getElementById("pull-sheet-detail-items").innerHTML = (sheet.items || []).map(function(item) {
-    return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td></tr>';
+    const pulled = item.quantity_pulled == null ? '<span style="color:#8A8578;">--</span>' : item.quantity_pulled;
+    return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td><td>' + pulled + '</td></tr>';
   }).join("");
   const fulfillBtn = document.getElementById("pull-sheet-fulfill-btn");
   fulfillBtn.style.display = sheet.status === "fulfilled" ? "none" : "";
+  // A fulfilled sheet has already changed real inventory numbers, so (like
+  // the list view's Delete button) cancelling is only offered while it's
+  // still open.
+  const cancelBtn = document.getElementById("pull-sheet-cancel-btn");
+  cancelBtn.style.display = sheet.status === "fulfilled" ? "none" : "";
+}
+
+async function cancelPullSheetFromSheet() {
+  if (!currentPullSheetId) return;
+  if (!confirm("Cancel this pull sheet? This only removes the sheet itself -- it hasn't changed any inventory yet.")) return;
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  errEl.style.display = "none";
+  try {
+    await admin.deletePullSheet(currentPullSheetId);
+    document.getElementById("pull-sheet-sheet").classList.remove("visible");
+    loadPullSheets();
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't cancel this pull sheet.";
+    errEl.style.display = "block";
+  }
 }
 
 async function fulfillPullSheetFromSheet() {
