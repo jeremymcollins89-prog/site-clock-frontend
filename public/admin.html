@@ -1425,6 +1425,17 @@
   </div>
 </div>
 
+<div class="sheet" id="item-holds-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeItemHoldsSheet()">&times;</button>
+    <h2 id="item-holds-sheet-title">On hold</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="item-holds-sheet-error" class="error" style="display:none;"></div>
+    <div id="item-holds-list"></div>
+  </div>
+</div>
+
 <div class="sheet" id="pull-sheet-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closePullSheetSheet()">&times;</button>
@@ -1774,6 +1785,7 @@ const admin = {
 
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
   getInventory: () => apiFetch("/api/admin/inventory"),
+  getCatalogItemHolds: (id) => apiFetch(`/api/admin/catalog-items/${id}/holds`),
   getPullSheetSources: () => apiFetch("/api/admin/pull-sheets/sources"),
   listPullSheets: () => apiFetch("/api/admin/pull-sheets"),
   getPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`),
@@ -5742,6 +5754,7 @@ async function loadInventory() {
       renderReportStatCard("Total inventory value", fmtMoney(data.total_value)) +
       renderReportStatCard("Total on hold", fmtMoney(data.total_on_hold_value));
 
+    window.lastInventoryItems = data.items;
     if (data.items.length === 0) {
       bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">' +
         'No items are tracked yet -- turn on tracking for a catalog item in the Settings tab above.</td></tr>';
@@ -5749,16 +5762,76 @@ async function loadInventory() {
     }
     bodyEl.innerHTML = data.items.map(function(item) {
       const totalValue = Number(item.quantity_on_hand) * Number(item.unit_cost || 0);
+      const onHoldCell = Number(item.quantity_on_hold) > 0
+        ? '<button style="background:none; border:none; padding:0; color:var(--rust); text-decoration:underline; cursor:pointer; font:inherit;" onclick="showItemHolds(\'' + item.id + '\')">' + item.quantity_on_hold + '</button>'
+        : item.quantity_on_hold;
       return '<tr>' +
         '<td>' + escapeHtml(item.name) + '</td>' +
         '<td>' + item.quantity_available + '</td>' +
-        '<td>' + item.quantity_on_hold + '</td>' +
+        '<td>' + onHoldCell + '</td>' +
         '<td>' + fmtMoney(item.unit_cost || 0) + '</td>' +
         '<td>' + fmtMoney(totalValue) + '</td>' +
       '</tr>';
     }).join("");
   } catch (err) {
     bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">Couldn\'t load inventory.</td></tr>';
+  }
+}
+
+// Tapping an "on hold" count opens this -- lists every quote/invoice
+// currently responsible for that reservation (see GET
+// /api/admin/catalog-items/:id/holds), each tappable to jump straight to
+// it. Item name comes from window.lastInventoryItems (set by loadInventory
+// above) rather than being passed through the onclick string, so item names
+// with apostrophes/quotes in them can't break the button's markup.
+async function showItemHolds(itemId) {
+  const item = (window.lastInventoryItems || []).find(function(i) { return i.id === itemId; });
+  document.getElementById("item-holds-sheet-title").textContent = (item ? item.name + " -- " : "") + "On hold";
+  document.getElementById("item-holds-sheet-error").style.display = "none";
+  document.getElementById("item-holds-list").innerHTML = '<p style="font-size:13px; color:#8A8578;">Loading...</p>';
+  document.getElementById("item-holds-sheet").classList.add("visible");
+  try {
+    const holds = await admin.getCatalogItemHolds(itemId);
+    renderItemHoldsList(holds);
+  } catch (err) {
+    document.getElementById("item-holds-list").innerHTML = "";
+    const errEl = document.getElementById("item-holds-sheet-error");
+    errEl.textContent = err.message || "Couldn't load what's holding this item.";
+    errEl.style.display = "block";
+  }
+}
+
+function closeItemHoldsSheet() {
+  document.getElementById("item-holds-sheet").classList.remove("visible");
+}
+
+function renderItemHoldsList(holds) {
+  const list = document.getElementById("item-holds-list");
+  if (holds.length === 0) {
+    list.innerHTML = '<p style="font-size:13px; color:#8A8578;">Nothing is currently holding this item.</p>';
+    return;
+  }
+  list.innerHTML = holds.map(function(h) {
+    const label = (h.source_type === "invoice" ? "Invoice #" : "Quote #") + h.number;
+    return '<div class="card" style="margin-bottom:8px; cursor:pointer;" onclick="openItemHoldSource(\'' + h.source_type + '\', \'' + h.id + '\')">' +
+      '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
+        '<strong>' + escapeHtml(label) + '</strong>' +
+        '<span style="font-size:12px; color:#8A8578;">' + h.quantity + ' held</span>' +
+      '</div>' +
+      '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(h.customer_name || "") + '</div>' +
+    '</div>';
+  }).join("");
+}
+
+function openItemHoldSource(sourceType, id) {
+  closeItemHoldsSheet();
+  showView("invoices");
+  if (sourceType === "invoice") {
+    showBillingSubtab("invoices");
+    openInvoiceSheet(id);
+  } else {
+    showBillingSubtab("quotes");
+    openQuoteSheet(id);
   }
 }
 
