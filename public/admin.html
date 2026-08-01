@@ -4800,6 +4800,7 @@ let convertingQuoteToJobId = null;
 let convertingQuoteToInvoiceId = null;
 
 function quoteStatusBadge(q) {
+  if (q.status === "void") return '<span class="badge badge-void">Void</span>';
   if (q.status === "accepted") return '<span class="badge badge-accepted">Accepted</span>';
   if (q.status === "declined") return '<span class="badge badge-declined">Declined</span>';
   if (q.status === "sent" && q.is_expired) return '<span class="badge badge-overdue">Expired</span>';
@@ -4892,7 +4893,7 @@ function renderQuotesList() {
         '<button class="btn-small" style="background: var(--teal); margin-left:6px;" onclick="openQuoteSheet(\'' + q.id + '\')">Edit</button>';
     // Converting is allowed from any status except declined (and only once --
     // no point invoicing a quote that's already been turned into an invoice).
-    if (q.status !== "declined" && !q.converted_invoice_id) {
+    if (q.status !== "declined" && q.status !== "void" && !q.converted_invoice_id) {
       action += '<button class="btn-small" style="background: var(--teal-deep); margin-left:6px;" onclick="openConvertQuoteToInvoiceSheet(\'' + q.id + '\')">Convert to invoice</button>';
     }
     return '<div class="card invoice-card">' +
@@ -5077,7 +5078,7 @@ async function openQuoteSheet(quoteId) {
   document.getElementById("quote-save-btn").style.display = isEditable ? "" : "none";
   document.getElementById("quote-save-btn").textContent = !quote ? "Save & send" : (isDraft ? "Save draft" : "Save changes");
   document.getElementById("quote-viewpdf-btn").style.display = quote ? "" : "none";
-  document.getElementById("quote-pullsheet-btn").style.display = quote && quote.status !== "declined" ? "" : "none";
+  document.getElementById("quote-pullsheet-btn").style.display = quote && quote.status !== "declined" && quote.status !== "void" ? "" : "none";
   document.getElementById("quote-send-btn").style.display = quote && isEditable ? "" : "none";
   document.getElementById("quote-send-btn").textContent = quote && quote.status === "sent" ? "Resend to customer" : "Send to customer";
   document.getElementById("quote-accept-btn").style.display = quote && ["draft", "sent"].includes(quote.status) ? "" : "none";
