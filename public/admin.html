@@ -639,17 +639,20 @@
       <div id="inventory-subtab-items">
         <div id="inventory-summary-bubbles" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;"></div>
         <div class="card">
-          <h3 style="margin-top:0; font-size:15px;">Inventory</h3>
+          <h3 style="margin-top:0; font-size:15px;">Inventory <span id="inventory-count-badge" style="font-weight:400; color:#8A8578; font-size:13px;"></span></h3>
           <p style="font-size:12px; color:#8A8578; margin-top:-8px;">
             Items quoted or invoiced show up "on hold" here until that invoice is paid, at which point they're removed
             from stock for good. Turn tracking on for a catalog item and set its starting quantity/cost in the
             Settings tab above.
           </p>
-          <div class="table-scroll">
-            <table>
-              <thead><tr><th>Item</th><th>Available</th><th>On hold</th><th>Unit cost</th><th>Total value</th></tr></thead>
-              <tbody id="inventory-items-body"></tbody>
-            </table>
+          <button class="btn-small" id="inventory-list-toggle-btn" style="background:var(--charcoal); margin-top:2px;" onclick="toggleInventoryItemsList()">Show inventory items</button>
+          <div id="inventory-items-list-wrapper" style="display:none; margin-top:8px;">
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Item</th><th>Available</th><th>On hold</th><th>Unit cost</th><th>Total value</th></tr></thead>
+                <tbody id="inventory-items-body"></tbody>
+              </table>
+            </div>
           </div>
         </div>
 
@@ -5761,9 +5764,29 @@ function showInventorySubtab(name) {
   if (name === "settings") renderInventorySettingsList();
 }
 
+// The inventory items table is collapsed behind a toggle by default, same
+// idea as the Catalog list below -- with a lot of tracked items this table
+// can get long, and most of the time you just want the total-value bubbles
+// above, not the full row-by-row breakdown.
+let inventoryListExpanded = false;
+
+function applyInventoryListExpandedState() {
+  const wrapper = document.getElementById("inventory-items-list-wrapper");
+  const btn = document.getElementById("inventory-list-toggle-btn");
+  if (!wrapper || !btn) return;
+  wrapper.style.display = inventoryListExpanded ? "" : "none";
+  btn.textContent = inventoryListExpanded ? "Hide inventory items" : "Show inventory items";
+}
+
+function toggleInventoryItemsList() {
+  inventoryListExpanded = !inventoryListExpanded;
+  applyInventoryListExpandedState();
+}
+
 async function loadInventory() {
   const bubblesEl = document.getElementById("inventory-summary-bubbles");
   const bodyEl = document.getElementById("inventory-items-body");
+  const countBadge = document.getElementById("inventory-count-badge");
   try {
     const data = await admin.getInventory();
     bubblesEl.innerHTML =
@@ -5771,6 +5794,8 @@ async function loadInventory() {
       renderReportStatCard("Total on hold", fmtMoney(data.total_on_hold_value));
 
     window.lastInventoryItems = data.items;
+    if (countBadge) countBadge.textContent = data.items.length ? "(" + data.items.length + ")" : "";
+    applyInventoryListExpandedState();
     if (data.items.length === 0) {
       bodyEl.innerHTML = '<tr><td colspan="5" style="text-align:center; color:#8A8578; padding:16px;">' +
         'No items are tracked yet -- turn on tracking for a catalog item in the Settings tab above.</td></tr>';
