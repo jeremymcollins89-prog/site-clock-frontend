@@ -487,7 +487,6 @@
 
       <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:10px;">
         <button class="billing-subtab-btn active" data-billing-subtab="overview" onclick="showBillingSubtab('overview')">Overview</button>
-        <button class="billing-subtab-btn" data-billing-subtab="catalog" onclick="showBillingSubtab('catalog')">Catalog</button>
         <button class="billing-subtab-btn" data-billing-subtab="quotes" onclick="showBillingSubtab('quotes')">Quotes</button>
         <button class="billing-subtab-btn" data-billing-subtab="invoices" onclick="showBillingSubtab('invoices')">Invoices</button>
         <button class="billing-subtab-btn" data-billing-subtab="transactions" onclick="showBillingSubtab('transactions')">Transactions</button>
@@ -521,14 +520,6 @@
           <div id="billing-overview-payment-breakdown"></div>
         </div>
 
-        <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('catalog')">
-          <div>
-            <h3 style="margin:0; font-size:15px;">Catalog</h3>
-            <p style="font-size:12px; color:#8A8578; margin:4px 0 0;" id="billing-overview-catalog-summary">Reusable line items for quotes and invoices.</p>
-          </div>
-          <span style="color:#8A8578; font-size:20px;">&#8250;</span>
-        </div>
-
         <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('quotes')">
           <div>
             <h3 style="margin:0; font-size:15px;">Quotes</h3>
@@ -543,36 +534,6 @@
             <p style="font-size:12px; color:#8A8578; margin:4px 0 0;" id="billing-overview-invoices-summary">Billed work, emailed to the customer once sent.</p>
           </div>
           <span style="color:#8A8578; font-size:20px;">&#8250;</span>
-        </div>
-      </div>
-
-      <div id="billing-subtab-catalog" class="billing-subtab-panel" style="display:none;">
-        <div class="card">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <h3 style="margin:0; font-size:15px;">Catalog <span id="catalog-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
-            <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
-          </div>
-          <div style="display:flex; gap:8px; margin-bottom:6px;">
-            <button class="btn-small" style="background:var(--teal); flex:1;" onclick="document.getElementById('catalog-import-input').click()">Import Catalog</button>
-          </div>
-          <input type="file" id="catalog-import-input" accept=".xlsx,.xls,.csv,text/csv" style="display:none;" onchange="handleCatalogImportFile(event)" />
-          <div style="position:relative;">
-            <input id="catalog-search-input" type="text" placeholder="Search catalog items..." autocomplete="off"
-              oninput="onCatalogSearchInput()" onfocus="onCatalogSearchInput()" style="margin-bottom:0;" />
-            <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
-          </div>
-          <div style="margin-top:8px;">
-            <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
-            <p style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">
-              Import an Excel (.xlsx) or CSV file with a Name column. Unit Price, Quantity (on hand), and Unit Cost columns are
-              all optional -- if a row has a Quantity or Cost, inventory tracking turns on for that item automatically. Rows
-              matching an existing item's name are skipped.
-            </p>
-            <button class="btn-small" id="catalog-list-toggle-btn" style="background:var(--charcoal); margin-top:2px;" onclick="toggleCatalogItemsList()">Show catalog items</button>
-            <div id="catalog-items-list-wrapper" style="display:none; margin-top:8px;">
-              <div id="catalog-items-list"></div>
-            </div>
-          </div>
         </div>
       </div>
 
@@ -671,6 +632,7 @@
 
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px;">
         <button class="billing-subtab-btn active" data-inventory-subtab="items" onclick="showInventorySubtab('items')">Items</button>
+        <button class="billing-subtab-btn" data-inventory-subtab="catalog" onclick="showInventorySubtab('catalog')">Catalog</button>
         <button class="billing-subtab-btn" data-inventory-subtab="settings" onclick="showInventorySubtab('settings')">Settings</button>
       </div>
 
@@ -702,6 +664,36 @@
               <thead><tr><th>Job</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
               <tbody id="pull-sheets-list-body"></tbody>
             </table>
+          </div>
+        </div>
+      </div>
+
+      <div id="inventory-subtab-catalog" style="display:none;">
+        <div class="card">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+            <h3 style="margin:0; font-size:15px;">Catalog <span id="catalog-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span></h3>
+            <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
+          </div>
+          <div style="display:flex; gap:8px; margin-bottom:6px;">
+            <button class="btn-small" style="background:var(--teal); flex:1;" onclick="document.getElementById('catalog-import-input').click()">Import Catalog</button>
+          </div>
+          <input type="file" id="catalog-import-input" accept=".xlsx,.xls,.csv,text/csv" style="display:none;" onchange="handleCatalogImportFile(event)" />
+          <div style="position:relative;">
+            <input id="catalog-search-input" type="text" placeholder="Search catalog items..." autocomplete="off"
+              oninput="onCatalogSearchInput()" onfocus="onCatalogSearchInput()" style="margin-bottom:0;" />
+            <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:#fff; border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
+          </div>
+          <div style="margin-top:8px;">
+            <p style="font-size:12px; color:#8A8578; margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
+            <p style="font-size:11px; color:#8A8578; margin:-4px 0 8px;">
+              Import an Excel (.xlsx) or CSV file with a Name column. Unit Price, Quantity (on hand), and Unit Cost columns are
+              all optional -- if a row has a Quantity or Cost, inventory tracking turns on for that item automatically. Rows
+              matching an existing item's name are skipped.
+            </p>
+            <button class="btn-small" id="catalog-list-toggle-btn" style="background:var(--charcoal); margin-top:2px;" onclick="toggleCatalogItemsList()">Show catalog items</button>
+            <div id="catalog-items-list-wrapper" style="display:none; margin-top:8px;">
+              <div id="catalog-items-list"></div>
+            </div>
           </div>
         </div>
       </div>
@@ -4097,8 +4089,9 @@ function closeCustomerHistorySheet() {
 }
 
 // ---------- Billing overview ----------
-// The Billing view opens on this summary page, with Catalog/Quotes/Invoices
-// available as sub-tabs (rather than three stacked, always-visible cards).
+// The Billing view opens on this summary page, with Quotes/Invoices/etc
+// available as sub-tabs (rather than always-visible cards). Catalog used to
+// live here too, but now lives under Inventory instead.
 function showBillingSubtab(name) {
   document.querySelectorAll(".billing-subtab-btn").forEach(function(b) {
     b.classList.toggle("active", b.dataset.billingSubtab === name);
@@ -4153,7 +4146,6 @@ function startStripeConnect() {
 function renderBillingOverview() {
   const invoices = window.allInvoices || [];
   const quotes = window.allQuotes || [];
-  const catalogItems = window.allCatalogItems || [];
 
   const paidInvoices = invoices.filter(function(inv) { return inv.status === "paid"; });
   const unpaidInvoices = invoices.filter(function(inv) { return inv.status === "draft" || inv.status === "sent"; });
@@ -4174,8 +4166,6 @@ function renderBillingOverview() {
   billingOverviewSetText("billing-overview-pending-count",
     (pendingQuotes.length === 1 ? "1 quote" : pendingQuotes.length + " quotes") + " awaiting a decision");
 
-  billingOverviewSetText("billing-overview-catalog-summary",
-    catalogItems.length ? (catalogItems.length === 1 ? "1 item" : catalogItems.length + " items") + " ready to drop into a quote or invoice." : "No items yet -- add reusable charges here.");
   billingOverviewSetText("billing-overview-quotes-summary",
     quotes.length ? quotes.length + " total, " + pendingQuotes.length + " pending" : "No quotes yet.");
   billingOverviewSetText("billing-overview-invoices-summary",
@@ -5728,12 +5718,10 @@ function renderNetProfitBreakdown(summary, breakdown, start, end) {
 }
 
 // ---------- Inventory ----------
-// Jumps over to Billing -> Catalog and opens the new-item sheet directly, so
-// adding a brand-new item to track doesn't require first finding the
-// Catalog sub-tab on your own.
+// Switches to the Catalog sub-tab (right here in Inventory) and opens the
+// new-item sheet directly.
 function goToNewCatalogItem() {
-  showView("invoices");
-  showBillingSubtab("catalog");
+  showInventorySubtab("catalog");
   openCatalogItemSheet();
 }
 
@@ -5742,6 +5730,7 @@ function showInventorySubtab(name) {
     b.classList.toggle("active", b.dataset.inventorySubtab === name);
   });
   document.getElementById("inventory-subtab-items").style.display = name === "items" ? "" : "none";
+  document.getElementById("inventory-subtab-catalog").style.display = name === "catalog" ? "" : "none";
   document.getElementById("inventory-subtab-settings").style.display = name === "settings" ? "" : "none";
   if (name === "settings") renderInventorySettingsList();
 }
@@ -5844,7 +5833,7 @@ function renderInventorySettingsList() {
   const list = document.getElementById("inventory-settings-list");
   const items = window.allCatalogItems || [];
   if (items.length === 0) {
-    list.innerHTML = '<p style="font-size:13px; color:#8A8578;">No catalog items yet -- add one in Billing &rarr; Catalog first.</p>';
+    list.innerHTML = '<p style="font-size:13px; color:#8A8578;">No catalog items yet -- add one in the Catalog tab above first.</p>';
     return;
   }
   list.innerHTML = items.map(function(item) {
@@ -6363,7 +6352,7 @@ async function submitCatalogItem() {
     }
     closeCatalogItemSheet();
     await loadCatalogItems();
-    showBillingSubtab("catalog");
+    showInventorySubtab("catalog");
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save catalog item.";
     errEl.style.display = "block";
