@@ -407,6 +407,13 @@
       </div>
       <p style="font-size:12px; color:#8A8578; margin:0 0 10px;">Tap an employee to view or edit their hours.</p>
       <div id="employees-list"></div>
+      <h3 style="margin:16px 0 6px; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleInactiveEmployeesSection()">
+        <span id="inactive-employees-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
+        Inactive employees <span id="inactive-employees-count-badge" style="font-weight:400; color:#8A8578; font-size:12px;"></span>
+      </h3>
+      <div id="inactive-employees-section-body" style="display:none;">
+        <div id="inactive-employees-list"></div>
+      </div>
     </section>
 
     <section id="view-schedule" class="view">
@@ -2274,8 +2281,7 @@ async function loadEmployees() {
   (overview.employees || []).forEach(function(oe) {
     if (oe.open_entry_id) openEntryByEmployee[oe.id] = oe.open_entry_id;
   });
-  const body = document.getElementById("employees-list");
-  body.innerHTML = rows.map(function(e) {
+  function buildCard(e) {
     const openEntryId = openEntryByEmployee[e.id];
     const forceClockOutBtn = openEntryId
       ? '<button class="btn-small" style="background:#C1502E;" onclick="event.stopPropagation(); forceClockOutRowConfirm(\'' + openEntryId + '\', \'' + escapeHtml(e.name).replace(/'/g, "\\'") + '\')">Force clock out</button>'
@@ -2292,7 +2298,34 @@ async function loadEmployees() {
         forceClockOutBtn +
       '</span>' +
     '</div>';
-  }).join("") || '<p style="color:#8A8578; font-size:13px;">No employees yet.</p>';
+  }
+
+  // Active employees stay in the main list; inactive ones move into their
+  // own collapsed-by-default section below so a growing list of former
+  // employees doesn't push active staff down or clutter the main view.
+  const activeRows = rows.filter(function(e) { return e.active; });
+  const inactiveRows = rows.filter(function(e) { return !e.active; });
+
+  document.getElementById("employees-list").innerHTML =
+    activeRows.map(buildCard).join("") || '<p style="color:#8A8578; font-size:13px;">No employees yet.</p>';
+
+  document.getElementById("inactive-employees-list").innerHTML = inactiveRows.map(buildCard).join("");
+  const inactiveBadge = document.getElementById("inactive-employees-count-badge");
+  if (inactiveBadge) inactiveBadge.textContent = inactiveRows.length ? "(" + inactiveRows.length + ")" : "";
+}
+
+let inactiveEmployeesSectionExpanded = false;
+
+function toggleInactiveEmployeesSection() {
+  inactiveEmployeesSectionExpanded = !inactiveEmployeesSectionExpanded;
+  applyInactiveEmployeesSectionState();
+}
+
+function applyInactiveEmployeesSectionState() {
+  const body = document.getElementById("inactive-employees-section-body");
+  const icon = document.getElementById("inactive-employees-toggle-icon");
+  if (body) body.style.display = inactiveEmployeesSectionExpanded ? "block" : "none";
+  if (icon) icon.style.transform = inactiveEmployeesSectionExpanded ? "rotate(90deg)" : "rotate(0deg)";
 }
 
 // For when someone forgets to clock out -- lets the admin end an open shift
