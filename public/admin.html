@@ -202,21 +202,6 @@
     background: var(--paper); overflow-y: auto; -webkit-overflow-scrolling: touch;
   }
   .sheet.visible { display: block; }
-  .barcode-scan-reticle-line {
-    position: absolute;
-    left: 6%;
-    right: 6%;
-    top: 50%;
-    height: 2px;
-    background: #E14B4B;
-    box-shadow: 0 0 6px 1px rgba(225,75,75,0.9);
-    animation: barcodeScanLineMove 1.6s ease-in-out infinite;
-  }
-  @keyframes barcodeScanLineMove {
-    0% { top: 12%; }
-    50% { top: 88%; }
-    100% { top: 12%; }
-  }
   .sheet-header {
     position: sticky; top: 0; background: var(--paper); z-index: 5;
     display: flex; align-items: center; gap: 10px; padding: 14px 16px 10px;
@@ -1495,13 +1480,8 @@
     <div id="barcode-scan-error" class="error" style="display:none;"></div>
     <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:10px;">
       <video id="barcode-scan-video" style="width:100%; display:block;" muted playsinline></video>
-      <div style="position:absolute; inset:0; pointer-events:none; display:flex; align-items:center; justify-content:center;">
-        <div style="width:78%; max-width:340px; height:38%; border:2px solid rgba(255,255,255,0.6); border-radius:10px; position:relative; box-shadow:0 0 0 2000px rgba(0,0,0,0.35);">
-          <div class="barcode-scan-reticle-line"></div>
-        </div>
-      </div>
     </div>
-    <p id="barcode-scan-status" style="font-size:12px; color:#8A8578;">Hold the barcode flat, fill the box, and move closer/farther until it's sharp...</p>
+    <p id="barcode-scan-status" style="font-size:12px; color:#8A8578;">Point the camera at a barcode and hold steady...</p>
     <div id="barcode-scan-result" style="display:none;"></div>
   </div>
 </div>
@@ -6952,21 +6932,24 @@ function closeBarcodeScanSheet() {
   document.getElementById("barcode-scan-sheet").classList.remove("visible");
 }
 
-// Requests a higher-resolution rear-camera stream with continuous autofocus
-// instead of letting the browser pick its own (often low-res, fixed-focus)
-// default -- that default is usually fine on a laptop webcam but produces
-// blurry up-close video on phones, which is exactly where barcode scanning
-// needs sharp focus. TRY_HARDER tells ZXing to spend more effort decoding a
-// less-than-perfect frame instead of giving up immediately.
-function getBarcodeScanConstraints() {
-  return {
-    video: {
-      facingMode: { ideal: "environment" },
-      width: { ideal: 1920 },
-      height: { ideal: 1080 },
-      advanced: [{ focusMode: "continuous" }],
-    },
-  };
+// After the camera stream is live, turn on continuous autofocus -- but only
+// if the browser actually reports it supports that (checked via
+// getCapabilities()). Desktop webcams almost never report this capability,
+// so this is a no-op there and leaves that already-working experience
+// alone; phones that do report it (most Android Chrome/Samsung Internet)
+// get real continuous AF instead of whatever fixed/default focus they'd
+// otherwise be stuck with up close.
+function applyContinuousFocusIfSupported(reader) {
+  try {
+    var track = reader && reader.stream && reader.stream.getVideoTracks && reader.stream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== "function") return;
+    var caps = track.getCapabilities();
+    if (caps && caps.focusMode && caps.focusMode.indexOf("continuous") !== -1) {
+      track.applyConstraints({ advanced: [{ focusMode: "continuous" }] }).catch(function() {});
+    }
+  } catch (e) {
+    // best-effort only
+  }
 }
 
 function startBarcodeScan() {
@@ -6978,21 +6961,18 @@ function startBarcodeScan() {
   barcodeScanActive = true;
   var hints = new Map();
   hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
-  barcodeCodeReader = new ZXing.BrowserMultiFormatReader(hints, 150);
+  barcodeCodeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
   function onDecode(result) {
     if (!barcodeScanActive || !result) return;
     handleBarcodeScanned(result.getText());
     // NotFoundException fires continuously while no barcode is in frame -- that's
     // normal (ZXing's own polling), not something to surface as an error.
   }
-  barcodeCodeReader.decodeFromConstraints(getBarcodeScanConstraints(), "barcode-scan-video", onDecode).catch(function(err) {
-    // A handful of older browsers reject the whole request if any part of
-    // "advanced" isn't understood, rather than just ignoring that part --
-    // fall back to a plainer rear-camera request so the user isn't stuck.
-    barcodeCodeReader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, "barcode-scan-video", onDecode).catch(function(err2) {
-      document.getElementById("barcode-scan-error").textContent = "Couldn't access the camera: " + (err2.message || "permission denied.");
-      document.getElementById("barcode-scan-error").style.display = "block";
-    });
+  barcodeCodeReader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, "barcode-scan-video", onDecode).then(function() {
+    applyContinuousFocusIfSupported(barcodeCodeReader);
+  }).catch(function(err) {
+    document.getElementById("barcode-scan-error").textContent = "Couldn't access the camera: " + (err.message || "permission denied.");
+    document.getElementById("barcode-scan-error").style.display = "block";
   });
 }
 
