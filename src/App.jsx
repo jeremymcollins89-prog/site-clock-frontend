@@ -4704,7 +4704,12 @@ const [emailInput, setEmailInput] = useState("");
             <div
               style={{
                 fontFamily: "'Oswald', sans-serif", letterSpacing: "0.03em",
-                background: status === "off" ? "none" : `linear-gradient(135deg, ${CHARCOAL}, #3a4440)`,
+                // This gradient used to be a fixed dark CHARCOAL->#3a4440 pair
+                // (a "chrome" gradient, not meant to flip with the theme) --
+                // but that left the actual running time counter unreadable
+                // against a dark Night mode card, so Night mode gets its own
+                // light gradient here instead.
+                background: status === "off" ? "none" : isNightMode ? `linear-gradient(135deg, ${INK}, #C9CFC9)` : `linear-gradient(135deg, ${CHARCOAL}, #3a4440)`,
                 WebkitBackgroundClip: status === "off" ? "unset" : "text",
                 backgroundClip: status === "off" ? "unset" : "text",
                 color: status === "off" ? INK : "transparent",
