@@ -666,12 +666,17 @@ function SnakeGame({ open, onClose }) {
 
   return (
     <div
-      onClick={onClose}
+      // No backdrop-click-to-close and no touch bubbling: once open, this
+      // takes over completely (a stray tap continuing past the 7th one that
+      // opened it used to land on this backdrop and instantly close it
+      // again), and swipes on the board no longer leak through to the app's
+      // own tab-swipe gesture behind it. The X button is the only way out.
+      onTouchStart={(e) => e.stopPropagation()}
+      onTouchEnd={(e) => e.stopPropagation()}
       style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 200 }}
       className="flex items-end"
     >
       <div
-        onClick={(e) => e.stopPropagation()}
         style={{
           background: PAPER,
           width: "100%",
