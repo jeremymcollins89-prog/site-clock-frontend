@@ -358,6 +358,7 @@
      used only for the Routes stop-order preview map. -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/@zxing/library@0.21.3/umd/index.min.js"></script>
 </head>
 <body>
 
@@ -643,6 +644,7 @@
         <h2>Inventory</h2>
         <div style="display:flex; gap:6px;">
           <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="openBuildPullSheetSheet()">Build Pull Sheet</button>
+          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="openBarcodeScanSheet()">Scan barcode</button>
           <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="goToNewCatalogItem()">+ New item</button>
         </div>
       </div>
@@ -1465,6 +1467,21 @@
   </div>
 </div>
 
+<div class="sheet" id="barcode-scan-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeBarcodeScanSheet()">&times;</button>
+    <h2>Scan barcode</h2>
+  </div>
+  <div class="sheet-body">
+    <div id="barcode-scan-error" class="error" style="display:none;"></div>
+    <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:10px;">
+      <video id="barcode-scan-video" style="width:100%; display:block;" muted playsinline></video>
+    </div>
+    <p id="barcode-scan-status" style="font-size:12px; color:#8A8578;">Point the camera at a barcode...</p>
+    <div id="barcode-scan-result" style="display:none;"></div>
+  </div>
+</div>
+
 <div class="sheet" id="catalog-item-sheet">
   <div class="sheet-header">
     <button class="back-btn" onclick="closeCatalogItemSheet()">&times;</button>
@@ -1843,6 +1860,7 @@ const admin = {
   deleteExpense: (id) => apiFetch(`/api/admin/expenses/${id}`, { method: "DELETE" }),
 
   listCatalogItems: () => apiFetch("/api/admin/catalog-items"),
+  lookupBarcode: (barcode) => apiFetch(`/api/admin/catalog-items/lookup-barcode/${encodeURIComponent(barcode)}`),
   getInventory: () => apiFetch("/api/admin/inventory"),
   getCatalogItemHolds: (id) => apiFetch(`/api/admin/catalog-items/${id}/holds`),
   getPullSheetSources: () => apiFetch("/api/admin/pull-sheets/sources"),
@@ -6883,6 +6901,158 @@ async function deleteCatalogItemConfirm(id) {
   if (!confirm("Delete this catalog item? It won't affect any invoice it's already been used on.")) return;
   await admin.deleteCatalogItem(id);
   await loadCatalogItems();
+}
+
+// ---------- Barcode scanning ----------
+// Uses the phone/tablet's own camera via ZXing's browser decoder -- no
+// dedicated hardware scanner required (though a USB/Bluetooth one would also
+// work here, since those just "type" into whatever's focused). A barcode
+// already on a catalog item jumps straight to a restock quantity; an unknown
+// one offers to create a new item, with a best-effort name suggestion from a
+// public UPC database (backend GET /catalog-items/lookup-barcode/:barcode).
+let barcodeCodeReader = null;
+let barcodeScanActive = false;
+
+function openBarcodeScanSheet() {
+  document.getElementById("barcode-scan-sheet").classList.add("visible");
+  document.getElementById("barcode-scan-error").style.display = "none";
+  document.getElementById("barcode-scan-result").style.display = "none";
+  document.getElementById("barcode-scan-result").innerHTML = "";
+  startBarcodeScanAgain();
+}
+
+function closeBarcodeScanSheet() {
+  stopBarcodeScan();
+  document.getElementById("barcode-scan-sheet").classList.remove("visible");
+}
+
+function startBarcodeScan() {
+  if (typeof ZXing === "undefined") {
+    document.getElementById("barcode-scan-error").textContent = "Barcode scanner couldn't load -- check your internet connection and try again.";
+    document.getElementById("barcode-scan-error").style.display = "block";
+    return;
+  }
+  barcodeScanActive = true;
+  barcodeCodeReader = new ZXing.BrowserMultiFormatReader();
+  barcodeCodeReader.decodeFromVideoDevice(null, "barcode-scan-video", function(result) {
+    if (!barcodeScanActive || !result) return;
+    handleBarcodeScanned(result.getText());
+    // NotFoundException fires continuously while no barcode is in frame -- that's
+    // normal (ZXing's own polling), not something to surface as an error.
+  }).catch(function(err) {
+    document.getElementById("barcode-scan-error").textContent = "Couldn't access the camera: " + (err.message || "permission denied.");
+    document.getElementById("barcode-scan-error").style.display = "block";
+  });
+}
+
+function stopBarcodeScan() {
+  barcodeScanActive = false;
+  if (barcodeCodeReader) {
+    try { barcodeCodeReader.reset(); } catch (e) { /* already stopped */ }
+    barcodeCodeReader = null;
+  }
+}
+
+function startBarcodeScanAgain() {
+  document.getElementById("barcode-scan-error").style.display = "none";
+  document.getElementById("barcode-scan-result").style.display = "none";
+  document.getElementById("barcode-scan-camera-wrap").style.display = "block";
+  document.getElementById("barcode-scan-status").style.display = "block";
+  document.getElementById("barcode-scan-status").textContent = "Point the camera at a barcode...";
+  startBarcodeScan();
+}
+
+async function handleBarcodeScanned(barcode) {
+  if (!barcodeScanActive) return; // guard against a second decode firing before the camera actually stops
+  stopBarcodeScan();
+  document.getElementById("barcode-scan-camera-wrap").style.display = "none";
+  document.getElementById("barcode-scan-status").style.display = "none";
+
+  const resultEl = document.getElementById("barcode-scan-result");
+  resultEl.style.display = "block";
+  resultEl.innerHTML = '<p style="font-size:13px; color:#8A8578;">Looking up ' + escapeHtml(barcode) + '...</p>';
+
+  let data;
+  try {
+    data = await admin.lookupBarcode(barcode);
+  } catch (err) {
+    resultEl.innerHTML = '<p class="error">Couldn\'t look up that barcode: ' + escapeHtml(err.message || "unknown error") + '</p>' +
+      '<button class="btn-small" style="background:var(--teal);" onclick="startBarcodeScanAgain()">Scan again</button>';
+    return;
+  }
+
+  if (data.found_in_catalog) {
+    renderBarcodeMatchedItem(data.item);
+  } else {
+    renderBarcodeNewItemForm(barcode, data.suggestion);
+  }
+}
+
+function renderBarcodeMatchedItem(item) {
+  const resultEl = document.getElementById("barcode-scan-result");
+  const currentQty = Number(item.quantity_on_hand) || 0;
+  resultEl.innerHTML =
+    '<p style="font-size:14px;"><strong>' + escapeHtml(item.name) + '</strong></p>' +
+    '<p style="font-size:12px; color:#8A8578; margin-top:-8px;">Currently ' + currentQty + ' on hand' +
+      (item.track_inventory ? '' : ' -- inventory tracking is off for this item, turning it on now') + '</p>' +
+    '<label>Quantity received</label>' +
+    '<input id="barcode-scan-qty-input" type="number" min="1" step="1" value="1" />' +
+    '<div style="display:flex; gap:8px; margin-top:10px;">' +
+      '<button class="btn-small" style="background:var(--teal);" onclick="submitBarcodeRestock(\'' + item.id + '\', ' + currentQty + ')">Add to stock</button>' +
+      '<button class="btn-small" style="background:var(--charcoal);" onclick="startBarcodeScanAgain()">Scan again</button>' +
+    '</div>';
+}
+
+async function submitBarcodeRestock(itemId, currentQty) {
+  const qtyInput = document.getElementById("barcode-scan-qty-input");
+  const received = Math.max(0, Math.round(Number(qtyInput.value)) || 0);
+  if (received <= 0) { alert("Enter a quantity greater than 0."); return; }
+  try {
+    await admin.updateCatalogItem(itemId, { quantity_on_hand: currentQty + received, track_inventory: true });
+    closeBarcodeScanSheet();
+    await loadCatalogItems();
+    await loadInventory();
+    showInventorySubtab("items");
+  } catch (err) {
+    alert(err.message || "Couldn't update stock.");
+  }
+}
+
+function renderBarcodeNewItemForm(barcode, suggestion) {
+  const resultEl = document.getElementById("barcode-scan-result");
+  const suggestedName = suggestion && suggestion.name ? suggestion.name : "";
+  resultEl.innerHTML =
+    '<p style="font-size:13px; color:#8A8578;">' +
+      (suggestedName ? "No catalog item has this barcode yet -- found a possible match online:" : "No catalog item has this barcode yet, and it wasn't found in a public product database.") +
+    '</p>' +
+    '<label>Name / description</label>' +
+    '<input id="barcode-scan-name-input" value="' + escapeHtml(suggestedName) + '" placeholder="Enter a product name" />' +
+    '<label>Starting quantity on hand</label>' +
+    '<input id="barcode-scan-newqty-input" type="number" min="0" step="1" value="1" />' +
+    '<label>Unit cost (optional)</label>' +
+    '<input id="barcode-scan-cost-input" type="number" min="0" step="0.01" placeholder="0.00" />' +
+    '<div style="display:flex; gap:8px; margin-top:10px;">' +
+      '<button class="btn-small" style="background:var(--teal);" onclick="submitBarcodeNewItem(\'' + barcode.replace(/'/g, "\\'") + '\')">Add to catalog</button>' +
+      '<button class="btn-small" style="background:var(--charcoal);" onclick="startBarcodeScanAgain()">Scan again</button>' +
+    '</div>';
+}
+
+async function submitBarcodeNewItem(barcode) {
+  const name = document.getElementById("barcode-scan-name-input").value.trim();
+  if (!name) { alert("Enter a name for this item."); return; }
+  const qty = Math.max(0, Math.round(Number(document.getElementById("barcode-scan-newqty-input").value)) || 0);
+  const costInput = document.getElementById("barcode-scan-cost-input").value;
+  const unitCost = costInput === "" ? null : (Number(costInput) || 0);
+  try {
+    const created = await admin.addCatalogItem({ name: name, unit_price: 0, barcode: barcode });
+    await admin.updateCatalogItem(created.id, { track_inventory: true, quantity_on_hand: qty, unit_cost: unitCost });
+    closeBarcodeScanSheet();
+    await loadCatalogItems();
+    await loadInventory();
+    showInventorySubtab("items");
+  } catch (err) {
+    alert(err.message || "Couldn't add this item.");
+  }
 }
 
 // ---------- Catalog import (Excel/CSV) ----------
