@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper, Sun, Moon } from "lucide-react";
 // @zxing/library is the single biggest contributor to the main JS bundle,
 // but only employees with can_manage_inventory ever open the barcode
 // scanner -- so it's loaded on demand (see loadZxing, used by
@@ -118,17 +118,67 @@ async function setupPushNotifications() {
   }
 }
 
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');`;
+// Same Day/Night palette as the two admin apps (admin.html, admin-app's
+// index.html) -- kept byte-for-byte identical so all three apps look like
+// one consistent product. --charcoal/--paper are intentionally NOT given a
+// Night override: they're used directly for "chrome" backgrounds (dark
+// buttons, the gold clock-in/login buttons, etc.) that stay the same in
+// both themes -- see CHARCOAL/PAPER below, which still resolve to those
+// fixed values, plus the new INK/BG/SURFACE/INPUT_BG/MUTED tokens which DO
+// flip and are used for anything that should actually re-theme.
+const THEME_VARS = `
+  :root {
+    --charcoal: #1F2421;
+    --paper: #F4F2ED;
+    --amber: #F4B04C;
+    --amber-deep: #DB8A16;
+    --teal: #46705F;
+    --teal-deep: #2B453C;
+    --rust: #D35A34;
+    --rust-deep: #A63D20;
+    --line: #D8D3C4;
+    --ink: #1F2421;
+    --bg: #F4F2ED;
+    --surface: #FFFFFF;
+    --input-bg: #FBFAF7;
+    --muted: #8A8578;
+  }
+  [data-theme="night"] {
+    --ink: #F4F2ED;
+    --bg: #141815;
+    --surface: #1E2420;
+    --input-bg: #262C26;
+    --muted: #ACA79A;
+    --line: #333A32;
+    --amber: #FFC670;
+    --amber-deep: #F0A233;
+    --teal: #5FA189;
+    --teal-deep: #3E7161;
+    --rust: #E8754C;
+    --rust-deep: #C25730;
+  }
+`;
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');` + THEME_VARS;
 
-const CHARCOAL = "#1F2421";
-const PAPER = "#F4F2ED";
-const AMBER = "#F4B04C";
-const AMBER_DEEP = "#DB8A16";
-const TEAL = "#46705F";
-const TEAL_DEEP = "#2B453C";
-const RUST = "#D35A34";
-const RUST_DEEP = "#A63D20";
-const LINE = "#D8D3C4";
+// Fixed (unthemed) -- "chrome" backgrounds/fixed-warm-gradient text that
+// stay the same dark/light regardless of Day or Night mode.
+const CHARCOAL = "var(--charcoal)";
+const PAPER = "var(--paper)";
+// Themed -- these flip between Day and Night automatically since they're
+// plain CSS var() references resolved by the browser, not React state, so
+// switching themes needs zero re-render.
+const INK = "var(--ink)";
+const BG = "var(--bg)";
+const SURFACE = "var(--surface)";
+const INPUT_BG = "var(--input-bg)";
+const MUTED = "var(--muted)";
+const AMBER = "var(--amber)";
+const AMBER_DEEP = "var(--amber-deep)";
+const TEAL = "var(--teal)";
+const TEAL_DEEP = "var(--teal-deep)";
+const RUST = "var(--rust)";
+const RUST_DEEP = "var(--rust-deep)";
+const LINE = "var(--line)";
 
 // Full-screen clock-in celebration, shown briefly after a clock-in when the
 // employee has a clock-in animation picked (set per-person in the admin
@@ -352,7 +402,7 @@ function BirthdayOverlay({ name, onDone }) {
           // Dark text + a light halo (rather than white text + a dark
           // shadow) so this reads clearly against the app's light PAPER
           // background, not just against a dark photo/video background.
-          color: CHARCOAL,
+          color: INK,
           textShadow: "0 0 10px rgba(244,242,237,0.95), 0 0 4px rgba(244,242,237,0.95), 0 2px 6px rgba(244,242,237,0.7)",
           fontSize: "clamp(24px, 6vw, 44px)",
           fontWeight: 800,
@@ -375,7 +425,7 @@ const CELEBRATION_CAPTION_STYLE = {
   left: "50%",
   transform: "translate(-50%, -50%)",
   textAlign: "center",
-  color: CHARCOAL,
+  color: INK,
   textShadow: "0 0 10px rgba(244,242,237,0.95), 0 0 4px rgba(244,242,237,0.95), 0 2px 6px rgba(244,242,237,0.7)",
   fontSize: "clamp(24px, 6vw, 44px)",
   fontWeight: 800,
@@ -826,6 +876,12 @@ const SNAKE_GRID = 15;
 const SNAKE_CELL = 18;
 const SNAKE_TICK_MS = 140;
 const SNAKE_BEST_KEY = "site-clock-snake-best";
+// Fixed hex (not the CHARCOAL/AMBER/TEAL/RUST var() constants) since canvas
+// fillStyle can't resolve a CSS var() reference -- see draw() below.
+const SNAKE_BOARD_HEX = "#1F2421";
+const SNAKE_HEAD_HEX = "#F4B04C";
+const SNAKE_BODY_HEX = "#46705F";
+const SNAKE_FOOD_HEX = "#D35A34";
 
 function snakeRandomFood(snake) {
   let pos;
@@ -863,13 +919,18 @@ function SnakeGame({ open, onClose }) {
     const canvas = canvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext("2d");
-    ctx.fillStyle = CHARCOAL;
+    // Canvas fillStyle needs an actual resolved color, not a CSS var()
+    // reference (which CHARCOAL/AMBER/TEAL/RUST became for the rest of the
+    // app's theming) -- so the game board uses its own fixed hex constants
+    // and, like the app's other "chrome" elements, stays the same dark
+    // "game screen" look in both Day and Night mode.
+    ctx.fillStyle = SNAKE_BOARD_HEX;
     ctx.fillRect(0, 0, canvas.width, canvas.height);
     snakeRef.current.forEach((seg, i) => {
-      ctx.fillStyle = i === 0 ? AMBER : TEAL;
+      ctx.fillStyle = i === 0 ? SNAKE_HEAD_HEX : SNAKE_BODY_HEX;
       ctx.fillRect(seg.x * SNAKE_CELL + 1, seg.y * SNAKE_CELL + 1, SNAKE_CELL - 2, SNAKE_CELL - 2);
     });
-    ctx.fillStyle = RUST;
+    ctx.fillStyle = SNAKE_FOOD_HEX;
     ctx.fillRect(foodRef.current.x * SNAKE_CELL + 2, foodRef.current.y * SNAKE_CELL + 2, SNAKE_CELL - 4, SNAKE_CELL - 4);
   }
 
@@ -980,7 +1041,7 @@ function SnakeGame({ open, onClose }) {
     borderRadius: 10,
     border: "none",
     background: LINE,
-    color: CHARCOAL,
+    color: INK,
     fontSize: 18,
     display: "flex",
     alignItems: "center",
@@ -1001,7 +1062,7 @@ function SnakeGame({ open, onClose }) {
     >
       <div
         style={{
-          background: PAPER,
+          background: BG,
           width: "100%",
           maxHeight: "92vh",
           overflowY: "auto",
@@ -1016,12 +1077,12 @@ function SnakeGame({ open, onClose }) {
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
             Snake
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
 
-        <div className="flex items-center justify-between mb-2 text-xs" style={{ color: "#8A8578" }}>
+        <div className="flex items-center justify-between mb-2 text-xs" style={{ color: MUTED }}>
           <span>Score: {score}</span>
           <span>Best: {best}</span>
         </div>
@@ -1073,7 +1134,7 @@ function SnakeGame({ open, onClose }) {
             <button onClick={() => setDirection(1, 0)} style={dpadBtnStyle}>→</button>
           </div>
         </div>
-        <p className="text-xs text-center mt-3 mb-4" style={{ color: "#8A8578" }}>
+        <p className="text-xs text-center mt-3 mb-4" style={{ color: MUTED }}>
           Swipe on the board or use the arrows.
         </p>
 
@@ -1085,7 +1146,7 @@ function SnakeGame({ open, onClose }) {
           Global leaderboard
         </h3>
         {leaderboard.length === 0 ? (
-          <p className="text-xs text-center pb-2" style={{ color: "#8A8578" }}>
+          <p className="text-xs text-center pb-2" style={{ color: MUTED }}>
             No scores yet -- be the first.
           </p>
         ) : (
@@ -1093,10 +1154,10 @@ function SnakeGame({ open, onClose }) {
             {leaderboard.map((row, i) => (
               <div key={i} className="flex items-center justify-between text-xs" style={{ padding: "4px 2px" }}>
                 <span className="flex items-center gap-2" style={{ minWidth: 0 }}>
-                  <span style={{ color: "#8A8578", width: 16, flexShrink: 0 }}>{i + 1}.</span>
+                  <span style={{ color: MUTED, width: 16, flexShrink: 0 }}>{i + 1}.</span>
                   <span className="truncate" style={{ fontWeight: 600 }}>{row.employee_name}</span>
                   {row.company_name && (
-                    <span className="truncate" style={{ color: "#8A8578" }}>— {row.company_name}</span>
+                    <span className="truncate" style={{ color: MUTED }}>— {row.company_name}</span>
                   )}
                 </span>
                 <span style={{ color: TEAL, fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>{row.best_score}</span>
@@ -1212,7 +1273,7 @@ function EventCard({ job, onSelect }) {
     <button
       onClick={() => onSelect(job)}
       style={{
-        background: "#fff",
+        background: SURFACE,
         border: `1px solid rgba(31,36,33,0.05)`,
         boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)",
         textAlign: "left",
@@ -1243,12 +1304,12 @@ function EventCard({ job, onSelect }) {
             </span>
           )}
         </div>
-        <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>
+        <div className="text-xs mt-0.5" style={{ color: MUTED }}>
           {dateLabel}
           {timeLabel && ` · ${timeLabel}`}
         </div>
       </div>
-      <span style={{ color: "#8A8578", fontSize: 18, flexShrink: 0 }}>&rsaquo;</span>
+      <span style={{ color: MUTED, fontSize: 18, flexShrink: 0 }}>&rsaquo;</span>
     </button>
   );
 }
@@ -1298,7 +1359,7 @@ function JobDetailSheet({ job, onClose }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: PAPER,
+          background: BG,
           width: "100%",
           maxHeight: "80vh",
           overflowY: "auto",
@@ -1333,18 +1394,18 @@ function JobDetailSheet({ job, onClose }) {
           </div>
           <button
             onClick={onClose}
-            style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none", flexShrink: 0 }}
+            style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none", flexShrink: 0 }}
           >
             &times;
           </button>
         </div>
-        <div className="text-xs mb-3" style={{ color: "#8A8578" }}>
+        <div className="text-xs mb-3" style={{ color: MUTED }}>
           {dateLabel}
           {timeLabel && ` · ${timeLabel}`}
         </div>
 
         {job.customer_name && (
-          <div className="text-sm font-medium mt-2" style={{ color: CHARCOAL }}>{job.customer_name}</div>
+          <div className="text-sm font-medium mt-2" style={{ color: INK }}>{job.customer_name}</div>
         )}
         {job.customer_phone && (
           <a
@@ -1374,9 +1435,9 @@ function JobDetailSheet({ job, onClose }) {
 
         {job.event_type === "job" && (attachmentsLoading || attachments.length > 0) && (
           <div className="mt-3 pt-3" style={{ borderTop: `1px solid ${LINE}` }}>
-            <div className="text-xs font-medium mb-2" style={{ color: "#8A8578" }}>Attachments</div>
+            <div className="text-xs font-medium mb-2" style={{ color: MUTED }}>Attachments</div>
             {attachmentsLoading ? (
-              <div className="text-xs" style={{ color: "#8A8578" }}>Loading…</div>
+              <div className="text-xs" style={{ color: MUTED }}>Loading…</div>
             ) : (
               attachments.map((a) => (
                 <button
@@ -1386,7 +1447,7 @@ function JobDetailSheet({ job, onClose }) {
                   style={{ background: "transparent", border: "none", padding: "6px 0", color: RUST }}
                 >
                   <span className="underline truncate">{a.file_name}</span>
-                  <span className="text-xs flex-shrink-0 ml-2" style={{ color: "#8A8578" }}>
+                  <span className="text-xs flex-shrink-0 ml-2" style={{ color: MUTED }}>
                     {formatAttachmentSize(a.file_size)}
                   </span>
                 </button>
@@ -1424,7 +1485,7 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: PAPER,
+          background: BG,
           width: "100%",
           maxHeight: "85vh",
           overflowY: "auto",
@@ -1439,7 +1500,7 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
             <Plane size={14} /> Request time off
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
@@ -1447,42 +1508,42 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
         <form onSubmit={onSubmit} className="mb-5">
           <div className="grid grid-cols-2 gap-3 mb-3">
             <label className="text-xs">
-              <div className="mb-1" style={{ color: "#8A8578" }}>Start date</div>
+              <div className="mb-1" style={{ color: MUTED }}>Start date</div>
               <input
                 type="date"
                 required
                 value={form.start_date}
                 onChange={(e) => onFormChange({ ...form, start_date: e.target.value })}
-                style={{ border: `1px solid ${LINE}`, background: "#fff" }}
+                style={{ border: `1px solid ${LINE}`, background: SURFACE }}
                 className="rounded-lg px-2 py-2 w-full text-sm"
               />
             </label>
             <label className="text-xs">
-              <div className="mb-1" style={{ color: "#8A8578" }}>End date</div>
+              <div className="mb-1" style={{ color: MUTED }}>End date</div>
               <input
                 type="date"
                 required
                 value={form.end_date}
                 min={form.start_date || undefined}
                 onChange={(e) => onFormChange({ ...form, end_date: e.target.value })}
-                style={{ border: `1px solid ${LINE}`, background: "#fff" }}
+                style={{ border: `1px solid ${LINE}`, background: SURFACE }}
                 className="rounded-lg px-2 py-2 w-full text-sm"
               />
             </label>
           </div>
           <label className="text-xs block mb-3">
-            <div className="mb-1" style={{ color: "#8A8578" }}>Note (optional)</div>
+            <div className="mb-1" style={{ color: MUTED }}>Note (optional)</div>
             <textarea
               value={form.note}
               onChange={(e) => onFormChange({ ...form, note: e.target.value })}
               placeholder="What's it for? Leave blank if you'd rather not say."
               rows={2}
-              style={{ border: `1px solid ${LINE}`, background: "#fff", resize: "none" }}
+              style={{ border: `1px solid ${LINE}`, background: SURFACE, resize: "none" }}
               className="rounded-lg px-2 py-2 w-full text-sm"
             />
           </label>
           {error && (
-            <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-xl p-2.5 mb-3 text-xs">
+            <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-xl p-2.5 mb-3 text-xs">
               {error}
             </div>
           )}
@@ -1497,11 +1558,11 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
         </form>
 
         <div className="pt-3" style={{ borderTop: `1px solid ${LINE}` }}>
-          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: "#8A8578" }}>Your requests</div>
+          <div className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>Your requests</div>
           {loading ? (
-            <p className="text-xs" style={{ color: "#8A8578" }}>Loading...</p>
+            <p className="text-xs" style={{ color: MUTED }}>Loading...</p>
           ) : requests.length === 0 ? (
-            <p className="text-xs" style={{ color: "#8A8578" }}>No time off requests yet.</p>
+            <p className="text-xs" style={{ color: MUTED }}>No time off requests yet.</p>
           ) : (
             <div className="flex flex-col gap-2">
               {requests.map((r) => {
@@ -1511,7 +1572,7 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
                     ? formatDateShort(r.start_date)
                     : `${formatDateShort(r.start_date)} – ${formatDateShort(r.end_date)}`;
                 return (
-                  <div key={r.id} style={{ background: "#fff", border: `1px solid ${LINE}` }} className="rounded-xl p-3">
+                  <div key={r.id} style={{ background: SURFACE, border: `1px solid ${LINE}` }} className="rounded-xl p-3">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-sm font-medium">{dateLabel}</span>
                       <span
@@ -1521,7 +1582,7 @@ function TimeOffSheet({ open, onClose, requests, loading, form, onFormChange, on
                         {style.label}
                       </span>
                     </div>
-                    {r.note && <div className="text-xs mt-1" style={{ color: "#8A8578" }}>{r.note}</div>}
+                    {r.note && <div className="text-xs mt-1" style={{ color: MUTED }}>{r.note}</div>}
                     {r.status === "pending" && (
                       <button
                         onClick={() => onCancelRequest(r.id)}
@@ -1580,7 +1641,7 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
   }
 
   return (
-    <div style={{ background: "#fff", border: `1px solid ${LINE}` }} className="rounded-xl p-3">
+    <div style={{ background: SURFACE, border: `1px solid ${LINE}` }} className="rounded-xl p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{sheet.source_label}</span>
         <span
@@ -1591,9 +1652,9 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
         </span>
       </div>
       {sheet.customer_name && (
-        <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>{sheet.customer_name}</div>
+        <div className="text-xs mt-0.5" style={{ color: MUTED }}>{sheet.customer_name}</div>
       )}
-      <div className="text-xs mt-0.5" style={{ color: "#8A8578" }}>
+      <div className="text-xs mt-0.5" style={{ color: MUTED }}>
         Built {formatDateShort(sheet.created_at)}
       </div>
 
@@ -1601,9 +1662,9 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
         {sheet.items.map((item) => (
           <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
             <span className="flex-1">{item.name}</span>
-            <span className="text-xs" style={{ color: "#8A8578" }}>of {item.quantity}</span>
+            <span className="text-xs" style={{ color: MUTED }}>of {item.quantity}</span>
             {isFulfilled ? (
-              <span style={{ color: "#8A8578" }}>{item.quantity_pulled != null ? item.quantity_pulled : item.quantity}</span>
+              <span style={{ color: MUTED }}>{item.quantity_pulled != null ? item.quantity_pulled : item.quantity}</span>
             ) : (
               <input
                 type="number"
@@ -1611,7 +1672,7 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
                 step="1"
                 value={qtys[item.id]}
                 onChange={(e) => setQtys((q) => ({ ...q, [item.id]: e.target.value }))}
-                style={{ width: 56, border: `1px solid ${LINE}`, background: "#fff" }}
+                style={{ width: 56, border: `1px solid ${LINE}`, background: SURFACE }}
                 className="rounded-lg px-2 py-1 text-sm text-right"
               />
             )}
@@ -1622,7 +1683,7 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
       {!isFulfilled && (
         <>
           {error && (
-            <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-2 mt-2 text-xs">
+            <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-2 mt-2 text-xs">
               {error}
             </div>
           )}
@@ -1659,7 +1720,7 @@ function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled })
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: PAPER,
+          background: BG,
           width: "100%",
           maxHeight: "85vh",
           overflowY: "auto",
@@ -1674,15 +1735,15 @@ function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled })
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
             <ClipboardList size={14} /> Pull sheets
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
 
         {loading ? (
-          <p className="text-xs py-6 text-center" style={{ color: "#8A8578" }}>Loading...</p>
+          <p className="text-xs py-6 text-center" style={{ color: MUTED }}>Loading...</p>
         ) : pullSheets.length === 0 ? (
-          <p className="text-xs py-6 text-center" style={{ color: "#8A8578" }}>
+          <p className="text-xs py-6 text-center" style={{ color: MUTED }}>
             No pull sheets yet.
           </p>
         ) : (
@@ -1730,7 +1791,7 @@ function ClockInAnimationSheet({ open, onClose, current, onSelect, saving, error
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: PAPER,
+          background: BG,
           width: "100%",
           maxHeight: "85vh",
           overflowY: "auto",
@@ -1745,11 +1806,11 @@ function ClockInAnimationSheet({ open, onClose, current, onSelect, saving, error
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
             <PartyPopper size={14} /> Clock-in celebration
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
-        <p className="text-xs mb-3" style={{ color: "#8A8578" }}>
+        <p className="text-xs mb-3" style={{ color: MUTED }}>
           Pick what plays when you clock in.
         </p>
         {error && (
@@ -1770,7 +1831,7 @@ function ClockInAnimationSheet({ open, onClose, current, onSelect, saving, error
                   border: `1.5px solid ${selected ? TEAL : LINE}`,
                   background: selected ? "rgba(70,112,95,0.08)" : "transparent",
                   fontSize: 13,
-                  color: CHARCOAL,
+                  color: INK,
                   opacity: saving ? 0.6 : 1,
                 }}
               >
@@ -1836,7 +1897,7 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
     });
     if (shop && route.stops.length > 0) {
       const line = [shop, ...route.stops, shop].map((p) => [p.lat, p.lng]);
-      L.polyline(line, { color: "#8A8578", weight: 2, dashArray: "4,6" }).addTo(layer);
+      L.polyline(line, { color: MUTED, weight: 2, dashArray: "4,6" }).addTo(layer);
     }
     if (points.length > 0) map.fitBounds(points, { padding: [24, 24] });
     setTimeout(() => {
@@ -1860,7 +1921,7 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: PAPER,
+          background: BG,
           width: "100%",
           maxHeight: "88vh",
           overflowY: "auto",
@@ -1875,19 +1936,19 @@ function RouteSheet({ open, onClose, route, onStartRoute }) {
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
             <Navigation size={14} /> Assigned routes
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
 
         {hasStops && !isRouteToday && (
-          <p className="text-xs mb-2" style={{ color: "#8A8578" }}>
+          <p className="text-xs mb-2" style={{ color: MUTED }}>
             For {formatDateShort(routeDateStr)} — not today
           </p>
         )}
 
         {!hasStops ? (
-          <p className="text-sm py-6 text-center" style={{ color: "#8A8578" }}>
+          <p className="text-sm py-6 text-center" style={{ color: MUTED }}>
             No route assigned right now. Check back once your admin builds one.
           </p>
         ) : (
@@ -1964,7 +2025,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
               onClick={() => setShowScheduleMenu((v) => !v)}
               aria-label="Schedule menu"
               className="rounded-lg px-2 py-1.5 flex items-center justify-center"
-              style={{ position: "relative", color: CHARCOAL, background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+              style={{ position: "relative", color: INK, background: SURFACE, boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
             >
               <Menu size={16} />
               {hasScheduleMenuBadge && (
@@ -1982,14 +2043,14 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                 <div
                   style={{
                     position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
-                    background: "#fff", borderRadius: 12, minWidth: 190, overflow: "hidden",
+                    background: SURFACE, borderRadius: 12, minWidth: 190, overflow: "hidden",
                     boxShadow: "0 10px 28px rgba(31,36,33,0.18)",
                   }}
                 >
                   <button
                     onClick={() => { setShowScheduleMenu(false); onOpenRoute(); }}
                     className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
-                    style={{ color: CHARCOAL, background: "#fff", border: "none", textAlign: "left" }}
+                    style={{ color: INK, background: SURFACE, border: "none", textAlign: "left" }}
                   >
                     <Navigation size={14} /> Assigned routes
                     {hasRouteToday && (
@@ -2002,7 +2063,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                   <button
                     onClick={() => { setShowScheduleMenu(false); onOpenTimeOff(); }}
                     className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
-                    style={{ color: CHARCOAL, background: "#fff", border: "none", textAlign: "left" }}
+                    style={{ color: INK, background: SURFACE, border: "none", textAlign: "left" }}
                   >
                     <Plane size={14} /> Time off
                     {timeOffPendingCount > 0 && (
@@ -2015,7 +2076,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                   <button
                     onClick={() => { setShowScheduleMenu(false); onOpenPullSheets(); }}
                     className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
-                    style={{ color: CHARCOAL, background: "#fff", border: "none", textAlign: "left" }}
+                    style={{ color: INK, background: SURFACE, border: "none", textAlign: "left" }}
                   >
                     <ClipboardList size={14} /> Pull sheets
                     {pullSheetsCount > 0 && (
@@ -2034,7 +2095,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
               setSelectedDay(todayStr());
             }}
             className="text-xs underline"
-            style={{ color: "#8A8578" }}
+            style={{ color: MUTED }}
           >
             Today
           </button>
@@ -2044,7 +2105,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={onPrevMonth}
-          style={{ border: "none", background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+          style={{ border: "none", background: SURFACE, boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
           className="rounded-xl px-3 py-1 text-sm"
         >
           ‹
@@ -2054,7 +2115,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
         </span>
         <button
           onClick={onNextMonth}
-          style={{ border: "none", background: "#fff", boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
+          style={{ border: "none", background: SURFACE, boxShadow: "0 3px 8px rgba(31,36,33,0.1)" }}
           className="rounded-xl px-3 py-1 text-sm"
         >
           ›
@@ -2062,12 +2123,12 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
       </div>
 
       {loading ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+        <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : (
         <>
           <div className="grid grid-cols-7 gap-1 mb-1">
             {DOW_LABELS.map((l, i) => (
-              <div key={i} className="text-center text-[10px] uppercase" style={{ color: "#8A8578" }}>
+              <div key={i} className="text-center text-[10px] uppercase" style={{ color: MUTED }}>
                 {l}
               </div>
             ))}
@@ -2089,7 +2150,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                       ? `linear-gradient(135deg, #E06A45, ${RUST})`
                       : isToday
                       ? `linear-gradient(135deg, #F9C978, ${AMBER})`
-                      : "#fff",
+                      : SURFACE,
                     boxShadow: isSelected
                       ? "0 3px 8px rgba(211,90,52,0.35)"
                       : isToday
@@ -2098,7 +2159,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                   }}
                   className="rounded-xl py-1.5 flex flex-col items-center gap-0.5"
                 >
-                  <span className="text-xs" style={{ color: isSelected ? "#fff" : CHARCOAL, fontWeight: isSelected || isToday ? 700 : 400 }}>{day}</span>
+                  <span className="text-xs" style={{ color: isSelected ? "#fff" : isToday ? CHARCOAL : INK, fontWeight: isSelected || isToday ? 700 : 400 }}>{day}</span>
                   {/* Always reserve this row's height (4px), whether or not there
                       are dots to show, so days with events aren't taller than
                       days without -- keeps every week the same height. */}
@@ -2122,7 +2183,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
 
           {selectedDay ? (
             <>
-              <h3 className="text-xs uppercase tracking-widest mb-2" style={{ color: "#8A8578" }}>
+              <h3 className="text-xs uppercase tracking-widest mb-2" style={{ color: MUTED }}>
                 {new Date(year, month, Number(selectedDay.split("-")[2])).toLocaleDateString([], {
                   weekday: "long",
                   month: "long",
@@ -2130,7 +2191,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
                 })}
               </h3>
               {dayEvents.length === 0 ? (
-                <p className="text-sm" style={{ color: "#8A8578" }}>Nothing scheduled that day.</p>
+                <p className="text-sm" style={{ color: MUTED }}>Nothing scheduled that day.</p>
               ) : (
                 <div className="flex flex-col gap-3">
                   {dayEvents.map((job) => (
@@ -2140,7 +2201,7 @@ function CalendarView({ schedule, loading, monthAnchor, onPrevMonth, onNextMonth
               )}
             </>
           ) : (
-            <p className="text-sm" style={{ color: "#8A8578" }}>Tap a day to see what's scheduled.</p>
+            <p className="text-sm" style={{ color: MUTED }}>Tap a day to see what's scheduled.</p>
           )}
         </>
       )}
@@ -2166,13 +2227,13 @@ function CustomersView({ customers, loading }) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search by name..."
-        style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+        style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
         className="w-full px-3 py-2 text-sm rounded-xl mb-4 outline-none"
       />
       {loading ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+        <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>
+        <p className="text-sm" style={{ color: MUTED }}>
           {customers.length === 0 ? "No customers yet." : "No customers match that search."}
         </p>
       ) : (
@@ -2183,7 +2244,7 @@ function CustomersView({ customers, loading }) {
               <div
                 key={c.id}
                 style={{
-                  background: "#fff",
+                  background: SURFACE,
                   border: `1px solid rgba(31,36,33,0.05)`,
                   boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)",
                 }}
@@ -2216,7 +2277,7 @@ function CustomersView({ customers, loading }) {
                   </a>
                 )}
                 {c.notes && (
-                  <p className="text-xs mt-2 pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
+                  <p className="text-xs mt-2 pt-2" style={{ color: MUTED, borderTop: `1px solid ${LINE}` }}>
                     {c.notes}
                   </p>
                 )}
@@ -2262,35 +2323,35 @@ function InventoryItemRow({ item, onSave }) {
 
   return (
     <div
-      style={{ background: "#fff", border: `1px solid rgba(31,36,33,0.05)`, boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)" }}
+      style={{ background: SURFACE, border: `1px solid rgba(31,36,33,0.05)`, boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)" }}
       className="rounded-xl p-4"
     >
       <div className="flex items-center justify-between gap-2 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
         <div>
           <div className="text-sm font-medium">{item.name}</div>
-          <div className="text-xs mt-0.5" style={{ color: low ? RUST : "#8A8578" }}>
+          <div className="text-xs mt-0.5" style={{ color: low ? RUST : MUTED }}>
             {item.quantity_available} available
             {Number(item.quantity_on_hold) > 0 ? ` (${item.quantity_on_hold} on hold)` : ""}
           </div>
         </div>
-        <span style={{ color: "#8A8578" }}>{expanded ? "▾" : "▸"}</span>
+        <span style={{ color: MUTED }}>{expanded ? "▾" : "▸"}</span>
       </div>
       {expanded && (
         <div className="mt-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-          <label className="text-xs" style={{ color: "#8A8578" }}>Quantity on hand</label>
+          <label className="text-xs" style={{ color: MUTED }}>Quantity on hand</label>
           <input
             type="number" min="0" step="1" value={qty} onChange={(e) => setQty(e.target.value)}
-            style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
           />
-          <label className="text-xs" style={{ color: "#8A8578" }}>Unit cost</label>
+          <label className="text-xs" style={{ color: MUTED }}>Unit cost</label>
           <input
             type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00"
-            style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
           />
-          <label className="text-xs" style={{ color: "#8A8578" }}>Low stock alert threshold</label>
+          <label className="text-xs" style={{ color: MUTED }}>Low stock alert threshold</label>
           <input
             type="number" min="0" step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="none"
-            style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
           />
           {error && <div style={{ color: RUST }} className="text-xs">{error}</div>}
           <button
@@ -2333,13 +2394,13 @@ function InventoryView({ items, loading, onOpenScan, onSaveItem }) {
         value={search}
         onChange={(e) => setSearch(e.target.value)}
         placeholder="Search inventory..."
-        style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+        style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
         className="w-full px-3 py-2 text-sm rounded-xl mb-4 outline-none"
       />
       {loading ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+        <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : filtered.length === 0 ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>
+        <p className="text-sm" style={{ color: MUTED }}>
           {items.length === 0 ? "No tracked inventory items yet -- scan a barcode to add one." : "No items match that search."}
         </p>
       ) : (
@@ -2923,7 +2984,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: PAPER, width: "100%", maxHeight: "85vh", overflowY: "auto",
+          background: BG, width: "100%", maxHeight: "85vh", overflowY: "auto",
           borderTopLeftRadius: 24, borderTopRightRadius: 24,
           boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
           padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
@@ -2934,7 +2995,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
             <ScanBarcode size={14} /> Scan barcode
           </h2>
-          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: INK, background: "transparent", border: "none" }}>
             &times;
           </button>
         </div>
@@ -2956,17 +3017,17 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
             >
               Use camera app for a sharper photo
             </button>
-            <p className="text-xs text-center mb-3" style={{ color: "#8A8578" }}>
+            <p className="text-xs text-center mb-3" style={{ color: MUTED }}>
               Recommended -- opens your phone's real camera app instead of the in-app preview. Back
               off enough that the WHOLE barcode, plus a little white space around it, fits in the
               photo -- getting too close can crop the barcode or cut off the blank margin it needs
               to be readable.
             </p>
-            <p className="text-xs text-center mb-1.5 uppercase tracking-widest" style={{ color: "#8A8578" }}>
+            <p className="text-xs text-center mb-1.5 uppercase tracking-widest" style={{ color: MUTED }}>
               or use the live scanner
             </p>
             {error && (
-              <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-3 text-xs mb-2">
+              <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-3 text-xs mb-2">
                 {error}
               </div>
             )}
@@ -2995,7 +3056,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
             </div>
             {zoomCaps && (
               <div className="flex items-center gap-2 mb-2">
-                <span className="text-xs" style={{ color: "#8A8578" }}>Zoom</span>
+                <span className="text-xs" style={{ color: MUTED }}>Zoom</span>
                 <input
                   type="range" min={zoomCaps.min} max={zoomCaps.max} step={zoomCaps.step}
                   value={zoomValue}
@@ -3006,8 +3067,8 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
               </div>
             )}
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-xs" style={{ color: "#8A8578" }}>Focus</span>
-              <div className="flex-1 rounded-full overflow-hidden" style={{ height: 6, background: "#E7E3D8" }}>
+              <span className="text-xs" style={{ color: MUTED }}>Focus</span>
+              <div className="flex-1 rounded-full overflow-hidden" style={{ height: 6, background: LINE }}>
                 <div style={{ height: "100%", width: `${sharpness.toFixed(0)}%`, background: TEAL, transition: "width 0.15s linear" }} />
               </div>
             </div>
@@ -3019,7 +3080,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
             >
               {capturingPhoto ? "Capturing..." : "Capture photo"}
             </button>
-            <p className="text-xs text-center" style={{ color: "#8A8578" }}>
+            <p className="text-xs text-center" style={{ color: MUTED }}>
               {capturingPhoto
                 ? "Capturing a clear photo..."
                 : refocusing
@@ -3033,7 +3094,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 
         {stage === "error" && (
           <>
-            <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-3 text-xs mb-3">
+            <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-3 text-xs mb-3">
               {error}
             </div>
             <button onClick={scanAgain} style={{ background: CHARCOAL, color: "#fff" }} className="w-full rounded-lg py-2 text-xs font-medium">
@@ -3045,14 +3106,14 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
         {stage === "matched" && matchedItem && (
           <div className="flex flex-col gap-2">
             <div className="text-sm font-medium">{matchedItem.name}</div>
-            <div className="text-xs" style={{ color: "#8A8578" }}>
+            <div className="text-xs" style={{ color: MUTED }}>
               Currently {matchedItem.quantity_on_hand} on hand
               {!matchedItem.track_inventory ? " -- inventory tracking is off for this item, turning it on now" : ""}
             </div>
-            <label className="text-xs mt-1" style={{ color: "#8A8578" }}>Quantity received</label>
+            <label className="text-xs mt-1" style={{ color: MUTED }}>Quantity received</label>
             <input
               type="number" min="1" step="1" value={qtyInput} onChange={(e) => setQtyInput(e.target.value)}
-              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+              style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
             />
             {error && <div style={{ color: RUST }} className="text-xs">{error}</div>}
             <div className="flex gap-2 mt-1">
@@ -3063,7 +3124,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
               >
                 {submitting ? "Saving..." : "Add to stock"}
               </button>
-              <button onClick={scanAgain} style={{ background: "#fff", color: CHARCOAL, border: `1.5px solid ${LINE}` }} className="flex-1 rounded-lg py-2 text-xs font-medium">
+              <button onClick={scanAgain} style={{ background: SURFACE, color: INK, border: `1.5px solid ${LINE}` }} className="flex-1 rounded-lg py-2 text-xs font-medium">
                 Scan again
               </button>
             </div>
@@ -3072,25 +3133,25 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 
         {stage === "new-item" && (
           <div className="flex flex-col gap-2">
-            <p className="text-xs" style={{ color: "#8A8578" }}>
+            <p className="text-xs" style={{ color: MUTED }}>
               {suggestion && suggestion.name
                 ? "No catalog item has this barcode yet -- found a possible match online:"
                 : "No catalog item has this barcode yet, and it wasn't found in a public product database."}
             </p>
-            <label className="text-xs" style={{ color: "#8A8578" }}>Name / description</label>
+            <label className="text-xs" style={{ color: MUTED }}>Name / description</label>
             <input
               value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Enter a product name"
-              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+              style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
             />
-            <label className="text-xs" style={{ color: "#8A8578" }}>Starting quantity on hand</label>
+            <label className="text-xs" style={{ color: MUTED }}>Starting quantity on hand</label>
             <input
               type="number" min="0" step="1" value={newQtyInput} onChange={(e) => setNewQtyInput(e.target.value)}
-              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+              style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
             />
-            <label className="text-xs" style={{ color: "#8A8578" }}>Unit cost (optional)</label>
+            <label className="text-xs" style={{ color: MUTED }}>Unit cost (optional)</label>
             <input
               type="number" min="0" step="0.01" value={costInput} onChange={(e) => setCostInput(e.target.value)} placeholder="0.00"
-              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+              style={{ border: `1px solid ${LINE}`, background: SURFACE }} className="rounded-lg px-2 py-1.5 text-sm"
             />
             {error && <div style={{ color: RUST }} className="text-xs">{error}</div>}
             <div className="flex gap-2 mt-1">
@@ -3101,7 +3162,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
               >
                 {submitting ? "Saving..." : "Add to catalog"}
               </button>
-              <button onClick={scanAgain} style={{ background: "#fff", color: CHARCOAL, border: `1.5px solid ${LINE}` }} className="flex-1 rounded-lg py-2 text-xs font-medium">
+              <button onClick={scanAgain} style={{ background: SURFACE, color: INK, border: `1.5px solid ${LINE}` }} className="flex-1 rounded-lg py-2 text-xs font-medium">
                 Scan again
               </button>
             </div>
@@ -3142,9 +3203,9 @@ function ChatView({ messages, loading, onClock, onSend }) {
   return (
     <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
       {loading ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+        <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : messages.length === 0 ? (
-        <p className="text-sm mb-4" style={{ color: "#8A8578" }}>No messages yet.</p>
+        <p className="text-sm mb-4" style={{ color: MUTED }}>No messages yet.</p>
       ) : (
         <div className="flex flex-col gap-2 mb-4">
           {messages.map((m) => (
@@ -3153,15 +3214,18 @@ function ChatView({ messages, loading, onClock, onSend }) {
               style={{
                 alignSelf: m.sender === "employee" ? "flex-end" : "flex-start",
                 maxWidth: "78%",
-                background: m.sender === "employee" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "#F1EDE3",
-                color: CHARCOAL,
+                // The employee's own bubble is a fixed warm gold gradient in both
+                // themes, so it needs fixed dark text; the other bubble is the
+                // generic surface color, so its text flips along with it.
+                background: m.sender === "employee" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : SURFACE,
+                color: m.sender === "employee" ? CHARCOAL : INK,
                 borderBottomRightRadius: m.sender === "employee" ? 4 : 14,
                 borderBottomLeftRadius: m.sender === "employee" ? 14 : 4,
               }}
               className="rounded-2xl px-3 py-2 text-sm"
             >
               {m.body}
-              <div className="text-[10px] mt-0.5" style={{ color: "#8A8578" }}>
+              <div className="text-[10px] mt-0.5" style={{ color: MUTED }}>
                 {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
               </div>
             </div>
@@ -3177,7 +3241,7 @@ function ChatView({ messages, loading, onClock, onSend }) {
             onChange={(e) => setDraft(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && handleSend()}
             placeholder="Type a message..."
-            style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+            style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
             className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
           />
           <button
@@ -3190,7 +3254,7 @@ function ChatView({ messages, loading, onClock, onSend }) {
           </button>
         </div>
       ) : (
-        <p className="text-xs mt-auto pt-2" style={{ color: "#8A8578" }}>
+        <p className="text-xs mt-auto pt-2" style={{ color: MUTED }}>
           Clock in to send a message.
         </p>
       )}
@@ -3261,19 +3325,19 @@ function TeamChatView({
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
             New chat
           </h2>
-          <button onClick={onCancelNewChat} className="text-xs" style={{ color: "#8A8578" }}>
+          <button onClick={onCancelNewChat} className="text-xs" style={{ color: MUTED }}>
             Cancel
           </button>
         </div>
         {coworkers.length === 0 ? (
-          <p className="text-sm" style={{ color: "#8A8578" }}>No other active coworkers yet.</p>
+          <p className="text-sm" style={{ color: MUTED }}>No other active coworkers yet.</p>
         ) : (
           <div className="flex flex-col gap-1 mb-4">
             {coworkers.map((c) => (
               <label
                 key={c.id}
                 className="flex items-center gap-2 text-sm rounded-xl px-3 py-2"
-                style={{ background: selectedIds.includes(c.id) ? "#F1EDE3" : "transparent" }}
+                style={{ background: selectedIds.includes(c.id) ? SURFACE : "transparent" }}
               >
                 <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => onToggleSelect(c.id)} />
                 {c.name}
@@ -3286,7 +3350,7 @@ function TeamChatView({
             value={groupName}
             onChange={(e) => onGroupNameChange(e.target.value)}
             placeholder="Group name (optional)"
-            style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+            style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
             className="w-full px-3 py-2 text-sm rounded-xl outline-none mb-3"
           />
         )}
@@ -3310,7 +3374,7 @@ function TeamChatView({
     return (
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
         <div className="mb-4 flex items-center gap-2">
-          <button onClick={onCloseThread} className="text-lg leading-none" style={{ color: CHARCOAL }}>
+          <button onClick={onCloseThread} className="text-lg leading-none" style={{ color: INK }}>
             &larr;
           </button>
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
@@ -3319,9 +3383,9 @@ function TeamChatView({
         </div>
 
         {messagesLoading ? (
-          <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+          <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
         ) : messages.length === 0 ? (
-          <p className="text-sm mb-4" style={{ color: "#8A8578" }}>No messages yet.</p>
+          <p className="text-sm mb-4" style={{ color: MUTED }}>No messages yet.</p>
         ) : (
           <div className="flex flex-col gap-2 mb-4">
             {messages.map((m) => {
@@ -3329,21 +3393,21 @@ function TeamChatView({
               return (
                 <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%" }}>
                   {!mine && (
-                    <div className="text-[10px] mb-0.5 px-1" style={{ color: "#8A8578" }}>
+                    <div className="text-[10px] mb-0.5 px-1" style={{ color: MUTED }}>
                       {m.sender_name}
                     </div>
                   )}
                   <div
                     style={{
-                      background: mine ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "#F1EDE3",
-                      color: CHARCOAL,
+                      background: mine ? `linear-gradient(135deg, #F9C978, ${AMBER})` : SURFACE,
+                      color: mine ? CHARCOAL : INK,
                       borderBottomRightRadius: mine ? 4 : 14,
                       borderBottomLeftRadius: mine ? 14 : 4,
                     }}
                     className="rounded-2xl px-3 py-2 text-sm"
                   >
                     {m.body}
-                    <div className="text-[10px] mt-0.5" style={{ color: "#8A8578" }}>
+                    <div className="text-[10px] mt-0.5" style={{ color: MUTED }}>
                       {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
                     </div>
                   </div>
@@ -3361,7 +3425,7 @@ function TeamChatView({
               onChange={(e) => setDraft(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && handleSend()}
               placeholder="Type a message..."
-              style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+              style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
               className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
             />
             <button
@@ -3374,7 +3438,7 @@ function TeamChatView({
             </button>
           </div>
         ) : (
-          <p className="text-xs mt-auto pt-2" style={{ color: "#8A8578" }}>
+          <p className="text-xs mt-auto pt-2" style={{ color: MUTED }}>
             Clock in to message your team.
           </p>
         )}
@@ -3395,15 +3459,15 @@ function TeamChatView({
       </div>
 
       {!onClock && (
-        <p className="text-xs mb-3" style={{ color: "#8A8578" }}>
+        <p className="text-xs mb-3" style={{ color: MUTED }}>
           You can read your chats anytime, but you'll need to clock in to send a message.
         </p>
       )}
 
       {threadsLoading ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+        <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : threads.length === 0 ? (
-        <p className="text-sm" style={{ color: "#8A8578" }}>No chats yet — tap "+ New" to message a coworker.</p>
+        <p className="text-sm" style={{ color: MUTED }}>No chats yet — tap "+ New" to message a coworker.</p>
       ) : (
         <div className="flex flex-col gap-2">
           {threads.map((t) => (
@@ -3411,12 +3475,12 @@ function TeamChatView({
               key={t.id}
               onClick={() => onOpenThread(t.id)}
               className="text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2"
-              style={{ background: "#fff", border: `1px solid ${LINE}` }}
+              style={{ background: SURFACE, border: `1px solid ${LINE}` }}
             >
               <div className="min-w-0">
                 <div className="text-sm font-medium truncate">{threadName(t)}</div>
                 {t.last_message && (
-                  <div className="text-xs truncate" style={{ color: "#8A8578" }}>{t.last_message.body}</div>
+                  <div className="text-xs truncate" style={{ color: MUTED }}>{t.last_message.body}</div>
                 )}
               </div>
               {t.unread_count > 0 && (
@@ -3465,6 +3529,24 @@ export default function TimeClock() {
   // admin-only). Closes the sheet only once the save actually succeeds, so
   // a network hiccup shows an inline error instead of silently pretending
   // it worked.
+  // Day/Night theme -- per-device only (localStorage), not synced to the
+  // account. index.html applies a saved Night mode before React even mounts
+  // (avoids a flash of Day mode), this just keeps the button's icon/label in
+  // sync and handles switching after that.
+  const [isNightMode, setIsNightMode] = useState(
+    () => document.documentElement.getAttribute("data-theme") === "night"
+  );
+  function toggleTheme() {
+    const next = !isNightMode;
+    if (next) {
+      document.documentElement.setAttribute("data-theme", "night");
+    } else {
+      document.documentElement.removeAttribute("data-theme");
+    }
+    try { localStorage.setItem("coll-theme", next ? "night" : "day"); } catch {}
+    setIsNightMode(next);
+  }
+
   const [showAnimationPicker, setShowAnimationPicker] = useState(false);
   const [savingAnimation, setSavingAnimation] = useState(false);
   const [animationSaveError, setAnimationSaveError] = useState("");
@@ -4278,9 +4360,9 @@ const [emailInput, setEmailInput] = useState("");
 
   if (checkingSession) {
     return (
-      <div style={{ background: PAPER, minHeight: "100vh" }} className="w-full min-h-screen flex items-center justify-center">
+      <div style={{ background: BG, minHeight: "100vh" }} className="w-full min-h-screen flex items-center justify-center">
         <style>{FONT_IMPORT}</style>
-        <p style={{ fontFamily: "'IBM Plex Mono', monospace", color: "#8A8578" }} className="text-sm">
+        <p style={{ fontFamily: "'IBM Plex Mono', monospace", color: MUTED }} className="text-sm">
           Loading…
         </p>
       </div>
@@ -4289,20 +4371,20 @@ const [emailInput, setEmailInput] = useState("");
 
   if (!loggedIn) {
     return (
-      <div style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL, fontFamily: "'IBM Plex Mono', monospace" }} className="w-full min-h-screen flex items-center justify-center px-4">
+      <div style={{ background: BG, minHeight: "100vh", color: INK, fontFamily: "'IBM Plex Mono', monospace" }} className="w-full min-h-screen flex items-center justify-center px-4">
         <style>{FONT_IMPORT}</style>
-        <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: "#fff", boxShadow: "0 20px 45px rgba(31,36,33,0.14), 0 4px 12px rgba(31,36,33,0.08)" }} className="w-full max-w-xs rounded-2xl p-6">
+        <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: SURFACE, boxShadow: "0 20px 45px rgba(31,36,33,0.14), 0 4px 12px rgba(31,36,33,0.08)" }} className="w-full max-w-xs rounded-2xl p-6">
           <h1 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xl font-semibold uppercase mb-1 text-center">
             Site Clock
           </h1>
-          <p className="text-xs text-center mb-5" style={{ color: "#8A8578" }}>Your personal time clock</p>
+          <p className="text-xs text-center mb-5" style={{ color: MUTED }}>Your personal time clock</p>
           <input
   autoFocus
   type="email"
   value={emailInput}
   onChange={(e) => setEmailInput(e.target.value)}
   placeholder="Your email"
-            style={{ border: `1.5px solid ${LINE}`, background: "#FBFAF7" }}
+            style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG }}
             className="w-full px-3 py-2.5 text-sm rounded-xl mb-3 outline-none"
           />
           <input
@@ -4312,7 +4394,7 @@ const [emailInput, setEmailInput] = useState("");
             placeholder="PIN"
             type="password"
             inputMode="numeric"
-            style={{ border: `1.5px solid ${LINE}`, background: "#FBFAF7" }}
+            style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG }}
             className="w-full px-3 py-2.5 text-sm rounded-xl mb-3 outline-none"
           />
           {loginError && (
@@ -4336,11 +4418,11 @@ const [emailInput, setEmailInput] = useState("");
             type="button"
             onClick={handleForgotPin}
             className="w-full text-center mt-3 text-xs underline"
-            style={{ color: "#8A8578", background: "none", border: "none" }}
+            style={{ color: MUTED, background: "none", border: "none" }}
           >
             Forgot PIN?
           </button>
-          <p className="text-[10px] text-center mt-4" style={{ color: "#8A8578" }}>
+          <p className="text-[10px] text-center mt-4" style={{ color: MUTED }}>
             You only need to do this once on this device.
           </p>
         </div>
@@ -4392,7 +4474,7 @@ const [emailInput, setEmailInput] = useState("");
 
   return (
     <div
-      style={{ background: PAPER, minHeight: "100vh", color: CHARCOAL }}
+      style={{ background: BG, minHeight: "100vh", color: INK }}
       className="w-full min-h-screen pb-16"
       onTouchStart={handleTabSwipeStart}
       onTouchEnd={handleTabSwipeEnd}
@@ -4421,7 +4503,7 @@ const [emailInput, setEmailInput] = useState("");
               <img
                 src={companyLogo}
                 alt="Company logo"
-                style={{ maxHeight: 40, maxWidth: 180, borderRadius: 6, background: "#fff", padding: 3, objectFit: "contain" }}
+                style={{ maxHeight: 40, maxWidth: 180, borderRadius: 6, background: SURFACE, padding: 3, objectFit: "contain" }}
               />
             ) : (
               <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
@@ -4431,14 +4513,22 @@ const [emailInput, setEmailInput] = useState("");
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={toggleTheme}
+              title={isNightMode ? "Switch to Day mode" : "Switch to Night mode"}
+              aria-label={isNightMode ? "Switch to Day mode" : "Switch to Night mode"}
+              style={{ color: MUTED, background: "transparent", border: "none", display: "flex", alignItems: "center" }}
+            >
+              {isNightMode ? <Moon size={16} /> : <Sun size={16} />}
+            </button>
+            <button
               onClick={() => setShowAnimationPicker(true)}
               title="Clock-in celebration"
               aria-label="Clock-in celebration"
-              style={{ color: "#8A8578", background: "transparent", border: "none", display: "flex", alignItems: "center" }}
+              style={{ color: MUTED, background: "transparent", border: "none", display: "flex", alignItems: "center" }}
             >
               <PartyPopper size={16} />
             </button>
-            <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
+            <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: MUTED }}>
               <LogOut size={12} /> {employee?.name}
             </button>
           </div>
@@ -4513,9 +4603,9 @@ const [emailInput, setEmailInput] = useState("");
                 <button
                   onClick={() => setChatSubtab("direct")}
                   style={{
-                    background: chatSubtab === "direct" ? CHARCOAL : "#fff",
-                    color: chatSubtab === "direct" ? "#fff" : CHARCOAL,
-                    border: `1.5px solid ${CHARCOAL}`,
+                    background: chatSubtab === "direct" ? CHARCOAL : SURFACE,
+                    color: chatSubtab === "direct" ? "#fff" : INK,
+                    border: `1.5px solid ${INK}`,
                   }}
                   className="rounded-xl px-3 py-1 text-xs font-medium uppercase tracking-widest flex items-center gap-1.5"
                 >
@@ -4529,9 +4619,9 @@ const [emailInput, setEmailInput] = useState("");
                 <button
                   onClick={() => setChatSubtab("team")}
                   style={{
-                    background: chatSubtab === "team" ? CHARCOAL : "#fff",
-                    color: chatSubtab === "team" ? "#fff" : CHARCOAL,
-                    border: `1.5px solid ${CHARCOAL}`,
+                    background: chatSubtab === "team" ? CHARCOAL : SURFACE,
+                    color: chatSubtab === "team" ? "#fff" : INK,
+                    border: `1.5px solid ${INK}`,
                   }}
                   className="rounded-xl px-3 py-1 text-xs font-medium uppercase tracking-widest flex items-center gap-1.5"
                 >
@@ -4579,35 +4669,35 @@ const [emailInput, setEmailInput] = useState("");
         ) : (
         <>
         {actionError && (
-          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
+          <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
             {actionError}
           </div>
         )}
         {savedOffline && (
-          <div style={{ background: "#fff", border: `1.5px dashed ${AMBER}` }} className="rounded-xl p-3 mb-4 text-xs">
+          <div style={{ background: SURFACE, border: `1.5px dashed ${AMBER}` }} className="rounded-xl p-3 mb-4 text-xs">
             No connection — saved on this device and will sync automatically once you're back online.
           </div>
         )}{geo.configured && geo.permission === "denied" && (
-          <div style={{ background: "#fff", border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-xl p-3 mb-4 text-xs">
+          <div style={{ background: SURFACE, border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-xl p-3 mb-4 text-xs">
             Location access is off, so auto clock-in/out won't work — the manual buttons below still do. To enable it, allow location for this site in your phone's settings.
           </div>
         )}
         {shiftTooLong && (
-          <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
+          <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
             You've been clocked in for over 10 hours — did you forget to clock out?
           </div>
         )}
         {breakReminderDue && (
-          <div style={{ background: "#fff", border: `1.5px solid ${AMBER_DEEP}`, color: AMBER_DEEP, boxShadow: "0 6px 16px rgba(219,138,22,0.12)" }} className="rounded-xl p-3 mb-4 text-xs">
+          <div style={{ background: SURFACE, border: `1.5px solid ${AMBER_DEEP}`, color: AMBER_DEEP, boxShadow: "0 6px 16px rgba(219,138,22,0.12)" }} className="rounded-xl p-3 mb-4 text-xs">
             5 minutes left on your break.
           </div>
         )}
-        <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: "#fff", boxShadow: "0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05)" }} className="rounded-2xl p-5 mb-6">
+        <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: SURFACE, boxShadow: "0 10px 24px rgba(31,36,33,0.08), 0 2px 6px rgba(31,36,33,0.05)" }} className="rounded-2xl p-5 mb-6">
           <div className="flex items-center justify-between mb-4">
             <span style={{ background: statusMeta.bg, color: statusMeta.color, fontFamily: "'Oswald', sans-serif", boxShadow: statusMeta.shadow, fontWeight: 700 }} className="px-3 py-1.5 text-xs tracking-widest rounded-full">
               {statusMeta.label}
             </span>
-            <span className="text-xs" style={{ color: "#8A8578" }}>{now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
+            <span className="text-xs" style={{ color: MUTED }}>{now.toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" })}</span>
           </div>
 
           <div className="text-center mb-4">
@@ -4617,14 +4707,14 @@ const [emailInput, setEmailInput] = useState("");
                 background: status === "off" ? "none" : `linear-gradient(135deg, ${CHARCOAL}, #3a4440)`,
                 WebkitBackgroundClip: status === "off" ? "unset" : "text",
                 backgroundClip: status === "off" ? "unset" : "text",
-                color: status === "off" ? CHARCOAL : "transparent",
+                color: status === "off" ? INK : "transparent",
               }}
               className="text-5xl font-semibold tabular-nums"
             >
               {status === "off" ? "00:00:00" : formatElapsed(elapsedMs)}
             </div>
             {status === "break" && (
-              <div className="text-xs mt-1" style={{ color: "#8A8578" }}>
+              <div className="text-xs mt-1" style={{ color: MUTED }}>
                 break {formatElapsed(currentBreakMs)}
               </div>
             )}
@@ -4635,24 +4725,24 @@ const [emailInput, setEmailInput] = useState("");
               value={jobDraft}
               onChange={(e) => setJobDraft(e.target.value)}
               placeholder="Job / site name"
-              style={{ border: `1.5px solid ${LINE}`, background: "#FBFAF7" }}
+              style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG }}
               className="w-full px-3 py-2 text-sm rounded-xl mb-3 outline-none"
             />
           ) : (
             <div className="flex items-center gap-2 mb-3 text-sm">
-              <Clock size={14} style={{ color: "#8A8578" }} />
+              <Clock size={14} style={{ color: MUTED }} />
               <span className="font-medium">{jobName}</span>
-              <span style={{ color: "#8A8578" }}>· in since {formatClock(clockInTime)}</span>
+              <span style={{ color: MUTED }}>· in since {formatClock(clockInTime)}</span>
             </div>
           )}
 
-          <div className="flex mb-4 rounded-xl overflow-hidden" style={{ border: `1.5px solid ${CHARCOAL}` }}>
+          <div className="flex mb-4 rounded-xl overflow-hidden" style={{ border: `1.5px solid ${INK}` }}>
             <button
               disabled={status !== "off"}
               onClick={() => setLocation("in_town")}
               style={{
                 background: location === "in_town" ? `linear-gradient(135deg, #5C9481, ${TEAL_DEEP})` : "transparent",
-                color: location === "in_town" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif",
+                color: location === "in_town" ? "#fff" : INK, fontFamily: "'Oswald', sans-serif",
               }}
               className="flex-1 py-2 text-sm flex items-center justify-center gap-1.5 disabled:opacity-60"
             >
@@ -4663,7 +4753,7 @@ const [emailInput, setEmailInput] = useState("");
               onClick={() => setLocation("traveling")}
               style={{
                 background: location === "traveling" ? `linear-gradient(135deg, #E4794F, ${RUST_DEEP})` : "transparent",
-                color: location === "traveling" ? "#fff" : CHARCOAL, fontFamily: "'Oswald', sans-serif",
+                color: location === "traveling" ? "#fff" : INK, fontFamily: "'Oswald', sans-serif",
               }}
               className="flex-1 py-2 text-sm flex items-center justify-center gap-1.5 disabled:opacity-60 border-l"
             >
@@ -4676,6 +4766,8 @@ const [emailInput, setEmailInput] = useState("");
               <button
                 onClick={clockIn}
                 style={{
+                  // Fixed dark text (not INK) -- this button's gold gradient stays a
+                  // warm accent in both themes, so it always needs dark text on it.
                   color: CHARCOAL, fontFamily: "'Oswald', sans-serif",
                   background: `linear-gradient(180deg, #F9C978 0%, ${AMBER} 55%, ${AMBER_DEEP} 100%)`,
                   boxShadow: "0 4px 10px rgba(219,138,22,0.35), inset 0 1px 0 rgba(255,255,255,0.5)",
@@ -4687,7 +4779,7 @@ const [emailInput, setEmailInput] = useState("");
             )}
             {status === "working" && (
               <>
-                <button onClick={startBreak} style={{ border: `1.5px solid ${CHARCOAL}`, background: "#fff", fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
+                <button onClick={startBreak} style={{ border: `1.5px solid ${INK}`, background: SURFACE, fontFamily: "'Oswald', sans-serif" }} className="flex-1 py-3 rounded-xl text-sm font-semibold flex items-center justify-center gap-2">
                   <Pause size={16} /> BREAK
                 </button>
                 <button
@@ -4759,23 +4851,23 @@ const [emailInput, setEmailInput] = useState("");
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
             This Period's Punches
           </h2>
-          <span className="text-xs" style={{ color: "#8A8578" }}>{log.length} total</span>
+          <span className="text-xs" style={{ color: MUTED }}>{log.length} total</span>
         </div>
 
         {log.length === 0 ? (
-          <p className="text-sm" style={{ color: "#8A8578" }}>No completed shifts yet this pay period.</p>
+          <p className="text-sm" style={{ color: MUTED }}>No completed shifts yet this pay period.</p>
         ) : (
           <div className="flex flex-col gap-3">
             {log.map((entry) => (
               <div
                 key={entry.time_entry_id}
-                style={{ background: "#fff", border: `1px solid rgba(31,36,33,0.05)`, boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)" }}
+                style={{ background: SURFACE, border: `1px solid rgba(31,36,33,0.05)`, boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)" }}
                 className="rounded-xl p-4"
               >
                 <div className="flex items-start justify-between mb-2">
                   <div>
                     <div className="text-sm font-medium">{entry.job_name}</div>
-                    <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: "#8A8578" }}>
+                    <div className="text-xs flex items-center gap-1 mt-0.5" style={{ color: MUTED }}>
                       {entry.location_type === "in_town" ? (<><MapPin size={11} /> In town</>) : (<><Plane size={11} /> Traveling</>)}
                     </div>
                   </div>
@@ -4783,7 +4875,7 @@ const [emailInput, setEmailInput] = useState("");
                     {formatDuration(entry.worked_seconds)}
                   </div>
                 </div>
-                <div className="flex justify-between text-xs pt-2" style={{ color: "#8A8578", borderTop: `1px solid ${LINE}` }}>
+                <div className="flex justify-between text-xs pt-2" style={{ color: MUTED, borderTop: `1px solid ${LINE}` }}>
                   <span>{formatClock(entry.clock_in)} → {formatClock(entry.clock_out)}</span>
                   {entry.break_seconds > 0 && <span>break {formatDuration(entry.break_seconds)}</span>}
                 </div>
@@ -4796,13 +4888,13 @@ const [emailInput, setEmailInput] = useState("");
       </div>
 
       <div
-        style={{ background: "#fff", borderTop: `1px solid ${LINE}`, boxShadow: "0 -8px 20px rgba(31,36,33,0.06)" }}
+        style={{ background: SURFACE, borderTop: `1px solid ${LINE}`, boxShadow: "0 -8px 20px rgba(31,36,33,0.06)" }}
         className="fixed bottom-0 left-0 right-0 flex"
       >
         <div className="max-w-md mx-auto w-full flex">
           <button
             onClick={() => setView("clock")}
-            style={{ color: view === "clock" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+            style={{ color: view === "clock" ? INK : MUTED, fontFamily: "'Oswald', sans-serif" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
             <span
@@ -4812,13 +4904,13 @@ const [emailInput, setEmailInput] = useState("");
                 boxShadow: view === "clock" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
               }}
             >
-              <Timer size={16} style={{ color: view === "clock" ? CHARCOAL : "#8A8578" }} />
+              <Timer size={16} style={{ color: view === "clock" ? CHARCOAL : MUTED }} />
             </span>
             Clock
           </button>
           <button
             onClick={() => setView("schedule")}
-            style={{ color: view === "schedule" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif", position: "relative" }}
+            style={{ color: view === "schedule" ? INK : MUTED, fontFamily: "'Oswald', sans-serif", position: "relative" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
             <span
@@ -4828,7 +4920,7 @@ const [emailInput, setEmailInput] = useState("");
                 boxShadow: view === "schedule" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
               }}
             >
-              <CalendarDays size={16} style={{ color: view === "schedule" ? CHARCOAL : "#8A8578" }} />
+              <CalendarDays size={16} style={{ color: view === "schedule" ? CHARCOAL : MUTED }} />
             </span>
             Schedule
             {scheduleUnseenCount > 0 && (
@@ -4845,7 +4937,7 @@ const [emailInput, setEmailInput] = useState("");
           </button>
           <button
             onClick={() => setView("customers")}
-            style={{ color: view === "customers" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+            style={{ color: view === "customers" ? INK : MUTED, fontFamily: "'Oswald', sans-serif" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
             <span
@@ -4855,13 +4947,13 @@ const [emailInput, setEmailInput] = useState("");
                 boxShadow: view === "customers" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
               }}
             >
-              <Users size={16} style={{ color: view === "customers" ? CHARCOAL : "#8A8578" }} />
+              <Users size={16} style={{ color: view === "customers" ? CHARCOAL : MUTED }} />
             </span>
             Customers
           </button>
           <button
             onClick={() => setView("chat")}
-            style={{ color: view === "chat" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif", position: "relative" }}
+            style={{ color: view === "chat" ? INK : MUTED, fontFamily: "'Oswald', sans-serif", position: "relative" }}
             className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
           >
             <span
@@ -4871,7 +4963,7 @@ const [emailInput, setEmailInput] = useState("");
                 boxShadow: view === "chat" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
               }}
             >
-              <MessageCircle size={16} style={{ color: view === "chat" ? CHARCOAL : "#8A8578" }} />
+              <MessageCircle size={16} style={{ color: view === "chat" ? CHARCOAL : MUTED }} />
             </span>
             Chat
             {chatUnreadCount + teamUnreadCount > 0 && (
@@ -4889,7 +4981,7 @@ const [emailInput, setEmailInput] = useState("");
           {employee?.can_manage_inventory && (
             <button
               onClick={() => setView("inventory")}
-              style={{ color: view === "inventory" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+              style={{ color: view === "inventory" ? INK : MUTED, fontFamily: "'Oswald', sans-serif" }}
               className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
             >
               <span
@@ -4899,7 +4991,7 @@ const [emailInput, setEmailInput] = useState("");
                   boxShadow: view === "inventory" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
                 }}
               >
-                <Package size={16} style={{ color: view === "inventory" ? CHARCOAL : "#8A8578" }} />
+                <Package size={16} style={{ color: view === "inventory" ? CHARCOAL : MUTED }} />
               </span>
               Inventory
             </button>

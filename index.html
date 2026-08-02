@@ -13,6 +13,20 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Site Clock" />
 
+    <script>
+      // Applied as early as possible (before React even mounts) so there's
+      // no flash of Day mode before switching to a saved Night mode
+      // preference. Per-device only (localStorage), not synced to the
+      // account -- see setTheme()/getTheme() in App.jsx for the toggle UI.
+      (function () {
+        try {
+          if (localStorage.getItem("coll-theme") === "night") {
+            document.documentElement.setAttribute("data-theme", "night");
+          }
+        } catch (e) { /* localStorage unavailable -- just stay on Day mode */ }
+      })();
+    </script>
+
     <!-- Leaflet + OpenStreetMap tiles -- free, no API key -- used only for
          the "Today's route" stop-order preview map. -->
     <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
