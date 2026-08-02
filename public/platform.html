@@ -311,6 +311,7 @@
           <th>Stripe connected</th>
           <th>Last activity</th>
           <th>Billing exempt</th>
+          <th>Delete</th>
         </tr>
       </thead>
       <tbody id="companies-body"></tbody>
@@ -406,12 +407,12 @@ function statCard(label, value) {
 
 async function loadCompanies() {
   const body = document.getElementById("companies-body");
-  body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#8A8578; padding:16px;">Loading...</td></tr>';
+  body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#8A8578; padding:16px;">Loading...</td></tr>';
   try {
     allCompanies = await apiFetch("/api/platform/companies");
     renderCompanies();
   } catch (err) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#8A8578; padding:16px;">Couldn\'t load companies.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#8A8578; padding:16px;">Couldn\'t load companies.</td></tr>';
   }
 }
 
@@ -424,7 +425,7 @@ function renderCompanies() {
   });
 
   if (!rows.length) {
-    body.innerHTML = '<tr><td colspan="7" style="text-align:center; color:#8A8578; padding:16px;">No companies match.</td></tr>';
+    body.innerHTML = '<tr><td colspan="8" style="text-align:center; color:#8A8578; padding:16px;">No companies match.</td></tr>';
     return;
   }
 
@@ -454,6 +455,7 @@ function renderCompanies() {
       '<td>' + stripeBadge + '</td>' +
       '<td>' + activityBadge + '</td>' +
       '<td>' + exemptBtn + '</td>' +
+      '<td><button class="toggle-btn" style="background:var(--rust-deep);" onclick="deleteCompany(\'' + c.id + '\')">Delete</button></td>' +
     '</tr>';
   }).join("");
 }
@@ -464,6 +466,27 @@ async function toggleExempt(id, newValue) {
     await loadCompanies();
   } catch (err) {
     alert(err.message || "Couldn't update that company.");
+  }
+}
+
+// Permanently deletes a company and everything under it. Asks three separate
+// times, each more explicit than the last, before actually calling the
+// DELETE route -- this is irreversible, so there's no "undo" button to fall
+// back on if a click was a mistake.
+async function deleteCompany(id) {
+  const company = allCompanies.find(function(c) { return c.id === id; });
+  const name = company ? company.name : "this company";
+
+  if (!confirm('Delete "' + name + '"? This removes every customer, employee, job, invoice and quote under this account.')) return;
+  if (!confirm('Are you sure? All of "' + name + '"\'s data will be gone for good -- there is no undo.')) return;
+  if (!confirm('Last check: delete "' + name + '" permanently right now?')) return;
+
+  try {
+    await apiFetch(`/api/platform/companies/${id}`, { method: "DELETE" });
+    await loadCompanies();
+    await loadOverview();
+  } catch (err) {
+    alert(err.message || "Couldn't delete that company.");
   }
 }
 
