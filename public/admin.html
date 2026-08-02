@@ -4187,12 +4187,16 @@ function renderBillingOverview() {
 
 // Counts + totals paid invoices by how the customer paid (card/cash/check/
 // other), so Jeremy can see at a glance how many sales came in and through
-// which method -- e.g. for reconciling cash on hand or card deposits.
+// which method -- e.g. for reconciling cash on hand or card deposits. Drawn
+// as a donut chart (hand-built SVG, stacked circles with stroke-dasharray --
+// no chart library needed, same as the monthly profit bar chart) with a
+// legend beside it, rather than a plain list.
 function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
   const container = document.getElementById("billing-overview-payment-breakdown");
   if (!container) return;
 
   const methodLabels = { card: "Card", cash: "Cash", check: "Check", online: "Paid online", other: "Other" };
+  const methodColors = { card: "#2B453C", cash: "#DB8A16", check: "#46705F", online: "#D35A34", other: "#8A8578" };
   const methodOrder = ["card", "cash", "check", "online", "other"];
   const counts = {};
   methodOrder.forEach(function(m) { counts[m] = { count: 0, total: 0 }; });
@@ -4207,20 +4211,47 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
     return;
   }
 
-  const rowsHtml = methodOrder.map(function(m) {
+  const size = 160, radius = 58, strokeWidth = 26, circumference = 2 * Math.PI * radius;
+  let cumulative = 0;
+  const segments = methodOrder
+    .filter(function(m) { return counts[m].total > 0; })
+    .map(function(m) {
+      const length = (counts[m].total / paidTotal) * circumference;
+      const dashoffset = -cumulative;
+      cumulative += length;
+      return '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + radius + '" fill="none" stroke="' + methodColors[m] + '" ' +
+        'stroke-width="' + strokeWidth + '" stroke-dasharray="' + length + ' ' + (circumference - length) + '" ' +
+        'stroke-dashoffset="' + dashoffset + '" transform="rotate(-90 ' + (size / 2) + ' ' + (size / 2) + ')">' +
+        '<title>' + methodLabels[m] + ': ' + fmtMoney(counts[m].total) + '</title>' +
+      '</circle>';
+    }).join("");
+
+  const donutHtml =
+    '<svg viewBox="0 0 ' + size + ' ' + size + '" style="width:150px; height:150px; flex-shrink:0;">' +
+      '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + radius + '" fill="none" stroke="#EDEAE1" stroke-width="' + strokeWidth + '" />' +
+      segments +
+      '<text x="' + (size / 2) + '" y="' + (size / 2 - 6) + '" text-anchor="middle" font-size="17" font-weight="800" fill="#1F2421">' + fmtMoney(paidTotal) + '</text>' +
+      '<text x="' + (size / 2) + '" y="' + (size / 2 + 15) + '" text-anchor="middle" font-size="12" fill="#8A8578">' +
+        paidInvoices.length + (paidInvoices.length === 1 ? " sale" : " sales") +
+      '</text>' +
+    '</svg>';
+
+  const legendHtml = methodOrder.map(function(m) {
     const row = counts[m];
-    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
-      '<span>' + methodLabels[m] + '</span>' +
-      '<span style="color:#8A8578;">' + row.count + (row.count === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(row.total) + '</span>' +
+    return '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
+      '<span style="display:flex; align-items:center; gap:8px;">' +
+        '<span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:' + methodColors[m] + '; flex-shrink:0;"></span>' +
+        methodLabels[m] +
+      '</span>' +
+      '<span style="color:#8A8578; white-space:nowrap;">' + row.count + (row.count === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(row.total) + '</span>' +
     '</div>';
   }).join("");
 
-  const totalHtml = '<div style="display:flex; justify-content:space-between; padding-top:10px; font-size:13px; font-weight:600;">' +
-    '<span>Total</span>' +
-    '<span>' + paidInvoices.length + (paidInvoices.length === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(paidTotal) + '</span>' +
-  '</div>';
-
-  container.innerHTML = rowsHtml + totalHtml;
+  container.innerHTML =
+    '<div style="display:flex; gap:24px; align-items:center; flex-wrap:wrap;">' +
+      donutHtml +
+      '<div style="flex:1; min-width:220px;">' + legendHtml + '</div>' +
+    '</div>';
 }
 
 function billingOverviewSetText(id, text) {
