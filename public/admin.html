@@ -1123,9 +1123,12 @@
   <div class="sheet-body">
     <div id="job-sheet-error" class="error"></div>
     <label>Customer (optional)</label>
-    <select id="job-customer-input" onchange="onJobCustomerChange()">
-      <option value="">— none —</option>
-    </select>
+    <div style="position:relative; margin-bottom:14px;">
+      <input id="job-customer-search-input" placeholder="Type a customer name..." autocomplete="off"
+        oninput="onJobCustomerSearchInput()" onfocus="showJobCustomerDropdown()" style="margin-bottom:0;" />
+      <div id="job-customer-dropdown" style="display:none; position:absolute; z-index:20; top:100%; left:0; right:0; margin-top:2px; background:#fff; border:1.5px solid var(--line); border-radius:8px; max-height:220px; overflow-y:auto; box-shadow:0 8px 20px rgba(0,0,0,0.14);"></div>
+    </div>
+    <input type="hidden" id="job-customer-input" />
     <label>Job title</label>
     <input id="job-title-input" placeholder="e.g. Smith residence re-roof, team meeting" />
     <label>Type</label>
@@ -3649,10 +3652,10 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
   document.getElementById("job-type-input").value = job ? (job.event_type || "job") : "job";
 
   const customers = window.allCustomers || [];
-  document.getElementById("job-customer-input").innerHTML =
-    '<option value="">— none —</option>' +
-    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
+  const preselectedCustomer = job && job.customer_id ? customers.find(function(c) { return c.id === job.customer_id; }) : null;
   document.getElementById("job-customer-input").value = job && job.customer_id ? job.customer_id : "";
+  document.getElementById("job-customer-search-input").value = preselectedCustomer ? preselectedCustomer.name : "";
+  document.getElementById("job-customer-dropdown").style.display = "none";
 
   document.getElementById("job-notes-input").value = job ? (job.notes || "") : "";
   document.getElementById("job-start-input").value = job ? job.start_date.slice(0, 10) : defaultDate;
@@ -3699,11 +3702,85 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
 }
 
 function onJobCustomerChange() {
-  const select = document.getElementById("job-customer-input");
-  if (!select.value) return;
-  const customer = (window.allCustomers || []).find(function(c) { return c.id === select.value; });
+  const id = document.getElementById("job-customer-input").value;
+  if (!id) return;
+  const customer = (window.allCustomers || []).find(function(c) { return c.id === id; });
   if (customer) document.getElementById("job-title-input").value = customer.name;
 }
+
+// Type-ahead customer picker for the job form -- filters window.allCustomers
+// live as you type instead of scrolling a long dropdown, and offers
+// "+ Add customer" right there when nothing matches so a brand-new customer
+// doesn't require backing out of the job form to add one first.
+function renderJobCustomerDropdown() {
+  const dropdown = document.getElementById("job-customer-dropdown");
+  const raw = document.getElementById("job-customer-search-input").value.trim();
+  const term = raw.toLowerCase();
+  const customers = window.allCustomers || [];
+  const matches = term ? customers.filter(function(c) { return c.name.toLowerCase().indexOf(term) !== -1; }) : customers;
+  const exactMatch = customers.some(function(c) { return c.name.toLowerCase() === term; });
+
+  const rows = matches.slice(0, 30).map(function(c) {
+    return '<div style="padding:8px 10px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
+      'onclick="selectJobCustomer(\'' + c.id + '\')">' + escapeHtml(c.name) + '</div>';
+  });
+
+  if (raw && !exactMatch) {
+    rows.push(
+      '<div style="padding:8px 10px; font-size:13px; cursor:pointer; color: var(--teal-deep); font-weight:700;" ' +
+      'onclick=\'addNewCustomerFromJob(' + JSON.stringify(raw) + ')\'>+ Add customer &ldquo;' + escapeHtml(raw) + '&rdquo;</div>'
+    );
+  }
+
+  dropdown.innerHTML = rows.length
+    ? rows.join("")
+    : '<div style="padding:8px 10px; font-size:13px; color:#8A8578;">No customers yet -- start typing a name to add one.</div>';
+  dropdown.style.display = "block";
+}
+
+// Typing invalidates whatever was previously selected (the hidden id is
+// cleared) -- only picking a row below, or creating a new customer, sets it
+// again. Just focusing the field (no typing yet) shouldn't wipe an existing
+// selection, so that's wired to showJobCustomerDropdown() instead.
+function onJobCustomerSearchInput() {
+  document.getElementById("job-customer-input").value = "";
+  renderJobCustomerDropdown();
+}
+
+function showJobCustomerDropdown() {
+  renderJobCustomerDropdown();
+}
+
+function selectJobCustomer(id) {
+  const customer = (window.allCustomers || []).find(function(c) { return c.id === id; });
+  if (!customer) return;
+  document.getElementById("job-customer-input").value = id;
+  document.getElementById("job-customer-search-input").value = customer.name;
+  document.getElementById("job-customer-dropdown").style.display = "none";
+  onJobCustomerChange();
+}
+
+let jobCustomerCreatePending = false;
+
+// Hides the job sheet, opens the existing "New customer" sheet prefilled
+// with whatever was already typed, and remembers to jump straight back into
+// this same job (with the new customer selected) once it's saved -- see
+// submitCustomer() and closeCustomerSheet().
+function addNewCustomerFromJob(name) {
+  jobCustomerCreatePending = true;
+  document.getElementById("job-customer-dropdown").style.display = "none";
+  document.getElementById("job-sheet").classList.remove("visible");
+  openCustomerSheet(null, name);
+}
+
+document.addEventListener("click", function(e) {
+  const dropdown = document.getElementById("job-customer-dropdown");
+  const input = document.getElementById("job-customer-search-input");
+  if (!dropdown || !input || dropdown.style.display === "none") return;
+  if (e.target !== input && !dropdown.contains(e.target)) {
+    dropdown.style.display = "none";
+  }
+});
 
 function closeJobSheet() {
   document.getElementById("job-sheet").classList.remove("visible");
@@ -3960,12 +4037,12 @@ function renderCustomersList() {
   }).join("");
 }
 
-function openCustomerSheet(customerId) {
+function openCustomerSheet(customerId, prefillName) {
   editingCustomerId = customerId || null;
   const customer = customerId ? (window.allCustomers || []).find(function(c) { return c.id === customerId; }) : null;
   document.getElementById("customer-sheet-title").textContent = customer ? "Edit customer" : "New customer";
   document.getElementById("customer-sheet-error").style.display = "none";
-  document.getElementById("customer-name-input").value = customer ? customer.name : "";
+  document.getElementById("customer-name-input").value = customer ? customer.name : (prefillName || "");
   document.getElementById("customer-phone-input").value = customer ? (customer.phone || "") : "";
   document.getElementById("customer-email-input").value = customer ? (customer.email || "") : "";
   document.getElementById("customer-street-input").value = customer ? (customer.street || "") : "";
@@ -3981,6 +4058,13 @@ function closeCustomerSheet() {
   document.getElementById("customer-sheet").classList.remove("visible");
   editingCustomerId = null;
   window.customerGeocodeStash = null;
+  // Backed out of "+ Add customer" from the job form (X button, not a save)
+  // -- go back to the job instead of just closing to wherever the customer
+  // sheet happened to be opened from.
+  if (jobCustomerCreatePending) {
+    jobCustomerCreatePending = false;
+    document.getElementById("job-sheet").classList.add("visible");
+  }
 }
 
 // ---------- Address autocomplete (predictive text, free via Nominatim) ----------
@@ -4079,13 +4163,26 @@ async function submitCustomer() {
     payload.lng = window.customerGeocodeStash.lng;
   }
   try {
+    let created = null;
     if (editingCustomerId) {
       await admin.updateCustomer(editingCustomerId, payload);
     } else {
-      await admin.addCustomer(payload);
+      created = await admin.addCustomer(payload);
     }
-    closeCustomerSheet();
+    document.getElementById("customer-sheet").classList.remove("visible");
+    editingCustomerId = null;
+    window.customerGeocodeStash = null;
     await loadCustomers();
+    // Came from "+ Add customer" inside the New Job form -- jump straight
+    // back into that job with the new customer already selected, instead of
+    // leaving you on the Customers tab having to find your way back.
+    if (jobCustomerCreatePending && created) {
+      jobCustomerCreatePending = false;
+      document.getElementById("job-sheet").classList.add("visible");
+      selectJobCustomer(created.id);
+    } else {
+      jobCustomerCreatePending = false;
+    }
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save customer.";
     errEl.style.display = "block";
@@ -5432,7 +5529,11 @@ async function openConvertQuoteToJobSheet(quoteId) {
   openJobSheet(null);
   document.getElementById("job-sheet-title").textContent = "Schedule job from Quote #" + quote.quote_number;
   document.getElementById("job-title-input").value = "Quote #" + quote.quote_number + " — " + quote.customer_name;
-  if (quote.customer_id) document.getElementById("job-customer-input").value = quote.customer_id;
+  if (quote.customer_id) {
+    document.getElementById("job-customer-input").value = quote.customer_id;
+    const c = (window.allCustomers || []).find(function(x) { return x.id === quote.customer_id; });
+    document.getElementById("job-customer-search-input").value = c ? c.name : "";
+  }
   if (quote.notes) document.getElementById("job-notes-input").value = quote.notes;
 }
 
