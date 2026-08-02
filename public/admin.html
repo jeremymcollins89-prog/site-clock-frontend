@@ -302,6 +302,14 @@
     background: linear-gradient(135deg, var(--rust), var(--rust-deep));
     -webkit-background-clip: text; background-clip: text; color: transparent;
   }
+  /* .stat-value's gradient uses var(--charcoal) + a fixed dark gray on
+     purpose (a "chrome" gradient, not meant to flip) -- but that leaves the
+     actual dollar figures unreadable against a dark Night mode card, so
+     Night mode gets its own light gradient here instead. */
+  [data-theme="night"] .stat-value {
+    background: linear-gradient(135deg, var(--ink), #C9CFC9);
+    -webkit-background-clip: text; background-clip: text; color: transparent;
+  }
 
   .entry-card {
     border: 1px solid rgba(31,36,33,0.05); border-radius: 16px; padding: 14px; margin-bottom: 12px; background: var(--surface);
