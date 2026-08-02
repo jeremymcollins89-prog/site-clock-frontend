@@ -1478,11 +1478,21 @@
   </div>
   <div class="sheet-body">
     <div id="barcode-scan-error" class="error" style="display:none;"></div>
-    <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:10px;">
+    <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:10px; cursor:pointer;" onclick="handleBarcodeScanTap(event)" title="Tap to refocus">
       <video id="barcode-scan-video" style="width:100%; display:block;" muted playsinline></video>
-      <button id="barcode-scan-torch-btn" onclick="toggleBarcodeScanTorch()" style="display:none; position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer;">Flashlight on</button>
+      <button id="barcode-scan-torch-btn" onclick="event.stopPropagation(); toggleBarcodeScanTorch()" style="display:none; position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer;">Flashlight on</button>
     </div>
-    <p id="barcode-scan-status" style="font-size:12px; color:#8A8578;">Point the camera at a barcode and hold steady...</p>
+    <div id="barcode-scan-zoom-wrap" style="display:none; align-items:center; gap:8px; margin-bottom:8px;">
+      <span style="font-size:11px; color:#8A8578; white-space:nowrap;">Zoom</span>
+      <input id="barcode-scan-zoom-input" type="range" style="flex:1;" oninput="handleBarcodeScanZoom(this.value)" />
+    </div>
+    <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
+      <span style="font-size:11px; color:#8A8578; white-space:nowrap;">Focus</span>
+      <div style="flex:1; height:6px; background:#E7E3D8; border-radius:3px; overflow:hidden;">
+        <div id="barcode-scan-sharpness-bar" style="height:100%; width:0%; background:var(--teal); transition:width 0.15s linear;"></div>
+      </div>
+    </div>
+    <p id="barcode-scan-status" style="font-size:12px; color:#8A8578;">Point the camera at a barcode and hold steady. Tap the video to refocus, and watch the Focus bar fill in as it sharpens.</p>
     <div id="barcode-scan-result" style="display:none;"></div>
   </div>
 </div>
@@ -6919,6 +6929,7 @@ async function deleteCatalogItemConfirm(id) {
 // public UPC database (backend GET /catalog-items/lookup-barcode/:barcode).
 let barcodeCodeReader = null;
 let barcodeScanActive = false;
+let barcodeActiveTrack = null; // the live MediaStreamTrack, once we have one -- shared by focus/zoom/torch
 
 function openBarcodeScanSheet() {
   document.getElementById("barcode-scan-sheet").classList.add("visible");
@@ -6933,6 +6944,35 @@ function closeBarcodeScanSheet() {
   document.getElementById("barcode-scan-sheet").classList.remove("visible");
 }
 
+// A laptop/desktop webcam and a phone camera behave very differently under
+// getUserMedia -- forcing a high resolution + focus constraints on a webcam
+// previously made the desktop scanner worse (some webcams don't like being
+// asked for a mode they don't natively support). Gating the richer request
+// behind "does this device have a touchscreen" means phones get the
+// higher-res, focus-friendly request while a mouse-driven desktop keeps
+// exactly the plain request that's always worked there.
+function isTouchDevice() {
+  try {
+    return !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  } catch (e) {
+    return false;
+  }
+}
+
+function getBarcodeScanConstraints() {
+  if (!isTouchDevice()) {
+    return { video: { facingMode: { ideal: "environment" } } };
+  }
+  return {
+    video: {
+      facingMode: { ideal: "environment" },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      advanced: [{ focusMode: "continuous" }],
+    },
+  };
+}
+
 // After the camera stream is live, turn on continuous autofocus -- but only
 // if the browser actually reports it supports that (checked via
 // getCapabilities()). Desktop webcams almost never report this capability,
@@ -6940,9 +6980,8 @@ function closeBarcodeScanSheet() {
 // alone; phones that do report it (most Android Chrome/Samsung Internet)
 // get real continuous AF instead of whatever fixed/default focus they'd
 // otherwise be stuck with up close.
-function applyContinuousFocusIfSupported(reader) {
+function applyContinuousFocusIfSupported(track) {
   try {
-    var track = reader && reader.stream && reader.stream.getVideoTracks && reader.stream.getVideoTracks()[0];
     if (!track || typeof track.getCapabilities !== "function") return;
     var caps = track.getCapabilities();
     if (caps && caps.focusMode && caps.focusMode.indexOf("continuous") !== -1) {
@@ -6953,6 +6992,54 @@ function applyContinuousFocusIfSupported(reader) {
   }
 }
 
+// There's no standard "focus right now" command in the web platform, but
+// re-applying the focus constraint (and, where supported, telling the
+// camera where in frame to focus via pointsOfInterest) is a widely-used
+// trick that nudges many camera drivers into re-running their focus
+// search on demand -- this is what powers "tap the video to refocus".
+function nudgeFocus(track, xRatio, yRatio) {
+  if (!track || typeof track.getCapabilities !== "function") return;
+  var caps;
+  try {
+    caps = track.getCapabilities();
+  } catch (e) {
+    return;
+  }
+  if (!caps || !caps.focusMode) return;
+  var advanced = {};
+  if (caps.pointsOfInterest && typeof xRatio === "number" && typeof yRatio === "number") {
+    advanced.pointsOfInterest = [{ x: xRatio, y: yRatio }];
+  }
+  if (caps.focusMode.indexOf("single-shot") !== -1) {
+    advanced.focusMode = "single-shot";
+  }
+  var applyAdvanced = function(constraintObj) {
+    return track.applyConstraints({ advanced: [constraintObj] }).catch(function() {});
+  };
+  Promise.resolve()
+    .then(function() { return Object.keys(advanced).length ? applyAdvanced(advanced) : Promise.resolve(); })
+    .then(function() {
+      if (caps.focusMode.indexOf("continuous") !== -1) {
+        return applyAdvanced({ focusMode: "continuous" });
+      }
+    });
+}
+
+function handleBarcodeScanTap(event) {
+  if (!barcodeActiveTrack) return;
+  var wrap = document.getElementById("barcode-scan-camera-wrap");
+  var rect = wrap.getBoundingClientRect();
+  var xRatio = (event.clientX - rect.left) / rect.width;
+  var yRatio = (event.clientY - rect.top) / rect.height;
+  nudgeFocus(barcodeActiveTrack, xRatio, yRatio);
+  var status = document.getElementById("barcode-scan-status");
+  var prevText = status.textContent;
+  status.textContent = "Refocusing...";
+  setTimeout(function() {
+    if (status.textContent === "Refocusing...") status.textContent = prevText;
+  }, 900);
+}
+
 // Shows a flashlight button only on devices that report they actually have
 // one (getCapabilities().torch) -- most phone cameras do, laptop webcams
 // never do. More light lets the phone use a faster shutter speed, which is
@@ -6961,13 +7048,12 @@ function applyContinuousFocusIfSupported(reader) {
 var barcodeTorchTrack = null;
 var barcodeTorchOn = false;
 
-function setupTorchButtonIfSupported(reader) {
+function setupTorchButtonIfSupported(track) {
   var btn = document.getElementById("barcode-scan-torch-btn");
   btn.style.display = "none";
   barcodeTorchTrack = null;
   barcodeTorchOn = false;
   try {
-    var track = reader && reader.stream && reader.stream.getVideoTracks && reader.stream.getVideoTracks()[0];
     if (!track || typeof track.getCapabilities !== "function") return;
     var caps = track.getCapabilities();
     if (caps && caps.torch) {
@@ -6987,13 +7073,45 @@ function toggleBarcodeScanTorch() {
   document.getElementById("barcode-scan-torch-btn").textContent = barcodeTorchOn ? "Flashlight off" : "Flashlight on";
 }
 
+// Shows a zoom slider only on devices that report a usable zoom range.
+// Filling more of the frame with the barcode (optically or digitally)
+// gives the decoder more pixels per bar, which often matters more than
+// focus once you're already reasonably close.
+function setupZoomIfSupported(track) {
+  var wrap = document.getElementById("barcode-scan-zoom-wrap");
+  var input = document.getElementById("barcode-scan-zoom-input");
+  wrap.style.display = "none";
+  try {
+    if (!track || typeof track.getCapabilities !== "function") return;
+    var caps = track.getCapabilities();
+    if (caps && caps.zoom && caps.zoom.max > caps.zoom.min) {
+      input.min = caps.zoom.min;
+      input.max = caps.zoom.max;
+      input.step = caps.zoom.step || 0.1;
+      var settings = typeof track.getSettings === "function" ? track.getSettings() : {};
+      input.value = settings.zoom || caps.zoom.min;
+      wrap.style.display = "flex";
+    }
+  } catch (e) {
+    // best-effort only
+  }
+}
+
+function handleBarcodeScanZoom(value) {
+  if (!barcodeActiveTrack) return;
+  barcodeActiveTrack.applyConstraints({ advanced: [{ zoom: Number(value) }] }).catch(function() {});
+}
+
 // Runs right before ZXing binarizes+decodes each captured frame -- boosts
 // full-frame contrast (stretches the darkest/lightest pixels out to pure
 // black/white) and sharpens edges (a simple Laplacian unsharp mask). This
 // only touches the internal decode buffer, not the visible video preview,
 // and is aimed at recovering legibility from a washed-out or slightly soft
 // camera frame -- it can't undo severe out-of-focus blur, but it noticeably
-// helps borderline frames that are almost readable.
+// helps borderline frames that are almost readable. Also returns a rough,
+// uncalibrated "sharpness" score (average edge strength) so the UI can show
+// a live Focus bar -- it's relative, not an absolute quality guarantee, but
+// it reliably rises and falls as you move closer/farther or refocus.
 function enhanceCanvasForDecode(ctx, width, height) {
   var imageData = ctx.getImageData(0, 0, width, height);
   var data = imageData.data;
@@ -7011,15 +7129,19 @@ function enhanceCanvasForDecode(ctx, width, height) {
   var norm = new Float32Array(n);
   for (p = 0; p < n; p++) norm[p] = ((gray[p] - min) * 255) / range;
 
-  var x, y, idx, di, clamped;
+  var x, y, idx, di, clamped, edge;
+  var edgeSum = 0;
   for (y = 0; y < height; y++) {
     var rowStart = y * width;
     for (x = 0; x < width; x++) {
       idx = rowStart + x;
       if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
         v = norm[idx];
+        edge = 0;
       } else {
-        v = norm[idx] * 5 - norm[idx - 1] - norm[idx + 1] - norm[idx - width] - norm[idx + width];
+        edge = norm[idx] * 4 - norm[idx - 1] - norm[idx + 1] - norm[idx - width] - norm[idx + width];
+        v = norm[idx] + edge;
+        edgeSum += Math.abs(edge);
       }
       clamped = v < 0 ? 0 : (v > 255 ? 255 : v);
       di = idx * 4;
@@ -7029,9 +7151,10 @@ function enhanceCanvasForDecode(ctx, width, height) {
     }
   }
   ctx.putImageData(imageData, 0, 0);
+  return edgeSum / n;
 }
 
-function installFrameEnhancer(reader) {
+function installFrameEnhancer(reader, onSharpness) {
   var originalDraw = reader.drawFrameOnCanvas.bind(reader);
   reader.drawFrameOnCanvas = function() {
     originalDraw.apply(null, arguments);
@@ -7039,13 +7162,22 @@ function installFrameEnhancer(reader) {
       var canvas = reader.captureCanvas;
       var ctx = reader.captureCanvasContext;
       if (ctx && canvas && canvas.width && canvas.height) {
-        enhanceCanvasForDecode(ctx, canvas.width, canvas.height);
+        var score = enhanceCanvasForDecode(ctx, canvas.width, canvas.height);
+        if (onSharpness) onSharpness(score);
       }
     } catch (e) {
       // best-effort only -- decoding still proceeds against the unenhanced
       // frame instead of breaking the scan if this throws for any reason
     }
   };
+}
+
+function updateBarcodeSharpnessBar(score) {
+  // Squashes the raw (unbounded) edge-strength score into a 0-100 bar so it
+  // always renders sensibly regardless of resolution or lighting -- this is
+  // a relative live indicator, not a calibrated measurement.
+  var pct = 100 * (1 - 1 / (1 + score / 12));
+  document.getElementById("barcode-scan-sharpness-bar").style.width = pct.toFixed(0) + "%";
 }
 
 function startBarcodeScan() {
@@ -7058,16 +7190,18 @@ function startBarcodeScan() {
   var hints = new Map();
   hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
   barcodeCodeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
-  installFrameEnhancer(barcodeCodeReader);
+  installFrameEnhancer(barcodeCodeReader, updateBarcodeSharpnessBar);
   function onDecode(result) {
     if (!barcodeScanActive || !result) return;
     handleBarcodeScanned(result.getText());
     // NotFoundException fires continuously while no barcode is in frame -- that's
     // normal (ZXing's own polling), not something to surface as an error.
   }
-  barcodeCodeReader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, "barcode-scan-video", onDecode).then(function() {
-    applyContinuousFocusIfSupported(barcodeCodeReader);
-    setupTorchButtonIfSupported(barcodeCodeReader);
+  barcodeCodeReader.decodeFromConstraints(getBarcodeScanConstraints(), "barcode-scan-video", onDecode).then(function() {
+    barcodeActiveTrack = barcodeCodeReader.stream && barcodeCodeReader.stream.getVideoTracks && barcodeCodeReader.stream.getVideoTracks()[0];
+    applyContinuousFocusIfSupported(barcodeActiveTrack);
+    setupTorchButtonIfSupported(barcodeActiveTrack);
+    setupZoomIfSupported(barcodeActiveTrack);
   }).catch(function(err) {
     document.getElementById("barcode-scan-error").textContent = "Couldn't access the camera: " + (err.message || "permission denied.");
     document.getElementById("barcode-scan-error").style.display = "block";
@@ -7076,7 +7210,10 @@ function startBarcodeScan() {
 
 function stopBarcodeScan() {
   barcodeScanActive = false;
+  barcodeActiveTrack = null;
   document.getElementById("barcode-scan-torch-btn").style.display = "none";
+  document.getElementById("barcode-scan-zoom-wrap").style.display = "none";
+  document.getElementById("barcode-scan-sharpness-bar").style.width = "0%";
   barcodeTorchTrack = null;
   barcodeTorchOn = false;
   if (barcodeCodeReader) {
@@ -7090,7 +7227,7 @@ function startBarcodeScanAgain() {
   document.getElementById("barcode-scan-result").style.display = "none";
   document.getElementById("barcode-scan-camera-wrap").style.display = "block";
   document.getElementById("barcode-scan-status").style.display = "block";
-  document.getElementById("barcode-scan-status").textContent = "Point the camera at a barcode and hold steady...";
+  document.getElementById("barcode-scan-status").textContent = "Point the camera at a barcode and hold steady. Tap the video to refocus, and watch the Focus bar fill in as it sharpens.";
   startBarcodeScan();
 }
 

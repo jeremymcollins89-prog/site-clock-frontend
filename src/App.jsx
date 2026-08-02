@@ -1649,13 +1649,74 @@ function InventoryView({ items, loading, onOpenScan, onSaveItem }) {
   );
 }
 
+// A laptop/desktop webcam and a phone camera behave very differently under
+// getUserMedia -- forcing a high resolution + focus constraints on a webcam
+// previously made the desktop scanner worse (some webcams don't like being
+// asked for a mode they don't natively support). Gating the richer request
+// behind "does this device have a touchscreen" means phones get the
+// higher-res, focus-friendly request while a mouse-driven desktop keeps
+// exactly the plain request that's always worked there.
+function isTouchDevice() {
+  try {
+    return !!(window.matchMedia && window.matchMedia("(pointer: coarse)").matches);
+  } catch {
+    return false;
+  }
+}
+
+function getBarcodeScanConstraints() {
+  if (!isTouchDevice()) {
+    return { video: { facingMode: { ideal: "environment" } } };
+  }
+  return {
+    video: {
+      facingMode: { ideal: "environment" },
+      width: { ideal: 1920 },
+      height: { ideal: 1080 },
+      advanced: [{ focusMode: "continuous" }],
+    },
+  };
+}
+
+// There's no standard "focus right now" command in the web platform, but
+// re-applying the focus constraint (and, where supported, telling the
+// camera where in frame to focus via pointsOfInterest) is a widely-used
+// trick that nudges many camera drivers into re-running their focus
+// search on demand -- this is what powers "tap the video to refocus".
+function nudgeFocus(track, xRatio, yRatio) {
+  if (!track || typeof track.getCapabilities !== "function") return;
+  let caps;
+  try {
+    caps = track.getCapabilities();
+  } catch {
+    return;
+  }
+  if (!caps?.focusMode) return;
+  const advanced = {};
+  if (caps.pointsOfInterest && typeof xRatio === "number" && typeof yRatio === "number") {
+    advanced.pointsOfInterest = [{ x: xRatio, y: yRatio }];
+  }
+  if (caps.focusMode.includes("single-shot")) {
+    advanced.focusMode = "single-shot";
+  }
+  const applyAdvanced = (constraintObj) => track.applyConstraints({ advanced: [constraintObj] }).catch(() => {});
+  Promise.resolve()
+    .then(() => (Object.keys(advanced).length ? applyAdvanced(advanced) : undefined))
+    .then(() => {
+      if (caps.focusMode.includes("continuous")) return applyAdvanced({ focusMode: "continuous" });
+    });
+}
+
 // Runs right before ZXing binarizes+decodes each captured frame -- boosts
 // full-frame contrast (stretches the darkest/lightest pixels out to pure
 // black/white) and sharpens edges (a simple Laplacian unsharp mask). This
 // only touches the internal decode buffer, not the visible video preview,
 // and is aimed at recovering legibility from a washed-out or slightly soft
 // camera frame -- it can't undo severe out-of-focus blur, but it noticeably
-// helps borderline frames that are almost readable.
+// helps borderline frames that are almost readable. Also returns a rough,
+// uncalibrated "sharpness" score (average edge strength) so the UI can show
+// a live Focus bar -- it's relative, not an absolute quality guarantee, but
+// it reliably rises and falls as you move closer/farther or refocus.
 function enhanceCanvasForDecode(ctx, width, height) {
   const imageData = ctx.getImageData(0, 0, width, height);
   const data = imageData.data;
@@ -1672,15 +1733,19 @@ function enhanceCanvasForDecode(ctx, width, height) {
   const norm = new Float32Array(n);
   for (let p = 0; p < n; p++) norm[p] = ((gray[p] - min) * 255) / range;
 
+  let edgeSum = 0;
   for (let y = 0; y < height; y++) {
     const rowStart = y * width;
     for (let x = 0; x < width; x++) {
       const idx = rowStart + x;
-      let v;
+      let v, edge;
       if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
         v = norm[idx];
+        edge = 0;
       } else {
-        v = norm[idx] * 5 - norm[idx - 1] - norm[idx + 1] - norm[idx - width] - norm[idx + width];
+        edge = norm[idx] * 4 - norm[idx - 1] - norm[idx + 1] - norm[idx - width] - norm[idx + width];
+        v = norm[idx] + edge;
+        edgeSum += Math.abs(edge);
       }
       const clamped = v < 0 ? 0 : v > 255 ? 255 : v;
       const di = idx * 4;
@@ -1690,9 +1755,10 @@ function enhanceCanvasForDecode(ctx, width, height) {
     }
   }
   ctx.putImageData(imageData, 0, 0);
+  return edgeSum / n;
 }
 
-function installFrameEnhancer(reader) {
+function installFrameEnhancer(reader, onSharpness) {
   const originalDraw = reader.drawFrameOnCanvas.bind(reader);
   reader.drawFrameOnCanvas = (...args) => {
     originalDraw(...args);
@@ -1700,7 +1766,8 @@ function installFrameEnhancer(reader) {
       const canvas = reader.captureCanvas;
       const ctx = reader.captureCanvasContext;
       if (ctx && canvas && canvas.width && canvas.height) {
-        enhanceCanvasForDecode(ctx, canvas.width, canvas.height);
+        const score = enhanceCanvasForDecode(ctx, canvas.width, canvas.height);
+        onSharpness?.(score);
       }
     } catch {
       // best-effort only -- decoding still proceeds against the unenhanced
@@ -1721,6 +1788,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const readerRef = useRef(null);
   const activeRef = useRef(false);
   const torchTrackRef = useRef(null);
+  const activeTrackRef = useRef(null); // shared by tap-to-focus and the zoom slider
   const [stage, setStage] = useState("scanning"); // scanning | looking-up | matched | new-item | error
   const [scannedBarcode, setScannedBarcode] = useState("");
   const [matchedItem, setMatchedItem] = useState(null);
@@ -1733,12 +1801,19 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const [submitting, setSubmitting] = useState(false);
   const [torchSupported, setTorchSupported] = useState(false);
   const [torchOn, setTorchOn] = useState(false);
+  const [zoomCaps, setZoomCaps] = useState(null); // { min, max, step } or null when unsupported
+  const [zoomValue, setZoomValue] = useState(1);
+  const [sharpness, setSharpness] = useState(0); // 0-100, relative live "Focus" indicator
+  const [refocusing, setRefocusing] = useState(false);
 
   function stopScan() {
     activeRef.current = false;
     torchTrackRef.current = null;
+    activeTrackRef.current = null;
     setTorchSupported(false);
     setTorchOn(false);
+    setZoomCaps(null);
+    setSharpness(0);
     if (readerRef.current) {
       try { readerRef.current.reset(); } catch { /* already stopped */ }
       readerRef.current = null;
@@ -1764,9 +1839,8 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   // experience alone; phones that do report it (most Android Chrome/Samsung
   // Internet) get real continuous AF instead of whatever fixed/default
   // focus they'd otherwise be stuck with up close.
-  function applyContinuousFocusIfSupported(reader) {
+  function applyContinuousFocusIfSupported(track) {
     try {
-      const track = reader?.stream?.getVideoTracks?.()[0];
       if (!track || typeof track.getCapabilities !== "function") return;
       const caps = track.getCapabilities();
       if (caps?.focusMode?.includes("continuous")) {
@@ -1782,9 +1856,8 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   // never do. More light lets the phone use a faster shutter speed, which
   // is usually the real fix for a "blurry" close-up shot: what looks like a
   // focus problem is very often motion/low-light blur from a slow exposure.
-  function setupTorchIfSupported(reader) {
+  function setupTorchIfSupported(track) {
     try {
-      const track = reader?.stream?.getVideoTracks?.()[0];
       if (track && typeof track.getCapabilities === "function" && track.getCapabilities()?.torch) {
         torchTrackRef.current = track;
         setTorchSupported(true);
@@ -1805,13 +1878,57 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     torchTrackRef.current.applyConstraints({ advanced: [{ torch: next }] }).catch(() => {});
   }
 
+  // Shows a zoom slider only on devices that report a usable zoom range.
+  // Filling more of the frame with the barcode (optically or digitally)
+  // gives the decoder more pixels per bar, which often matters more than
+  // focus once you're already reasonably close.
+  function setupZoomIfSupported(track) {
+    try {
+      if (track && typeof track.getCapabilities === "function") {
+        const caps = track.getCapabilities();
+        if (caps?.zoom && caps.zoom.max > caps.zoom.min) {
+          const settings = typeof track.getSettings === "function" ? track.getSettings() : {};
+          setZoomCaps({ min: caps.zoom.min, max: caps.zoom.max, step: caps.zoom.step || 0.1 });
+          setZoomValue(settings.zoom || caps.zoom.min);
+          return;
+        }
+      }
+    } catch {
+      // best-effort only
+    }
+    setZoomCaps(null);
+  }
+
+  function handleZoomChange(value) {
+    const next = Number(value);
+    setZoomValue(next);
+    activeTrackRef.current?.applyConstraints({ advanced: [{ zoom: next }] }).catch(() => {});
+  }
+
+  function handleTap(e) {
+    if (!activeTrackRef.current) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const xRatio = (e.clientX - rect.left) / rect.width;
+    const yRatio = (e.clientY - rect.top) / rect.height;
+    nudgeFocus(activeTrackRef.current, xRatio, yRatio);
+    setRefocusing(true);
+    setTimeout(() => setRefocusing(false), 900);
+  }
+
+  // Squashes the raw (unbounded) edge-strength score into a 0-100 bar so it
+  // always renders sensibly regardless of resolution or lighting -- this is
+  // a relative live indicator, not a calibrated measurement.
+  function updateSharpness(score) {
+    setSharpness(100 * (1 - 1 / (1 + score / 12)));
+  }
+
   function beginDecoding() {
     activeRef.current = true;
     const hints = new Map();
     hints.set(DecodeHintType.TRY_HARDER, true);
     const reader = new BrowserMultiFormatReader(hints, 300);
     readerRef.current = reader;
-    installFrameEnhancer(reader);
+    installFrameEnhancer(reader, updateSharpness);
     const onDecode = (result) => {
       if (!activeRef.current || !result) return;
       handleScanned(result.getText());
@@ -1821,10 +1938,13 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
       setError("Couldn't access the camera: " + (err.message || "permission denied."));
     };
     reader
-      .decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, videoRef.current, onDecode)
+      .decodeFromConstraints(getBarcodeScanConstraints(), videoRef.current, onDecode)
       .then(() => {
-        applyContinuousFocusIfSupported(reader);
-        setupTorchIfSupported(reader);
+        const track = reader.stream?.getVideoTracks?.()[0];
+        activeTrackRef.current = track || null;
+        applyContinuousFocusIfSupported(track);
+        setupTorchIfSupported(track);
+        setupZoomIfSupported(track);
       })
       .catch(onCameraError);
   }
@@ -1929,11 +2049,15 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 
         {(stage === "scanning" || stage === "looking-up") && (
           <>
-            <div style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
+            <div
+              onClick={handleTap}
+              style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 10, cursor: "pointer" }}
+              title="Tap to refocus"
+            >
               <video ref={videoRef} muted playsInline style={{ width: "100%", display: "block" }} />
               {torchSupported && (
                 <button
-                  onClick={toggleTorch}
+                  onClick={(e) => { e.stopPropagation(); toggleTorch(); }}
                   style={{
                     position: "absolute", top: 8, right: 8,
                     background: "rgba(0,0,0,0.55)", color: "#fff", border: "none",
@@ -1944,8 +2068,30 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
                 </button>
               )}
             </div>
+            {zoomCaps && (
+              <div className="flex items-center gap-2 mb-2">
+                <span className="text-xs" style={{ color: "#8A8578" }}>Zoom</span>
+                <input
+                  type="range" min={zoomCaps.min} max={zoomCaps.max} step={zoomCaps.step}
+                  value={zoomValue}
+                  onClick={(e) => e.stopPropagation()}
+                  onChange={(e) => handleZoomChange(e.target.value)}
+                  className="flex-1"
+                />
+              </div>
+            )}
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-xs" style={{ color: "#8A8578" }}>Focus</span>
+              <div className="flex-1 rounded-full overflow-hidden" style={{ height: 6, background: "#E7E3D8" }}>
+                <div style={{ height: "100%", width: `${sharpness.toFixed(0)}%`, background: TEAL, transition: "width 0.15s linear" }} />
+              </div>
+            </div>
             <p className="text-xs text-center" style={{ color: "#8A8578" }}>
-              {stage === "looking-up" ? `Looking up ${scannedBarcode}...` : "Point the camera at a barcode and hold steady..."}
+              {refocusing
+                ? "Refocusing..."
+                : stage === "looking-up"
+                  ? `Looking up ${scannedBarcode}...`
+                  : "Point the camera at a barcode and hold steady. Tap the video to refocus, and watch the Focus bar fill in as it sharpens."}
             </p>
           </>
         )}
