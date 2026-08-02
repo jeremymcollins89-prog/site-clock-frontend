@@ -63,6 +63,12 @@ function getSnakeLeaderboard() {
   return apiFetch("/api/auth/snake-leaderboard");
 }
 
+// Lets an employee pick their own clock-in celebration -- see App.jsx's
+// ClockInAnimationSheet.
+function updateMyClockInAnimation(value) {
+  return apiFetch("/api/auth/clock-in-animation", { method: "PATCH", body: { clock_in_animation: value } });
+}
+
 async function login(email, pin) {
   const data = await apiFetch("/api/auth/login", { method: "POST", body: { email, pin } });
   saveSession(data.token, data.employee);
@@ -281,6 +287,7 @@ export {
   pingActivity,
   submitSnakeScore,
   getSnakeLeaderboard,
+  updateMyClockInAnimation,
   clockAction,
   startAutoSync,
   apiFetch,

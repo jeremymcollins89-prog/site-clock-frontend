@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper } from "lucide-react";
 import { BrowserMultiFormatReader, DecodeHintType } from "@zxing/library";
 import {
   login,
@@ -8,6 +8,7 @@ import {
   pingActivity,
   submitSnakeScore,
   getSnakeLeaderboard,
+  updateMyClockInAnimation,
   clockAction,
   startAutoSync,
   apiFetch,
@@ -1684,6 +1685,94 @@ function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled })
   );
 }
 
+// The 7 clock-in celebration choices, matching CLOCK_IN_ANIMATIONS on the
+// backend (routes/admin.js and routes/auth.js) -- keep all three in sync if
+// this list ever changes. Emoji-prefixed labels double as a quick visual
+// preview without needing to actually clock in to see what each one looks
+// like.
+const CLOCK_IN_ANIMATION_OPTIONS = [
+  { value: "none", label: "No animation" },
+  { value: "fireworks", label: "🎆 Fireworks" },
+  { value: "birthday", label: "🎉 Happy Birthday" },
+  { value: "rocket", label: "🚀 Rocket Launch" },
+  { value: "fall", label: "🍂 Fall / Thanksgiving" },
+  { value: "easter", label: "🐣 Spring / Easter" },
+  { value: "christmas", label: "❄️ Christmas / Winter" },
+];
+
+// Bottom sheet opened from the small party-popper button in the header,
+// letting an employee pick their own clock-in celebration (previously
+// admin-only). Saves immediately on tap rather than needing a separate Save
+// button -- selecting a row calls onSelect, which the parent awaits and
+// closes this sheet once the save actually succeeds (see
+// handleSelectClockInAnimation below), so it can't silently claim success
+// if the request fails.
+function ClockInAnimationSheet({ open, onClose, current, onSelect, saving, error }) {
+  if (!open) return null;
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 100 }}
+      className="flex items-end"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: PAPER,
+          width: "100%",
+          maxHeight: "85vh",
+          overflowY: "auto",
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
+          padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
+            <PartyPopper size={14} /> Clock-in celebration
+          </h2>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+            &times;
+          </button>
+        </div>
+        <p className="text-xs mb-3" style={{ color: "#8A8578" }}>
+          Pick what plays when you clock in.
+        </p>
+        {error && (
+          <p className="text-xs mb-3" style={{ color: RUST }}>{error}</p>
+        )}
+        <div className="flex flex-col gap-2">
+          {CLOCK_IN_ANIMATION_OPTIONS.map((opt) => {
+            const selected = (current || "none") === opt.value;
+            return (
+              <button
+                key={opt.value}
+                onClick={() => onSelect(opt.value)}
+                disabled={saving}
+                className="flex items-center justify-between text-left"
+                style={{
+                  padding: "10px 12px",
+                  borderRadius: 10,
+                  border: `1.5px solid ${selected ? TEAL : LINE}`,
+                  background: selected ? "rgba(70,112,95,0.08)" : "transparent",
+                  fontSize: 13,
+                  color: CHARCOAL,
+                  opacity: saving ? 0.6 : 1,
+                }}
+              >
+                <span>{opt.label}</span>
+                {selected && <span style={{ color: TEAL, fontWeight: 700 }}>✓</span>}
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Bottom sheet opened from the "Assigned routes" pill button next to Time
 // off in CalendarView's header (see below). Shows a Leaflet map with the
 // numbered stops + a dashed round-trip line back to the shop, the same
@@ -3339,6 +3428,27 @@ export default function TimeClock() {
     }
   }
 
+  // Lets an employee pick their own clock-in celebration (previously
+  // admin-only). Closes the sheet only once the save actually succeeds, so
+  // a network hiccup shows an inline error instead of silently pretending
+  // it worked.
+  const [showAnimationPicker, setShowAnimationPicker] = useState(false);
+  const [savingAnimation, setSavingAnimation] = useState(false);
+  const [animationSaveError, setAnimationSaveError] = useState("");
+  async function handleSelectClockInAnimation(value) {
+    setSavingAnimation(true);
+    setAnimationSaveError("");
+    try {
+      await updateMyClockInAnimation(value);
+      setEmployee((prev) => (prev ? { ...prev, clock_in_animation: value } : prev));
+      setShowAnimationPicker(false);
+    } catch (err) {
+      setAnimationSaveError(err.message || "Couldn't save your choice.");
+    } finally {
+      setSavingAnimation(false);
+    }
+  }
+
 const [emailInput, setEmailInput] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -4262,6 +4372,14 @@ const [emailInput, setEmailInput] = useState("");
       {activeAnimation === "easter" && <EasterOverlay onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "christmas" && <ChristmasOverlay onDone={() => setActiveAnimation(null)} />}
       <SnakeGame open={showSnake} onClose={() => setShowSnake(false)} />
+      <ClockInAnimationSheet
+        open={showAnimationPicker}
+        onClose={() => setShowAnimationPicker(false)}
+        current={employee?.clock_in_animation}
+        onSelect={handleSelectClockInAnimation}
+        saving={savingAnimation}
+        error={animationSaveError}
+      />
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-1">
           {/* No visible hint on purpose -- tap this 7x fast to open Snake. */}
@@ -4278,9 +4396,19 @@ const [emailInput, setEmailInput] = useState("");
               </h1>
             )}
           </div>
-          <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
-            <LogOut size={12} /> {employee?.name}
-          </button>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowAnimationPicker(true)}
+              title="Clock-in celebration"
+              aria-label="Clock-in celebration"
+              style={{ color: "#8A8578", background: "transparent", border: "none", display: "flex", alignItems: "center" }}
+            >
+              <PartyPopper size={16} />
+            </button>
+            <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
+              <LogOut size={12} /> {employee?.name}
+            </button>
+          </div>
         </div>
         <div className="h-px w-full mb-6" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
 
