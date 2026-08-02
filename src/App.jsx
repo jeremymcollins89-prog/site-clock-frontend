@@ -1649,6 +1649,66 @@ function InventoryView({ items, loading, onOpenScan, onSaveItem }) {
   );
 }
 
+// Runs right before ZXing binarizes+decodes each captured frame -- boosts
+// full-frame contrast (stretches the darkest/lightest pixels out to pure
+// black/white) and sharpens edges (a simple Laplacian unsharp mask). This
+// only touches the internal decode buffer, not the visible video preview,
+// and is aimed at recovering legibility from a washed-out or slightly soft
+// camera frame -- it can't undo severe out-of-focus blur, but it noticeably
+// helps borderline frames that are almost readable.
+function enhanceCanvasForDecode(ctx, width, height) {
+  const imageData = ctx.getImageData(0, 0, width, height);
+  const data = imageData.data;
+  const n = width * height;
+  const gray = new Float32Array(n);
+  let min = 255, max = 0;
+  for (let i = 0, p = 0; i < data.length; i += 4, p++) {
+    const v = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    gray[p] = v;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  const range = Math.max(1, max - min);
+  const norm = new Float32Array(n);
+  for (let p = 0; p < n; p++) norm[p] = ((gray[p] - min) * 255) / range;
+
+  for (let y = 0; y < height; y++) {
+    const rowStart = y * width;
+    for (let x = 0; x < width; x++) {
+      const idx = rowStart + x;
+      let v;
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+        v = norm[idx];
+      } else {
+        v = norm[idx] * 5 - norm[idx - 1] - norm[idx + 1] - norm[idx - width] - norm[idx + width];
+      }
+      const clamped = v < 0 ? 0 : v > 255 ? 255 : v;
+      const di = idx * 4;
+      data[di] = clamped;
+      data[di + 1] = clamped;
+      data[di + 2] = clamped;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function installFrameEnhancer(reader) {
+  const originalDraw = reader.drawFrameOnCanvas.bind(reader);
+  reader.drawFrameOnCanvas = (...args) => {
+    originalDraw(...args);
+    try {
+      const canvas = reader.captureCanvas;
+      const ctx = reader.captureCanvasContext;
+      if (ctx && canvas && canvas.width && canvas.height) {
+        enhanceCanvasForDecode(ctx, canvas.width, canvas.height);
+      }
+    } catch {
+      // best-effort only -- decoding still proceeds against the unenhanced
+      // frame instead of breaking the scan if this throws for any reason
+    }
+  };
+}
+
 // Bottom sheet reachable from the Inventory tab's "Scan barcode" button.
 // Uses the device's own camera via ZXing's browser decoder -- no dedicated
 // hardware scanner required (though a USB/Bluetooth one would also work,
@@ -1660,6 +1720,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const videoRef = useRef(null);
   const readerRef = useRef(null);
   const activeRef = useRef(false);
+  const torchTrackRef = useRef(null);
   const [stage, setStage] = useState("scanning"); // scanning | looking-up | matched | new-item | error
   const [scannedBarcode, setScannedBarcode] = useState("");
   const [matchedItem, setMatchedItem] = useState(null);
@@ -1670,9 +1731,14 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const [newQtyInput, setNewQtyInput] = useState("1");
   const [costInput, setCostInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [torchSupported, setTorchSupported] = useState(false);
+  const [torchOn, setTorchOn] = useState(false);
 
   function stopScan() {
     activeRef.current = false;
+    torchTrackRef.current = null;
+    setTorchSupported(false);
+    setTorchOn(false);
     if (readerRef.current) {
       try { readerRef.current.reset(); } catch { /* already stopped */ }
       readerRef.current = null;
@@ -1711,12 +1777,41 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     }
   }
 
+  // Shows a flashlight toggle only on devices that report they actually have
+  // one (getCapabilities().torch) -- most phone cameras do, laptop webcams
+  // never do. More light lets the phone use a faster shutter speed, which
+  // is usually the real fix for a "blurry" close-up shot: what looks like a
+  // focus problem is very often motion/low-light blur from a slow exposure.
+  function setupTorchIfSupported(reader) {
+    try {
+      const track = reader?.stream?.getVideoTracks?.()[0];
+      if (track && typeof track.getCapabilities === "function" && track.getCapabilities()?.torch) {
+        torchTrackRef.current = track;
+        setTorchSupported(true);
+        setTorchOn(false);
+        return;
+      }
+    } catch {
+      // best-effort only
+    }
+    torchTrackRef.current = null;
+    setTorchSupported(false);
+  }
+
+  function toggleTorch() {
+    if (!torchTrackRef.current) return;
+    const next = !torchOn;
+    setTorchOn(next);
+    torchTrackRef.current.applyConstraints({ advanced: [{ torch: next }] }).catch(() => {});
+  }
+
   function beginDecoding() {
     activeRef.current = true;
     const hints = new Map();
     hints.set(DecodeHintType.TRY_HARDER, true);
     const reader = new BrowserMultiFormatReader(hints, 300);
     readerRef.current = reader;
+    installFrameEnhancer(reader);
     const onDecode = (result) => {
       if (!activeRef.current || !result) return;
       handleScanned(result.getText());
@@ -1727,7 +1822,10 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     };
     reader
       .decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, videoRef.current, onDecode)
-      .then(() => applyContinuousFocusIfSupported(reader))
+      .then(() => {
+        applyContinuousFocusIfSupported(reader);
+        setupTorchIfSupported(reader);
+      })
       .catch(onCameraError);
   }
 
@@ -1833,6 +1931,18 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
           <>
             <div style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
               <video ref={videoRef} muted playsInline style={{ width: "100%", display: "block" }} />
+              {torchSupported && (
+                <button
+                  onClick={toggleTorch}
+                  style={{
+                    position: "absolute", top: 8, right: 8,
+                    background: "rgba(0,0,0,0.55)", color: "#fff", border: "none",
+                    borderRadius: 6, padding: "6px 10px", fontSize: 11,
+                  }}
+                >
+                  {torchOn ? "Flashlight off" : "Flashlight on"}
+                </button>
+              )}
             </div>
             <p className="text-xs text-center" style={{ color: "#8A8578" }}>
               {stage === "looking-up" ? `Looking up ${scannedBarcode}...` : "Point the camera at a barcode and hold steady..."}

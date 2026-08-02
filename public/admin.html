@@ -1480,6 +1480,7 @@
     <div id="barcode-scan-error" class="error" style="display:none;"></div>
     <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:10px;">
       <video id="barcode-scan-video" style="width:100%; display:block;" muted playsinline></video>
+      <button id="barcode-scan-torch-btn" onclick="toggleBarcodeScanTorch()" style="display:none; position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer;">Flashlight on</button>
     </div>
     <p id="barcode-scan-status" style="font-size:12px; color:#8A8578;">Point the camera at a barcode and hold steady...</p>
     <div id="barcode-scan-result" style="display:none;"></div>
@@ -6952,6 +6953,101 @@ function applyContinuousFocusIfSupported(reader) {
   }
 }
 
+// Shows a flashlight button only on devices that report they actually have
+// one (getCapabilities().torch) -- most phone cameras do, laptop webcams
+// never do. More light lets the phone use a faster shutter speed, which is
+// usually the real fix for a "blurry" close-up shot: what looks like a
+// focus problem is very often motion/low-light blur from a slow exposure.
+var barcodeTorchTrack = null;
+var barcodeTorchOn = false;
+
+function setupTorchButtonIfSupported(reader) {
+  var btn = document.getElementById("barcode-scan-torch-btn");
+  btn.style.display = "none";
+  barcodeTorchTrack = null;
+  barcodeTorchOn = false;
+  try {
+    var track = reader && reader.stream && reader.stream.getVideoTracks && reader.stream.getVideoTracks()[0];
+    if (!track || typeof track.getCapabilities !== "function") return;
+    var caps = track.getCapabilities();
+    if (caps && caps.torch) {
+      barcodeTorchTrack = track;
+      btn.style.display = "block";
+      btn.textContent = "Flashlight on";
+    }
+  } catch (e) {
+    // best-effort only
+  }
+}
+
+function toggleBarcodeScanTorch() {
+  if (!barcodeTorchTrack) return;
+  barcodeTorchOn = !barcodeTorchOn;
+  barcodeTorchTrack.applyConstraints({ advanced: [{ torch: barcodeTorchOn }] }).catch(function() {});
+  document.getElementById("barcode-scan-torch-btn").textContent = barcodeTorchOn ? "Flashlight off" : "Flashlight on";
+}
+
+// Runs right before ZXing binarizes+decodes each captured frame -- boosts
+// full-frame contrast (stretches the darkest/lightest pixels out to pure
+// black/white) and sharpens edges (a simple Laplacian unsharp mask). This
+// only touches the internal decode buffer, not the visible video preview,
+// and is aimed at recovering legibility from a washed-out or slightly soft
+// camera frame -- it can't undo severe out-of-focus blur, but it noticeably
+// helps borderline frames that are almost readable.
+function enhanceCanvasForDecode(ctx, width, height) {
+  var imageData = ctx.getImageData(0, 0, width, height);
+  var data = imageData.data;
+  var n = width * height;
+  var gray = new Float32Array(n);
+  var min = 255, max = 0;
+  var i, p, v;
+  for (i = 0, p = 0; i < data.length; i += 4, p++) {
+    v = data[i] * 0.299 + data[i + 1] * 0.587 + data[i + 2] * 0.114;
+    gray[p] = v;
+    if (v < min) min = v;
+    if (v > max) max = v;
+  }
+  var range = Math.max(1, max - min);
+  var norm = new Float32Array(n);
+  for (p = 0; p < n; p++) norm[p] = ((gray[p] - min) * 255) / range;
+
+  var x, y, idx, di, clamped;
+  for (y = 0; y < height; y++) {
+    var rowStart = y * width;
+    for (x = 0; x < width; x++) {
+      idx = rowStart + x;
+      if (x === 0 || y === 0 || x === width - 1 || y === height - 1) {
+        v = norm[idx];
+      } else {
+        v = norm[idx] * 5 - norm[idx - 1] - norm[idx + 1] - norm[idx - width] - norm[idx + width];
+      }
+      clamped = v < 0 ? 0 : (v > 255 ? 255 : v);
+      di = idx * 4;
+      data[di] = clamped;
+      data[di + 1] = clamped;
+      data[di + 2] = clamped;
+    }
+  }
+  ctx.putImageData(imageData, 0, 0);
+}
+
+function installFrameEnhancer(reader) {
+  var originalDraw = reader.drawFrameOnCanvas.bind(reader);
+  reader.drawFrameOnCanvas = function() {
+    originalDraw.apply(null, arguments);
+    try {
+      var canvas = reader.captureCanvas;
+      var ctx = reader.captureCanvasContext;
+      if (ctx && canvas && canvas.width && canvas.height) {
+        enhanceCanvasForDecode(ctx, canvas.width, canvas.height);
+      }
+    } catch (e) {
+      // best-effort only -- decoding still proceeds against the unenhanced
+      // frame instead of breaking the scan if this throws for any reason
+    }
+  };
+}
+
 function startBarcodeScan() {
   if (typeof ZXing === "undefined") {
     document.getElementById("barcode-scan-error").textContent = "Barcode scanner couldn't load -- check your internet connection and try again.";
@@ -6962,6 +7058,7 @@ function startBarcodeScan() {
   var hints = new Map();
   hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
   barcodeCodeReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+  installFrameEnhancer(barcodeCodeReader);
   function onDecode(result) {
     if (!barcodeScanActive || !result) return;
     handleBarcodeScanned(result.getText());
@@ -6970,6 +7067,7 @@ function startBarcodeScan() {
   }
   barcodeCodeReader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, "barcode-scan-video", onDecode).then(function() {
     applyContinuousFocusIfSupported(barcodeCodeReader);
+    setupTorchButtonIfSupported(barcodeCodeReader);
   }).catch(function(err) {
     document.getElementById("barcode-scan-error").textContent = "Couldn't access the camera: " + (err.message || "permission denied.");
     document.getElementById("barcode-scan-error").style.display = "block";
@@ -6978,6 +7076,9 @@ function startBarcodeScan() {
 
 function stopBarcodeScan() {
   barcodeScanActive = false;
+  document.getElementById("barcode-scan-torch-btn").style.display = "none";
+  barcodeTorchTrack = null;
+  barcodeTorchOn = false;
   if (barcodeCodeReader) {
     try { barcodeCodeReader.reset(); } catch (e) { /* already stopped */ }
     barcodeCodeReader = null;
@@ -6989,7 +7090,7 @@ function startBarcodeScanAgain() {
   document.getElementById("barcode-scan-result").style.display = "none";
   document.getElementById("barcode-scan-camera-wrap").style.display = "block";
   document.getElementById("barcode-scan-status").style.display = "block";
-  document.getElementById("barcode-scan-status").textContent = "Point the camera at a barcode...";
+  document.getElementById("barcode-scan-status").textContent = "Point the camera at a barcode and hold steady...";
   startBarcodeScan();
 }
 
