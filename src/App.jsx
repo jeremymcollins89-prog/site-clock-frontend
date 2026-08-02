@@ -1,6 +1,18 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper } from "lucide-react";
-import { BrowserMultiFormatReader, DecodeHintType } from "@zxing/library";
+// @zxing/library is the single biggest contributor to the main JS bundle,
+// but only employees with can_manage_inventory ever open the barcode
+// scanner -- so it's loaded on demand (see loadZxing, used by
+// BarcodeScanSheet's beginDecoding/handleFileCapture) instead of bundled
+// into the chunk every employee downloads on every page load. The promise
+// is cached so re-opening the scan sheet later doesn't refetch it.
+let zxingModulePromise = null;
+function loadZxing() {
+  if (!zxingModulePromise) {
+    zxingModulePromise = import("@zxing/library");
+  }
+  return zxingModulePromise;
+}
 import {
   login,
   restoreSession,
@@ -2734,11 +2746,19 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   // we just get the finished photo back to decode -- if the barcode is
   // readable by the native camera app at all, this route gives it the best
   // possible chance.
-  function handleFileCapture(e) {
+  async function handleFileCapture(e) {
     const file = e.target.files?.[0];
     e.target.value = ""; // allow choosing/relaunching the camera again next time
     if (!file) return;
     if (!stillReaderRef.current) {
+      let zxing;
+      try {
+        zxing = await loadZxing();
+      } catch {
+        setError("Couldn't load the barcode scanner. Check your connection and try again.");
+        return;
+      }
+      const { BrowserMultiFormatReader, DecodeHintType } = zxing;
       const hints = new Map();
       hints.set(DecodeHintType.TRY_HARDER, true);
       const stillReader = new BrowserMultiFormatReader(hints, 300);
@@ -2767,8 +2787,21 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     img.src = url;
   }
 
-  function beginDecoding() {
+  async function beginDecoding() {
     activeRef.current = true;
+    let zxing;
+    try {
+      zxing = await loadZxing();
+    } catch {
+      setStage("error");
+      setError("Couldn't load the barcode scanner. Check your connection and try again.");
+      return;
+    }
+    // The sheet may have been closed (or reopened+closed again) while the
+    // library was still downloading -- don't spin up a camera reader for a
+    // scan that's no longer active.
+    if (!activeRef.current) return;
+    const { BrowserMultiFormatReader, DecodeHintType } = zxing;
     const hints = new Map();
     hints.set(DecodeHintType.TRY_HARDER, true);
     const reader = new BrowserMultiFormatReader(hints, 300);
