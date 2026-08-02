@@ -2269,7 +2269,7 @@ async function loadEmployees() {
   body.innerHTML = rows.map(function(e) {
     const openEntryId = openEntryByEmployee[e.id];
     const forceClockOutBtn = openEntryId
-      ? '<button class="btn-small" style="background:#C1502E;" onclick="event.stopPropagation(); forceClockOutRowConfirm(\'' + openEntryId + '\', \'' + e.name.replace(/'/g, "\\'") + '\')">Force clock out</button>'
+      ? '<button class="btn-small" style="background:#C1502E;" onclick="event.stopPropagation(); forceClockOutRowConfirm(\'' + openEntryId + '\', \'' + escapeHtml(e.name).replace(/'/g, "\\'") + '\')">Force clock out</button>'
       : '';
     return '<div class="card emp-card" onclick="openEmployeeSheet(\'' + e.id + '\', ' + e.active + ', false)">' +
       '<div>' +
@@ -3294,7 +3294,7 @@ async function refreshRouteMap() {
     const onClock = await admin.getOnClockLocations();
     onClock.forEach(function(loc) {
       L.marker([loc.lat, loc.lng], { icon: routeStopIcon("&#128205;", "#1E88FF") })
-        .bindTooltip(loc.name + " (on the clock)").addTo(routeMapLayer);
+        .bindTooltip(escapeHtml(loc.name) + " (on the clock)").addTo(routeMapLayer);
       points.push([loc.lat, loc.lng]);
     });
   } catch (err) { /* non-fatal -- map still shows shop + any route stops */ }
@@ -3303,7 +3303,7 @@ async function refreshRouteMap() {
   if (route && route.stops && route.stops.length > 0) {
     route.stops.forEach(function(stop, i) {
       L.marker([stop.lat, stop.lng], { icon: routeStopIcon(String(i + 1), "#C1502E") })
-        .bindTooltip(stop.title).addTo(routeMapLayer);
+        .bindTooltip(escapeHtml(stop.title)).addTo(routeMapLayer);
       points.push([stop.lat, stop.lng]);
     });
     if (shop) {
@@ -3925,7 +3925,13 @@ function parseCsv(text) {
 }
 
 function csvEscape(value) {
-  const s = value == null ? "" : String(value);
+  let s = value == null ? "" : String(value);
+  // A cell starting with =, +, -, or @ is a live formula to Excel/Sheets,
+  // not text -- a customer name like `=cmd|'/c calc'!A1` would otherwise
+  // run when someone opens an exported CSV. Prefixing with a plain quote
+  // forces it to be read as text while keeping the value's own contents
+  // unchanged for anyone reading it.
+  if (/^[=+\-@]/.test(s)) s = "'" + s;
   return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
 }
 
@@ -4710,7 +4716,7 @@ function addInvoiceLineItemRow(item) {
   // just tagged on the row for readInvoiceLineItems() to pick back up.
   row.dataset.catalogItemId = item && item.catalog_item_id ? item.catalog_item_id : "";
   row.innerHTML =
-    '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? item.description.replace(/"/g, "&quot;") : "") + '" oninput="recalcInvoiceTotals()" />' +
+    '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? escapeHtml(item.description) : "") + '" oninput="recalcInvoiceTotals()" />' +
     '<div style="display:flex; gap:8px;">' +
       '<input class="line-item-qty" type="number" min="0" step="0.01" placeholder="Qty" value="' + (item ? item.quantity : 1) + '" oninput="recalcInvoiceTotals()" style="flex:1;" />' +
       '<input class="line-item-price" type="number" min="0" step="0.01" placeholder="Unit price" value="' + (item ? item.unit_price : "") + '" oninput="recalcInvoiceTotals()" style="flex:1;" />' +
@@ -5252,7 +5258,7 @@ function addQuoteLineItemRow(item) {
   // holds be placed/released for the right item on quote save.
   row.dataset.catalogItemId = item && item.catalog_item_id ? item.catalog_item_id : "";
   row.innerHTML =
-    '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? item.description.replace(/"/g, "&quot;") : "") + '" oninput="recalcQuoteTotals()" />' +
+    '<input class="line-item-desc" placeholder="Description" value="' + (item && item.description ? escapeHtml(item.description) : "") + '" oninput="recalcQuoteTotals()" />' +
     '<div style="display:flex; gap:8px;">' +
       '<input class="line-item-qty" type="number" min="0" step="0.01" placeholder="Qty" value="' + (item ? item.quantity : 1) + '" oninput="recalcQuoteTotals()" style="flex:1;" />' +
       '<input class="line-item-price" type="number" min="0" step="0.01" placeholder="Unit price" value="' + (item ? item.unit_price : "") + '" oninput="recalcQuoteTotals()" style="flex:1;" />' +
@@ -5957,7 +5963,7 @@ function renderLaborBreakdownRows(breakdown) {
   const rows = breakdown.map(function(r) {
     const rateText = r.hourly_rate === null ? '<span style="color:var(--rust);">no rate set</span>' : fmtMoney(r.hourly_rate) + '/hr';
     return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
-      '<span>' + r.employee_name + '</span>' +
+      '<span>' + escapeHtml(r.employee_name) + '</span>' +
       '<span style="color:#8A8578; text-align:right;">' + fmtHours(r.hours) + ' &middot; ' + rateText + ' &middot; ' + fmtMoney(r.cost) + '</span>' +
     '</div>';
   }).join("");
@@ -6056,7 +6062,7 @@ function renderNetProfitBreakdown(summary, breakdown, start, end) {
   const expenseRows = expenses.length ? expenses.map(function(x) {
     const d = String(x.expense_date).slice(0, 10);
     return '<div style="display:flex; justify-content:space-between; padding:4px 0; font-size:12.5px; color:#8A8578;">' +
-      '<span>' + d + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; ' + x.job_title : '') + '</span>' +
+      '<span>' + d + (x.description ? ' &middot; ' + escapeHtml(x.description) : '') + (x.job_title ? ' &middot; ' + escapeHtml(x.job_title) : '') + '</span>' +
       '<span>' + fmtMoney(x.amount) + '</span>' +
     '</div>';
   }).join("") : '<p style="color:#8A8578; font-size:12.5px;">No expenses logged in this range.</p>';
@@ -6948,7 +6954,7 @@ function renderExpensesList() {
   list.innerHTML = expenses.map(function(x) {
     return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
       '<div><strong>' + fmtMoney(x.amount) + '</strong><div style="font-size:12px; color:#8A8578;">' +
-        String(x.expense_date).slice(0, 10) + (x.description ? ' &middot; ' + x.description : '') + (x.job_title ? ' &middot; Job: ' + x.job_title : '') +
+        String(x.expense_date).slice(0, 10) + (x.description ? ' &middot; ' + escapeHtml(x.description) : '') + (x.job_title ? ' &middot; Job: ' + escapeHtml(x.job_title) : '') +
       '</div></div>' +
       '<span style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal); margin-right:6px;" onclick="openExpenseSheet(\'' + x.id + '\')">Edit</button>' +

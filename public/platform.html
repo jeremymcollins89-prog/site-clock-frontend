@@ -344,6 +344,19 @@ async function apiFetch(path, { method = "GET", body } = {}) {
 
 let allCompanies = [];
 
+// Company name and owner email are typed in by whoever signs up -- anyone,
+// unauthenticated -- so they have to be escaped before landing in innerHTML
+// below, or a malicious signup could run script in the platform operator's
+// own logged-in session the next time this page is opened.
+function escapeHtml(str) {
+  return String(str == null ? "" : str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
+}
+
 async function doLogin() {
   const email = document.getElementById("platform-email-input").value.trim();
   const password = document.getElementById("platform-password-input").value;
@@ -448,8 +461,8 @@ function renderCompanies() {
       : '<button class="toggle-btn" style="background:var(--line); color:var(--charcoal);" onclick="toggleExempt(\'' + c.id + '\', true)">Not exempt (click to comp)</button>';
 
     return '<tr>' +
-      '<td><strong>' + c.name + '</strong></td>' +
-      '<td>' + c.admin_email + '</td>' +
+      '<td><strong>' + escapeHtml(c.name) + '</strong></td>' +
+      '<td>' + escapeHtml(c.admin_email) + '</td>' +
       '<td>' + fmtDate(c.created_at) + '</td>' +
       '<td>' + c.employee_count + '</td>' +
       '<td>' + stripeBadge + '</td>' +
