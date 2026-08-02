@@ -1798,6 +1798,7 @@ const BARCODE_CAPTURE_TRIGGER_HIGH = 65;
 // database (see GET /api/employee-inventory/lookup-barcode/:barcode).
 function BarcodeScanSheet({ open, onClose, onDone }) {
   const videoRef = useRef(null);
+  const fileInputRef = useRef(null);
   const readerRef = useRef(null);
   const activeRef = useRef(false);
   const torchTrackRef = useRef(null);
@@ -2002,6 +2003,48 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     }
   }
 
+  // The live preview and even ImageCapture.takePhoto() both still go through
+  // the browser's own (often lower-quality/worse-focused) camera pipeline --
+  // on some phones that pipeline just isn't as good as the OS's real Camera
+  // app, no matter what we tell it. A plain <input type=file capture>
+  // sidesteps all of that: mobile browsers hand this off to the actual
+  // native camera app (real viewfinder, real autofocus, real shutter), and
+  // we just get the finished photo back to decode -- if the barcode is
+  // readable by the native camera app at all, this route gives it the best
+  // possible chance.
+  function handleFileCapture(e) {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // allow choosing/relaunching the camera again next time
+    if (!file) return;
+    if (!stillReaderRef.current) {
+      const hints = new Map();
+      hints.set(DecodeHintType.TRY_HARDER, true);
+      const stillReader = new BrowserMultiFormatReader(hints, 300);
+      installFrameEnhancer(stillReader);
+      stillReaderRef.current = stillReader;
+    }
+    setError("");
+    setCapturingPhoto(true);
+    const url = URL.createObjectURL(file);
+    const img = new Image();
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      stillReaderRef.current
+        .decodeOnce(img, false, false)
+        .then((result) => { setCapturingPhoto(false); handleScanned(result.getText()); })
+        .catch(() => {
+          setCapturingPhoto(false);
+          setError("Couldn't find a barcode in that photo -- try again, making sure the barcode fills more of the frame and is in focus.");
+        });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      setCapturingPhoto(false);
+      setError("Couldn't load that photo -- please try again.");
+    };
+    img.src = url;
+  }
+
   function beginDecoding() {
     activeRef.current = true;
     const hints = new Map();
@@ -2143,6 +2186,32 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 
         {(stage === "scanning" || stage === "looking-up") && (
           <>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: "none" }}
+              onChange={handleFileCapture}
+            />
+            <button
+              onClick={() => fileInputRef.current?.click()}
+              style={{ background: CHARCOAL, color: "#fff" }}
+              className="w-full rounded-lg py-2 text-xs font-medium mb-1"
+            >
+              Use camera app for a sharper photo
+            </button>
+            <p className="text-xs text-center mb-3" style={{ color: "#8A8578" }}>
+              Recommended -- opens your phone's real camera app instead of the in-app preview.
+            </p>
+            <p className="text-xs text-center mb-1.5 uppercase tracking-widest" style={{ color: "#8A8578" }}>
+              or use the live scanner
+            </p>
+            {error && (
+              <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-3 text-xs mb-2">
+                {error}
+              </div>
+            )}
             <div
               onClick={handleTap}
               style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 8, cursor: "pointer", height: "38vh", maxHeight: 320 }}

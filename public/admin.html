@@ -1478,6 +1478,10 @@
   </div>
   <div class="sheet-body">
     <div id="barcode-scan-error" class="error" style="display:none;"></div>
+    <input type="file" id="barcode-scan-file-input" accept="image/*" capture="environment" style="display:none;" onchange="handleBarcodeFileCapture(event)" />
+    <button class="btn-primary" style="width:100%; margin-bottom:4px;" onclick="document.getElementById('barcode-scan-file-input').click()">Use camera app for a sharper photo</button>
+    <p style="font-size:11px; color:#8A8578; text-align:center; margin:0 0 10px;">Recommended -- opens your phone's real camera app instead of the in-app preview.</p>
+    <p style="font-size:11px; color:#8A8578; text-align:center; margin:0 0 6px; text-transform:uppercase; letter-spacing:0.05em;">or use the live scanner</p>
     <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:8px; cursor:pointer; height:38vh; max-height:320px;" onclick="handleBarcodeScanTap(event)" title="Tap to refocus">
       <video id="barcode-scan-video" style="width:100%; height:100%; display:block; object-fit:cover;" muted playsinline></video>
       <button id="barcode-scan-torch-btn" onclick="event.stopPropagation(); toggleBarcodeScanTorch()" style="display:none; position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer;">Flashlight on</button>
@@ -7264,6 +7268,50 @@ function captureBarcodeStill() {
   } else {
     decodeFromLiveFrame();
   }
+}
+
+// The live preview and even ImageCapture.takePhoto() both still go through
+// the browser's own (often lower-quality/worse-focused) camera pipeline --
+// on some phones that pipeline just isn't as good as the OS's real Camera
+// app, no matter what we tell it. A plain <input type=file capture> sidesteps
+// all of that: mobile browsers hand this off to the actual native camera app
+// (real viewfinder, real autofocus, real shutter), and we just get the
+// finished photo back to decode -- if the barcode is readable by the native
+// camera app at all, this route gives it the best possible chance.
+function handleBarcodeFileCapture(event) {
+  var file = event.target.files && event.target.files[0];
+  event.target.value = ""; // allow choosing/relaunching the camera again next time
+  if (!file) return;
+  if (!barcodeStillReader) {
+    var hints = new Map();
+    hints.set(ZXing.DecodeHintType.TRY_HARDER, true);
+    barcodeStillReader = new ZXing.BrowserMultiFormatReader(hints, 300);
+    installFrameEnhancer(barcodeStillReader);
+  }
+  var statusEl = document.getElementById("barcode-scan-status");
+  var errorEl = document.getElementById("barcode-scan-error");
+  errorEl.style.display = "none";
+  var prevText = statusEl.textContent;
+  statusEl.textContent = "Reading photo...";
+  var url = URL.createObjectURL(file);
+  var img = new Image();
+  img.onload = function() {
+    URL.revokeObjectURL(url);
+    barcodeStillReader.decodeOnce(img, false, false).then(function(result) {
+      handleBarcodeScanned(result.getText());
+    }).catch(function() {
+      statusEl.textContent = prevText;
+      errorEl.textContent = "Couldn't find a barcode in that photo -- try again, making sure the barcode fills more of the frame and is in focus.";
+      errorEl.style.display = "block";
+    });
+  };
+  img.onerror = function() {
+    URL.revokeObjectURL(url);
+    statusEl.textContent = prevText;
+    errorEl.textContent = "Couldn't load that photo -- please try again.";
+    errorEl.style.display = "block";
+  };
+  img.src = url;
 }
 
 function startBarcodeScan() {
