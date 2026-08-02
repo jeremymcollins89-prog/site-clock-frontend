@@ -1815,6 +1815,7 @@ const admin = {
   getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
   getMonthlyProfit: (months) => apiFetch(`/api/admin/reports/monthly-profit?months=${months || 6}`),
   getPaymentBreakdown: () => apiFetch("/api/admin/reports/payment-breakdown"),
+  getPayments: (start, end) => apiFetch(`/api/admin/reports/payments?start=${start}&end=${end}`),
   listExpenses: () => apiFetch("/api/admin/expenses"),
   addExpense: (expense) => apiFetch("/api/admin/expenses", { method: "POST", body: expense }),
   updateExpense: (id, patch) => apiFetch(`/api/admin/expenses/${id}`, { method: "PATCH", body: patch }),
@@ -4357,11 +4358,12 @@ function invoiceStatusBadge(inv) {
   return '<span class="badge badge-draft">Draft</span>';
 }
 
-// ---------- Transactions (paid invoices, viewed by day/week/month/year) ----------
-// Pulls straight from window.allInvoices (already loaded for the Invoices
-// sub-tab) -- every paid invoice already IS a transaction record, whether it
-// was paid online (Stripe, automatic) or recorded manually via Mark Paid
-// (cash/check/card run elsewhere).
+// ---------- Transactions (payments, viewed by day/week/month/year) ----------
+// Fetches from GET /reports/payments (the invoice_payments ledger) rather
+// than filtering window.allInvoices -- a partial-payments invoice records
+// several separate payments over time, each on the day it actually arrived,
+// and only the ledger (not the invoices list, which only has one paid_at
+// per invoice) can show each of those individually.
 let transactionsGranularity = "day"; // day | week | month | year
 let transactionsAnchor = new Date();
 
@@ -4415,7 +4417,7 @@ function selectTransactionsGranularity(g) {
   renderTransactionsList();
 }
 
-function renderTransactionsList() {
+async function renderTransactionsList() {
   const container = document.getElementById("transactions-list");
   if (!container) return;
   const labelEl = document.getElementById("transactions-period-label");
@@ -4423,48 +4425,61 @@ function renderTransactionsList() {
 
   const bounds = transactionsPeriodBounds(transactionsGranularity, transactionsAnchor);
   if (labelEl) labelEl.textContent = bounds.label;
+  container.innerHTML = '<p style="color:#8A8578; font-size:13px;">Loading...</p>';
 
-  // .slice(0, 10) -- paid_at comes back as a full timestamp, not a plain
-  // date, same reason every other date field in this app gets sliced before
-  // comparison (see the expense/invoice date bug fix elsewhere in this file).
-  const paidInvoices = (window.allInvoices || []).filter(function(inv) {
-    if (inv.status !== "paid" || !inv.paid_at) return false;
-    const paidDate = String(inv.paid_at).slice(0, 10);
-    return paidDate >= bounds.start && paidDate <= bounds.end;
-  }).sort(function(a, b) { return new Date(b.paid_at) - new Date(a.paid_at); });
+  let payments;
+  try {
+    payments = await admin.getPayments(bounds.start, bounds.end);
+  } catch (err) {
+    container.innerHTML = '<p style="color:#8A8578; font-size:13px;">Couldn\'t load transactions.</p>';
+    return;
+  }
+  // Bounds can change while this was in flight (fast granularity/period
+  // taps) -- bail out if so rather than painting a stale period's rows.
+  const currentBounds = transactionsPeriodBounds(transactionsGranularity, transactionsAnchor);
+  if (currentBounds.start !== bounds.start || currentBounds.end !== bounds.end) return;
 
-  const total = paidInvoices.reduce(function(s, inv) { return s + Number(inv.total); }, 0);
+  const total = payments.reduce(function(s, p) { return s + Number(p.amount); }, 0);
   if (totalEl) {
-    totalEl.textContent = paidInvoices.length + (paidInvoices.length === 1 ? " transaction · " : " transactions · ") + fmtMoney(total);
+    totalEl.textContent = payments.length + (payments.length === 1 ? " transaction · " : " transactions · ") + fmtMoney(total);
   }
 
-  if (paidInvoices.length === 0) {
-    container.innerHTML = '<p style="color:#8A8578; font-size:13px;">No paid transactions in this period.</p>';
+  if (payments.length === 0) {
+    container.innerHTML = '<p style="color:#8A8578; font-size:13px;">No transactions in this period.</p>';
     return;
   }
 
   const methodLabels = { card: "Card", cash: "Cash", check: "Check", online: "Online", other: "Other" };
-  container.innerHTML = paidInvoices.map(function(inv) {
-    const isOnline = inv.payment_method === "online";
+  container.innerHTML = payments.map(function(p) {
+    const isOnline = p.payment_method === "online";
     const channelBadge = isOnline
       ? '<span class="badge badge-online">Online</span>'
       : '<span class="badge badge-in-person">In person / phone</span>';
-    const methodLabel = methodLabels[inv.payment_method] || "Other";
-    const checkNumberSuffix = inv.payment_method === "check" && inv.check_number ? " #" + escapeHtml(inv.check_number) : "";
+    // A payment on an invoice that's still "partial" (more installments to
+    // come) is called out so it doesn't read as the whole invoice being
+    // settled -- same logic used on the desktop app's Transactions list.
+    const partialTag = p.invoice_status === "partial" || (p.invoice_status === "paid" && Number(p.amount) < Number(p.invoice_total))
+      ? '<span class="badge badge-partial">Partial payment</span>'
+      : '';
+    const methodLabel = methodLabels[p.payment_method] || "Other";
+    const checkNumberSuffix = p.payment_method === "check" && p.check_number ? " #" + escapeHtml(p.check_number) : "";
+    const resendBtn = p.invoice_status === "paid"
+      ? '<button class="btn-small" style="flex:1; background:var(--teal);" onclick="openResendReceiptSheet(\'' + p.invoice_id + '\')">Resend receipt</button>'
+      : "";
     return '<div class="card">' +
       '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
         '<div>' +
-          '<strong>' + escapeHtml(inv.customer_name) + '</strong><br/>' +
-          '<span style="font-size:12px; color:#8A8578;">Invoice #' + inv.invoice_number + '</span>' +
+          '<strong>' + escapeHtml(p.customer_name) + '</strong><br/>' +
+          '<span style="font-size:12px; color:#8A8578;">Invoice #' + p.invoice_number + '</span>' +
         '</div>' +
-        '<strong>' + fmtMoney(inv.total) + '</strong>' +
+        '<strong>' + fmtMoney(p.amount) + '</strong>' +
       '</div>' +
       '<div style="font-size:12px; color:#8A8578; margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
-        '<span>' + String(inv.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + checkNumberSuffix + '</span>' + channelBadge +
+        '<span>' + String(p.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + checkNumberSuffix + '</span>' + channelBadge + partialTag +
       '</div>' +
       '<div style="display:flex; gap:6px; margin-top:8px;">' +
-        '<button class="btn-small" style="flex:1; background:var(--charcoal);" onclick="viewInvoicePdf(\'' + inv.id + '\')">Receipt</button>' +
-        '<button class="btn-small" style="flex:1; background:var(--teal);" onclick="openResendReceiptSheet(\'' + inv.id + '\')">Resend receipt</button>' +
+        '<button class="btn-small" style="flex:1; background:var(--charcoal);" onclick="viewInvoicePdf(\'' + p.invoice_id + '\')">Invoice PDF</button>' +
+        resendBtn +
       '</div>' +
     '</div>';
   }).join("");
