@@ -285,6 +285,7 @@
   .badge-sent { color: #fff; background: linear-gradient(135deg, #5C9481, var(--teal-deep)); box-shadow: 0 3px 8px rgba(43,69,60,0.35); }
   .badge-overdue { color: #fff; background: linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow: 0 3px 8px rgba(166,61,32,0.35); }
   .badge-paid { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
+  .badge-partial { color: #fff; background: linear-gradient(135deg, #F4B04C, #C1502E); box-shadow: 0 3px 8px rgba(193,80,46,0.3); }
   .badge-void { color: #8A8578; background: transparent; border: 1.5px solid var(--line); }
   .badge-accepted { color: #fff; background: linear-gradient(135deg, #6b9c86, #345c47); box-shadow: 0 3px 8px rgba(43,69,60,0.3); }
   .badge-declined { color: #fff; background: linear-gradient(135deg, #E4794F, var(--rust-deep)); box-shadow: 0 3px 8px rgba(166,61,32,0.35); }
@@ -641,8 +642,9 @@
         <div class="card">
           <h3 style="margin-top:0; font-size:15px;">Inventory <span id="inventory-count-badge" style="font-weight:400; color:#8A8578; font-size:13px;"></span></h3>
           <p style="font-size:12px; color:#8A8578; margin-top:-8px;">
-            Items quoted or invoiced show up "on hold" here until that invoice is paid, at which point they're removed
-            from stock for good. Turn tracking on for a catalog item and set its starting quantity/cost in the
+            A quote alone never puts anything "on hold" -- items show up on hold once a pull sheet is built for the job
+            or it's turned into an invoice, and come out of stock for good once that pull sheet is fulfilled or the
+            invoice is paid in full. Turn tracking on for a catalog item and set its starting quantity/cost in the
             Settings tab above.
           </p>
           <button class="btn-small" id="inventory-list-toggle-btn" style="background:var(--charcoal); margin-top:2px;" onclick="toggleInventoryItemsList()">Show inventory items</button>
@@ -659,8 +661,9 @@
         <div class="card" style="margin-top:16px;">
           <h3 style="margin-top:0; font-size:15px;">Pull sheets</h3>
           <p style="font-size:12px; color:#8A8578; margin-top:-8px;">
-            Picking lists built from a quote or invoice's inventory-tracked items. Marking one fulfilled removes those
-            quantities from stock -- building one on its own doesn't change any numbers yet.
+            Picking lists built from a job's inventory-tracked items. Building one from a quote (or a standalone one)
+            is what puts those items on hold; building one from an invoice doesn't add to the count since the invoice
+            already reserved them. Marking one fulfilled removes those quantities from stock for good.
           </p>
           <div class="table-scroll">
             <table>
@@ -1219,6 +1222,7 @@
   </div>
   <div class="sheet-body">
     <div id="invoice-sheet-status" style="display:none; margin-bottom:10px;"></div>
+    <div id="invoice-payment-history" style="display:none; margin-bottom:14px;"></div>
     <div id="invoice-sheet-error" class="error"></div>
 
     <label>Customer</label>
@@ -1235,6 +1239,11 @@
     <label>Issue date</label>
     <input id="invoice-issue-date-input" type="date" onchange="renderInvoiceDueDatePreview()" />
     <p id="invoice-due-date-preview" style="font-size:12px; color:#8A8578; margin-top:-6px;"></p>
+
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin: 4px 0 14px;">
+      <input type="checkbox" id="invoice-allow-partial-input" style="width:16px; height:16px; margin:0; flex-shrink:0;" />
+      Allow partial payments (up to 4)
+    </label>
 
     <label>Notes (optional)</label>
     <input id="invoice-notes-input" placeholder="Payment instructions, job reference, etc." />
@@ -1268,6 +1277,7 @@
     <button class="btn-small" id="invoice-viewpdf-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="viewInvoicePdf(editingInvoiceId)">View PDF</button>
     <button class="btn-small" id="invoice-pullsheet-btn" style="display:none; width:100%; margin-top:10px; background: var(--teal-deep);" onclick="buildPullSheetForSource('invoice', editingInvoiceId)">Build Pull Sheet</button>
     <button class="btn-small" id="invoice-send-btn" style="display:none; width:100%; margin-top:10px; background: linear-gradient(135deg, #5C9481, var(--teal-deep));" onclick="sendInvoiceConfirm()">Send to customer</button>
+    <button class="btn-small" id="invoice-recordpayment-btn" style="display:none; width:100%; margin-top:10px; background: var(--teal-deep);" onclick="openRecordPaymentSheet()">Record a payment</button>
     <button class="btn-small" id="invoice-markpaid-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="openMarkPaidSheet()">Mark paid</button>
     <button class="btn-small" id="invoice-void-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="voidInvoiceConfirm()">Void</button>
   </div>
@@ -1293,6 +1303,31 @@
     </div>
     <button class="btn-primary" onclick="submitMarkPaid()">Confirm</button>
     <div id="mark-paid-error" class="error"></div>
+  </div>
+</div>
+
+<div class="sheet" id="record-payment-sheet">
+  <div class="sheet-header">
+    <button class="back-btn" onclick="closeRecordPaymentSheet()">&times;</button>
+    <h2>Record a payment</h2>
+  </div>
+  <div class="sheet-body">
+    <p id="record-payment-balance-hint" style="font-size:12px; color:#8A8578; margin-top:-4px;"></p>
+    <label>Amount</label>
+    <input id="record-payment-amount-input" type="number" min="0.01" step="0.01" placeholder="0.00" />
+    <label>Payment method</label>
+    <select id="record-payment-method-input" onchange="toggleRecordPaymentCheckNumberField()">
+      <option value="check">Check</option>
+      <option value="cash">Cash</option>
+      <option value="card">Card</option>
+      <option value="other">Other</option>
+    </select>
+    <div id="record-payment-check-number-wrap">
+      <label>Check number (optional)</label>
+      <input id="record-payment-check-number-input" placeholder="e.g. 1042" />
+    </div>
+    <button class="btn-primary" onclick="submitRecordPayment()">Record payment</button>
+    <div id="record-payment-error" class="error"></div>
   </div>
 </div>
 
@@ -1400,6 +1435,10 @@
     </select>
     <label>Issue date</label>
     <input id="convert-invoice-issue-date-input" type="date" />
+    <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin: 4px 0 14px;">
+      <input type="checkbox" id="convert-invoice-allow-partial-input" style="width:16px; height:16px; margin:0; flex-shrink:0;" />
+      Allow partial payments (up to 4)
+    </label>
     <button class="btn-primary" onclick="submitConvertQuoteToInvoice()">Create draft invoice</button>
     <div id="convert-invoice-error" class="error"></div>
   </div>
@@ -1662,6 +1701,8 @@ const admin = {
   sendInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/send`, { method: "POST" }),
   markInvoicePaid: (id, paymentMethod, checkNumber) =>
     apiFetch(`/api/admin/invoices/${id}/mark-paid`, { method: "PATCH", body: { payment_method: paymentMethod, check_number: checkNumber } }),
+  recordInvoicePayment: (id, amount, paymentMethod, checkNumber) =>
+    apiFetch(`/api/admin/invoices/${id}/payments`, { method: "POST", body: { amount, payment_method: paymentMethod, check_number: checkNumber } }),
   voidInvoice: (id) => apiFetch(`/api/admin/invoices/${id}/void`, { method: "PATCH" }),
   resendInvoiceReceipt: (id, email) =>
     apiFetch(`/api/admin/invoices/${id}/resend-receipt`, { method: "POST", body: { email: email || "" } }),
@@ -1773,6 +1814,7 @@ const admin = {
   getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
   getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
   getMonthlyProfit: (months) => apiFetch(`/api/admin/reports/monthly-profit?months=${months || 6}`),
+  getPaymentBreakdown: () => apiFetch("/api/admin/reports/payment-breakdown"),
   listExpenses: () => apiFetch("/api/admin/expenses"),
   addExpense: (expense) => apiFetch("/api/admin/expenses", { method: "POST", body: expense }),
   updateExpense: (id, patch) => apiFetch(`/api/admin/expenses/${id}`, { method: "PATCH", body: patch }),
@@ -4159,10 +4201,16 @@ function renderBillingOverview() {
   const quotes = window.allQuotes || [];
 
   const paidInvoices = invoices.filter(function(inv) { return inv.status === "paid"; });
-  const unpaidInvoices = invoices.filter(function(inv) { return inv.status === "draft" || inv.status === "sent"; });
+  // A partial invoice is part paid, part still owed -- it counts toward
+  // "unpaid" here, but only for its remaining balance (total minus whatever
+  // the invoice_payments ledger already shows as collected), not its full
+  // total, so this card doesn't double-count money the payment-breakdown
+  // donut below already shows as collected.
+  const unpaidInvoices = invoices.filter(function(inv) { return inv.status === "draft" || inv.status === "sent" || inv.status === "partial"; });
+  const partialCount = invoices.filter(function(inv) { return inv.status === "partial"; }).length;
   const voidCount = invoices.filter(function(inv) { return inv.status === "void"; }).length;
   const paidTotal = paidInvoices.reduce(function(sum, inv) { return sum + Number(inv.total); }, 0);
-  const unpaidTotal = unpaidInvoices.reduce(function(sum, inv) { return sum + Number(inv.total); }, 0);
+  const unpaidTotal = unpaidInvoices.reduce(function(sum, inv) { return sum + (Number(inv.total) - Number(inv.amount_paid || 0)); }, 0);
 
   const pendingQuotes = quotes.filter(function(q) { return q.status === "draft" || q.status === "sent"; });
   const pendingQuotesTotal = pendingQuotes.reduce(function(sum, q) { return sum + Number(q.total); }, 0);
@@ -4172,6 +4220,7 @@ function renderBillingOverview() {
   billingOverviewSetText("billing-overview-unpaid-total", fmtMoney(unpaidTotal));
   billingOverviewSetText("billing-overview-unpaid-count",
     (unpaidInvoices.length === 1 ? "1 invoice" : unpaidInvoices.length + " invoices") +
+    (partialCount ? " (" + partialCount + " partially paid)" : "") +
     (voidCount ? " (" + voidCount + " void not counted)" : ""));
   billingOverviewSetText("billing-overview-pending-total", fmtMoney(pendingQuotesTotal));
   billingOverviewSetText("billing-overview-pending-count",
@@ -4182,16 +4231,27 @@ function renderBillingOverview() {
   billingOverviewSetText("billing-overview-invoices-summary",
     invoices.length ? invoices.length + " total, " + unpaidInvoices.length + " unpaid" : "No invoices yet.");
 
-  renderBillingPaymentBreakdown(paidInvoices, paidTotal);
+  loadBillingPaymentBreakdown();
 }
 
-// Counts + totals paid invoices by how the customer paid (card/cash/check/
+// Fetches all-time totals by payment method from the invoice_payments
+// ledger (GET /reports/payment-breakdown) rather than deriving them from
+// window.allInvoices -- a partial-payments invoice's installments need to
+// be counted as they actually arrive, by whichever method each one used,
+// which only the ledger (not the invoices list) can tell us.
+function loadBillingPaymentBreakdown() {
+  admin.getPaymentBreakdown().then(renderBillingPaymentBreakdown).catch(function(err) {
+    console.error("Failed to load payment breakdown:", err.message);
+  });
+}
+
+// Counts + totals payments by how the customer paid (card/cash/check/
 // other), so Jeremy can see at a glance how many sales came in and through
 // which method -- e.g. for reconciling cash on hand or card deposits. Drawn
 // as a donut chart (hand-built SVG, stacked circles with stroke-dasharray --
 // no chart library needed, same as the monthly profit bar chart) with a
 // legend beside it, rather than a plain list.
-function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
+function renderBillingPaymentBreakdown(data) {
   const container = document.getElementById("billing-overview-payment-breakdown");
   if (!container) return;
 
@@ -4200,14 +4260,16 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
   const methodOrder = ["card", "cash", "check", "online", "other"];
   const counts = {};
   methodOrder.forEach(function(m) { counts[m] = { count: 0, total: 0 }; });
-  paidInvoices.forEach(function(inv) {
-    const method = counts[inv.payment_method] ? inv.payment_method : "other";
-    counts[method].count += 1;
-    counts[method].total += Number(inv.total);
+  (data && data.methods || []).forEach(function(row) {
+    const method = counts[row.payment_method] ? row.payment_method : "other";
+    counts[method].count += row.count;
+    counts[method].total += row.total;
   });
+  const paidTotal = (data && data.total) || 0;
+  const paymentCount = (data && data.count) || 0;
 
-  if (!paidInvoices.length) {
-    container.innerHTML = '<p style="font-size:12px; color:#8A8578; margin:0;">No paid invoices yet.</p>';
+  if (!paymentCount) {
+    container.innerHTML = '<p style="font-size:12px; color:#8A8578; margin:0;">No payments recorded yet.</p>';
     return;
   }
 
@@ -4238,7 +4300,7 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
       segments +
       '<text x="' + (size / 2) + '" y="' + (size / 2 - 6) + '" text-anchor="middle" font-size="17" font-weight="800" fill="#1F2421">' + fmtMoney(paidTotal) + '</text>' +
       '<text x="' + (size / 2) + '" y="' + (size / 2 + 15) + '" text-anchor="middle" font-size="12" fill="#8A8578">' +
-        paidInvoices.length + (paidInvoices.length === 1 ? " sale" : " sales") +
+        paymentCount + (paymentCount === 1 ? " payment" : " payments") +
       '</text>' +
     '</svg>';
 
@@ -4249,7 +4311,7 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
         '<span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:' + methodColors[m] + '; flex-shrink:0;"></span>' +
         methodLabels[m] +
       '</span>' +
-      '<span style="color:#8A8578; white-space:nowrap;">' + row.count + (row.count === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(row.total) + '</span>' +
+      '<span style="color:#8A8578; white-space:nowrap;">' + row.count + (row.count === 1 ? " payment" : " payments") + ' &middot; ' + fmtMoney(row.total) + '</span>' +
     '</div>';
   }).join("");
 
@@ -4288,6 +4350,7 @@ function fmtMoney(n) {
 
 function invoiceStatusBadge(inv) {
   if (inv.status === "paid") return '<span class="badge badge-paid">Paid</span>';
+  if (inv.status === "partial") return '<span class="badge badge-partial">Partial</span>';
   if (inv.status === "void") return '<span class="badge badge-void">Void</span>';
   if (inv.status === "sent" && inv.is_overdue) return '<span class="badge badge-overdue">Overdue</span>';
   if (inv.status === "sent") return '<span class="badge badge-sent">Sent</span>';
@@ -4484,9 +4547,16 @@ function renderInvoicesList() {
   list.innerHTML = invoices.map(function(inv) {
     let action = '<button class="btn-small" style="background: var(--teal);" onclick="openInvoiceSheet(\'' + inv.id + '\')">Edit</button>';
     action += '<button class="btn-small" style="background: var(--charcoal); margin-left:6px;" onclick="viewInvoicePdf(\'' + inv.id + '\')">View</button>';
-    if (inv.status === "sent") {
+    if (inv.status === "sent" || inv.status === "partial") {
       action += '<button class="btn-small" style="background: var(--teal); margin-left:6px;" onclick="openMarkPaidSheet(\'' + inv.id + '\')">Mark paid</button>';
     }
+    // For a partial invoice, the balance still owed is what matters here --
+    // the full total is shown crossed out above it as context.
+    const balanceDue = Number(inv.total) - Number(inv.amount_paid || 0);
+    const amountDisplay = inv.status === "partial"
+      ? '<div style="font-size:11px; color:#8A8578; text-decoration:line-through;">' + fmtMoney(inv.total) + '</div>' +
+        '<div class="stat-value" style="font-size:17px;">' + fmtMoney(balanceDue) + ' due</div>'
+      : '<div class="stat-value" style="font-size:17px;">' + fmtMoney(inv.total) + '</div>';
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) +
@@ -4499,7 +4569,7 @@ function renderInvoicesList() {
           : '') +
       '</div>' +
       '<div style="text-align:right;">' +
-        '<div class="stat-value" style="font-size:17px;">' + fmtMoney(inv.total) + '</div>' +
+        amountDisplay +
         '<div style="margin-top:8px;">' + action + '</div>' +
       '</div>' +
     '</div>';
@@ -4609,6 +4679,7 @@ async function openInvoiceSheet(invoiceId) {
   document.getElementById("invoice-issue-date-input").value = invoice ? invoice.issue_date.slice(0, 10) : todayStr();
   document.getElementById("invoice-notes-input").value = invoice ? (invoice.notes || "") : "";
   document.getElementById("invoice-tax-rate-input").value = invoice ? Number(invoice.tax_rate) || "" : "";
+  document.getElementById("invoice-allow-partial-input").checked = invoice ? !!invoice.allow_partial_payments : false;
 
   document.getElementById("invoice-line-items-list").innerHTML = "";
   const items = invoice ? invoice.line_items : [];
@@ -4618,7 +4689,7 @@ async function openInvoiceSheet(invoiceId) {
 
   const fieldIds = [
     "invoice-customer-input", "invoice-terms-input", "invoice-issue-date-input",
-    "invoice-notes-input", "invoice-tax-rate-input",
+    "invoice-notes-input", "invoice-tax-rate-input", "invoice-allow-partial-input",
   ];
   fieldIds.forEach(function(id) { document.getElementById(id).disabled = !isDraft; });
   document.querySelectorAll("#invoice-line-items-list input").forEach(function(el) { el.disabled = !isDraft; });
@@ -4630,8 +4701,14 @@ async function openInvoiceSheet(invoiceId) {
   document.getElementById("invoice-pullsheet-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
   document.getElementById("invoice-send-btn").style.display = invoice && invoice.status !== "void" ? "" : "none";
   document.getElementById("invoice-send-btn").textContent = invoice && invoice.status !== "draft" ? "Resend to customer" : "Send to customer";
-  document.getElementById("invoice-markpaid-btn").style.display = invoice && invoice.status === "sent" ? "" : "none";
+  document.getElementById("invoice-markpaid-btn").style.display =
+    invoice && (invoice.status === "sent" || invoice.status === "partial") ? "" : "none";
+  document.getElementById("invoice-markpaid-btn").textContent = invoice && invoice.status === "partial" ? "Mark remaining balance paid" : "Mark paid";
+  document.getElementById("invoice-recordpayment-btn").style.display =
+    invoice && invoice.allow_partial_payments && (invoice.status === "sent" || invoice.status === "partial") && invoice.payments_remaining > 0 ? "" : "none";
   document.getElementById("invoice-void-btn").style.display = invoice && invoice.status !== "void" && invoice.status !== "paid" ? "" : "none";
+
+  renderInvoicePaymentHistory(invoice);
 
   const invoiceAttachmentsSection = document.getElementById("invoice-attachments-section");
   invoiceAttachmentsSection.style.display = invoiceId ? "" : "none";
@@ -4643,6 +4720,34 @@ async function openInvoiceSheet(invoiceId) {
 function closeInvoiceSheet() {
   document.getElementById("invoice-sheet").classList.remove("visible");
   editingInvoiceId = null;
+}
+
+// Shows balance due + a running list of every payment recorded against this
+// invoice (manual or online) -- pulled straight from the same invoice detail
+// response openInvoiceSheet already fetched, no separate call needed.
+function renderInvoicePaymentHistory(invoice) {
+  const el = document.getElementById("invoice-payment-history");
+  if (!invoice || !invoice.payments || invoice.payments.length === 0) {
+    el.style.display = "none";
+    el.innerHTML = "";
+    return;
+  }
+  const methodLabels = { card: "Card", cash: "Cash", check: "Check", other: "Other", online: "Online" };
+  const rows = invoice.payments.map(function(p) {
+    const checkSuffix = p.payment_method === "check" && p.check_number ? " #" + escapeHtml(p.check_number) : "";
+    return '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding:4px 0;">' +
+      '<span>' + String(p.paid_at).slice(0, 10) + ' &middot; ' + (methodLabels[p.payment_method] || "Other") + checkSuffix + '</span>' +
+      '<strong>' + fmtMoney(p.amount) + '</strong>' +
+    '</div>';
+  }).join("");
+  el.style.display = "block";
+  el.innerHTML =
+    '<div style="background:#F4F2ED; border-radius:6px; padding:10px 12px;">' +
+      '<div style="display:flex; justify-content:space-between; font-size:13px; font-weight:700; margin-bottom:4px;">' +
+        '<span>Balance due</span><span>' + fmtMoney(invoice.balance_due) + '</span>' +
+      '</div>' +
+      rows +
+    '</div>';
 }
 
 async function submitInvoice() {
@@ -4669,6 +4774,7 @@ async function submitInvoice() {
     issue_date: document.getElementById("invoice-issue-date-input").value,
     tax_rate: Number(document.getElementById("invoice-tax-rate-input").value) || 0,
     notes: document.getElementById("invoice-notes-input").value.trim(),
+    allow_partial_payments: document.getElementById("invoice-allow-partial-input").checked,
     line_items: lineItems,
   };
 
@@ -4757,6 +4863,64 @@ async function submitMarkPaid() {
     await loadInvoices();
   } catch (err) {
     errEl.textContent = err.message || "Couldn't mark invoice as paid.";
+    errEl.style.display = "block";
+  }
+}
+
+let recordPaymentInvoiceId = null;
+
+// One installment toward an invoice with partial payments turned on --
+// Mark Paid (above) settles the whole remaining balance in one shot, this
+// records just part of it. editingInvoiceId's own balance_due (already
+// loaded into the invoice sheet) is shown as a hint so Jeremy knows the max.
+async function openRecordPaymentSheet() {
+  recordPaymentInvoiceId = editingInvoiceId;
+  const errEl = document.getElementById("record-payment-error");
+  errEl.style.display = "none";
+  document.getElementById("record-payment-amount-input").value = "";
+  document.getElementById("record-payment-method-input").value = "check";
+  document.getElementById("record-payment-check-number-input").value = "";
+  toggleRecordPaymentCheckNumberField();
+  document.getElementById("record-payment-balance-hint").textContent = "Loading balance...";
+  document.getElementById("record-payment-sheet").classList.add("visible");
+  try {
+    const invoice = await admin.getInvoice(recordPaymentInvoiceId);
+    document.getElementById("record-payment-balance-hint").textContent =
+      "Balance due: " + fmtMoney(invoice.balance_due) + " (" + invoice.payments_remaining + " of 4 payments left)";
+    document.getElementById("record-payment-amount-input").max = invoice.balance_due;
+  } catch (err) {
+    document.getElementById("record-payment-balance-hint").textContent = "";
+  }
+}
+
+function closeRecordPaymentSheet() {
+  document.getElementById("record-payment-sheet").classList.remove("visible");
+  recordPaymentInvoiceId = null;
+}
+
+function toggleRecordPaymentCheckNumberField() {
+  const isCheck = document.getElementById("record-payment-method-input").value === "check";
+  document.getElementById("record-payment-check-number-wrap").style.display = isCheck ? "" : "none";
+}
+
+async function submitRecordPayment() {
+  const amount = Number(document.getElementById("record-payment-amount-input").value);
+  const method = document.getElementById("record-payment-method-input").value;
+  const checkNumber = document.getElementById("record-payment-check-number-input").value.trim();
+  const errEl = document.getElementById("record-payment-error");
+  errEl.style.display = "none";
+  if (!(amount > 0)) {
+    errEl.textContent = "Enter an amount greater than $0.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.recordInvoicePayment(recordPaymentInvoiceId, amount, method, checkNumber);
+    closeRecordPaymentSheet();
+    await loadInvoices();
+    await openInvoiceSheet(recordPaymentInvoiceId);
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't record payment.";
     errEl.style.display = "block";
   }
 }
@@ -5261,6 +5425,7 @@ function openConvertQuoteToInvoiceSheet(quoteId) {
   convertingQuoteToInvoiceId = quoteId;
   document.getElementById("convert-invoice-terms-input").value = "due_on_receipt";
   document.getElementById("convert-invoice-issue-date-input").value = todayStr();
+  document.getElementById("convert-invoice-allow-partial-input").checked = false;
   document.getElementById("convert-invoice-error").style.display = "none";
   closeQuoteSheet();
   document.getElementById("convert-quote-invoice-sheet").classList.add("visible");
@@ -5278,6 +5443,7 @@ async function submitConvertQuoteToInvoice() {
   const payload = {
     payment_terms: document.getElementById("convert-invoice-terms-input").value,
     issue_date: document.getElementById("convert-invoice-issue-date-input").value,
+    allow_partial_payments: document.getElementById("convert-invoice-allow-partial-input").checked,
   };
   try {
     const result = await admin.convertQuoteToInvoice(convertingQuoteToInvoiceId, payload);
@@ -5856,7 +6022,7 @@ async function loadInventory() {
   }
 }
 
-// Tapping an "on hold" count opens this -- lists every quote/invoice
+// Tapping an "on hold" count opens this -- lists every invoice or pull sheet
 // currently responsible for that reservation (see GET
 // /api/admin/catalog-items/:id/holds), each tappable to jump straight to
 // it. Item name comes from window.lastInventoryItems (set by loadInventory
@@ -5890,10 +6056,9 @@ function renderItemHoldsList(holds) {
     return;
   }
   list.innerHTML = holds.map(function(h) {
-    const label = (h.source_type === "invoice" ? "Invoice #" : "Quote #") + h.number;
     return '<div class="card" style="margin-bottom:8px; cursor:pointer;" onclick="openItemHoldSource(\'' + h.source_type + '\', \'' + h.id + '\')">' +
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
-        '<strong>' + escapeHtml(label) + '</strong>' +
+        '<strong>' + escapeHtml(h.label || "") + '</strong>' +
         '<span style="font-size:12px; color:#8A8578;">' + h.quantity + ' held</span>' +
       '</div>' +
       '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(h.customer_name || "") + '</div>' +
@@ -5901,15 +6066,19 @@ function renderItemHoldsList(holds) {
   }).join("");
 }
 
+// A hold now only ever comes from an invoice or a pull sheet (never a quote
+// on its own -- see GET /catalog-items/:id/holds), so this jumps straight to
+// whichever of those it is.
 function openItemHoldSource(sourceType, id) {
   closeItemHoldsSheet();
-  showView("invoices");
   if (sourceType === "invoice") {
+    showView("invoices");
     showBillingSubtab("invoices");
     openInvoiceSheet(id);
   } else {
-    showBillingSubtab("quotes");
-    openQuoteSheet(id);
+    showView("inventory");
+    showInventorySubtab("items");
+    viewPullSheetDetail(id);
   }
 }
 

@@ -47,19 +47,83 @@
   }
   @keyframes spin { to { transform: rotate(360deg); } }
   .error { color: var(--rust); font-size: 14px; margin-top: 16px; display: none; }
+
+  .amount-box { text-align: left; }
+  .amount-box h1 { text-align: center; }
+  .amount-box > p.sub { text-align: center; margin-bottom: 20px; }
+  .balance-line {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 14px 0;
+    border-top: 1px solid var(--line);
+    border-bottom: 1px solid var(--line);
+    margin-bottom: 20px;
+  }
+  .balance-line .label { font-size: 13px; color: #8A8578; }
+  .balance-line .amount { font-size: 22px; font-weight: 800; }
+  .option {
+    display: block;
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .option.selected { border-color: var(--teal); background: #F4F2ED; }
+  .option-row { display: flex; align-items: center; gap: 10px; }
+  .option-row input[type="radio"] { margin: 0; flex-shrink: 0; }
+  .option-title { font-size: 14px; font-weight: 600; color: var(--charcoal); }
+  .custom-amount-wrap { margin-top: 10px; display: none; }
+  .custom-amount-wrap.visible { display: block; }
+  .custom-amount-wrap label { display: block; font-size: 12px; color: #8A8578; margin-bottom: 6px; }
+  .custom-amount-wrap input[type="number"] {
+    width: 100%;
+    padding: 10px 12px;
+    font-size: 15px;
+    border: 1.5px solid var(--line);
+    border-radius: 6px;
+    font-family: inherit;
+  }
+  .pay-btn {
+    width: 100%;
+    padding: 14px;
+    margin-top: 16px;
+    background: var(--teal);
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    font-size: 15px;
+    font-weight: 700;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  .pay-btn:disabled { opacity: 0.6; cursor: default; }
+  .pay-btn:not(:disabled):hover { opacity: 0.92; }
+  .field-error { color: var(--rust); font-size: 12px; margin-top: 6px; display: none; }
 </style>
 </head>
 <body>
-  <div class="box">
+  <div class="box" id="box">
     <div id="loading-view">
+      <h1>Loading your invoice&hellip;</h1>
+      <div class="spinner"></div>
+    </div>
+    <div id="error-view" style="display:none;">
+      <h1>Couldn't load payment</h1>
+      <p id="error-message" class="error" style="display:block;"></p>
+    </div>
+    <div id="redirect-view" style="display:none;">
       <h1>Taking you to secure checkout&hellip;</h1>
       <p>One moment while we set up your payment.</p>
       <div class="spinner"></div>
     </div>
-    <div id="error-view" style="display:none;">
-      <h1>Couldn't start payment</h1>
-      <p id="error-message" class="error" style="display:block;"></p>
+    <div id="info-view" style="display:none;">
+      <h1 id="info-title"></h1>
+      <p id="info-message"></p>
     </div>
+    <div id="amount-view" class="amount-box" style="display:none;"></div>
   </div>
 
   <script>
@@ -68,20 +132,148 @@
     const params = new URLSearchParams(window.location.search);
     const invoiceId = params.get("id");
 
+    function fmtMoney(n) {
+      return "$" + Number(n || 0).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function showView(id) {
+      ["loading-view", "error-view", "redirect-view", "info-view", "amount-view"].forEach(function(v) {
+        document.getElementById(v).style.display = v === id ? "block" : "none";
+      });
+    }
+
     function showError(message) {
-      document.getElementById("loading-view").style.display = "none";
-      document.getElementById("error-view").style.display = "block";
+      showView("error-view");
       document.getElementById("error-message").textContent = message;
+    }
+
+    function showInfo(title, message) {
+      showView("info-view");
+      document.getElementById("info-title").textContent = title;
+      document.getElementById("info-message").textContent = message;
+    }
+
+    // Creates the Stripe Checkout Session and redirects -- amount is
+    // omitted entirely for a normal (non-partial) invoice, which pays the
+    // full remaining balance exactly like this page always has.
+    function startCheckout(amount) {
+      showView("redirect-view");
+      const body = amount != null ? { amount } : {};
+      fetch(`${API_BASE_URL}/api/payments/invoices/${invoiceId}/checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data.error || "Something went wrong.");
+          window.location.href = data.url;
+        })
+        .catch((err) => showError(err.message));
+    }
+
+    function renderAmountPicker(invoice) {
+      showView("amount-view");
+      const view = document.getElementById("amount-view");
+      const balance = invoice.balance_due;
+
+      view.innerHTML = `
+        <h1>Pay Invoice #${invoice.invoice_number}</h1>
+        <p class="sub">${invoice.company_name}</p>
+        <div class="balance-line">
+          <span class="label">Balance due</span>
+          <span class="amount">${fmtMoney(balance)}</span>
+        </div>
+        <label class="option selected" id="option-full">
+          <div class="option-row">
+            <input type="radio" name="pay-option" value="full" checked />
+            <span class="option-title">Pay full balance (${fmtMoney(balance)})</span>
+          </div>
+        </label>
+        <label class="option" id="option-partial">
+          <div class="option-row">
+            <input type="radio" name="pay-option" value="partial" />
+            <span class="option-title">Pay a different amount</span>
+          </div>
+          <div class="custom-amount-wrap" id="custom-amount-wrap">
+            <label for="custom-amount-input">Amount to pay now</label>
+            <input type="number" id="custom-amount-input" min="0.01" max="${balance}" step="0.01" placeholder="0.00" />
+            <p class="field-error" id="custom-amount-error"></p>
+          </div>
+        </label>
+        <button class="pay-btn" id="pay-btn">Continue to payment</button>
+      `;
+
+      const optionFull = document.getElementById("option-full");
+      const optionPartial = document.getElementById("option-partial");
+      const customWrap = document.getElementById("custom-amount-wrap");
+      const customInput = document.getElementById("custom-amount-input");
+      const payBtn = document.getElementById("pay-btn");
+
+      function selectOption(which) {
+        optionFull.classList.toggle("selected", which === "full");
+        optionPartial.classList.toggle("selected", which === "partial");
+        customWrap.classList.toggle("visible", which === "partial");
+        if (which === "partial") customInput.focus();
+      }
+      optionFull.addEventListener("click", () => selectOption("full"));
+      optionPartial.addEventListener("click", () => selectOption("partial"));
+
+      payBtn.addEventListener("click", () => {
+        const isPartial = optionPartial.querySelector("input").checked;
+        if (!isPartial) {
+          startCheckout(null);
+          return;
+        }
+        const errEl = document.getElementById("custom-amount-error");
+        errEl.style.display = "none";
+        const amount = Number(customInput.value);
+        if (!(amount > 0)) {
+          errEl.textContent = "Enter an amount greater than $0.";
+          errEl.style.display = "block";
+          return;
+        }
+        if (amount > balance + 0.001) {
+          errEl.textContent = `That's more than the ${fmtMoney(balance)} still owed.`;
+          errEl.style.display = "block";
+          return;
+        }
+        startCheckout(Math.round(amount * 100) / 100);
+      });
     }
 
     if (!invoiceId) {
       showError("This payment link is missing some information. Please use the Pay now link from your invoice email.");
     } else {
-      fetch(`${API_BASE_URL}/api/payments/invoices/${invoiceId}/checkout-session`, { method: "POST" })
+      fetch(`${API_BASE_URL}/api/payments/invoices/${invoiceId}`)
         .then(async (res) => {
           const data = await res.json();
-          if (!res.ok) throw new Error(data.error || "Something went wrong.");
-          window.location.href = data.url;
+          if (!res.ok) throw new Error(data.error || "Couldn't load this invoice.");
+          return data;
+        })
+        .then((invoice) => {
+          if (invoice.status === "paid" || invoice.balance_due <= 0) {
+            showInfo("Already paid", `Invoice #${invoice.invoice_number} has already been paid in full. Thank you!`);
+            return;
+          }
+          if (invoice.status === "void") {
+            showInfo("Invoice voided", `Invoice #${invoice.invoice_number} has been voided and can't be paid.`);
+            return;
+          }
+          if (invoice.payments_remaining <= 0) {
+            showInfo(
+              "Payment limit reached",
+              `This invoice has reached its payment limit. Please contact ${invoice.company_name} directly to settle the remaining balance.`
+            );
+            return;
+          }
+          if (!invoice.allow_partial_payments) {
+            // Same as before partial payments existed -- go straight to
+            // checkout for the full balance, no picker shown.
+            startCheckout(null);
+            return;
+          }
+          renderAmountPicker(invoice);
         })
         .catch((err) => showError(err.message));
     }
