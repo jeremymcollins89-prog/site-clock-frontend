@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode } from "lucide-react";
+import { BrowserMultiFormatReader } from "@zxing/library";
 import {
   login,
   restoreSession,
@@ -32,6 +33,10 @@ import {
   getMyPullSheets,
   getPullSheetsUnseenCount,
   submitPulledQuantities,
+  getMyInventoryItems,
+  lookupInventoryBarcode,
+  addInventoryCatalogItem,
+  updateInventoryCatalogItem,
 } from "./api.js";
 import { useGeoAutoClock, markManualClockOut, clearAutoClockInSuppression } from "./geoAutoClock.js";
 
@@ -1520,6 +1525,384 @@ function CustomersView({ customers, loading }) {
   );
 }
 
+// One row in the Inventory tab's item list -- collapsed to just the name and
+// available count, expands on tap into an editable quantity/cost/threshold
+// form. Deliberately excludes name and unit price (those are billing/quoting
+// concerns that stay admin-only -- see routes/employeeInventory.js).
+function InventoryItemRow({ item, onSave }) {
+  const [expanded, setExpanded] = useState(false);
+  const [qty, setQty] = useState(String(item.quantity_on_hand));
+  const [cost, setCost] = useState(item.unit_cost != null ? String(item.unit_cost) : "");
+  const [threshold, setThreshold] = useState(item.low_stock_threshold != null ? String(item.low_stock_threshold) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleSave() {
+    setSaving(true);
+    setError("");
+    try {
+      await onSave(item.id, {
+        quantity_on_hand: Number(qty) || 0,
+        unit_cost: cost === "" ? null : Number(cost) || 0,
+        low_stock_threshold: threshold === "" ? null : Number(threshold) || 0,
+      });
+      setExpanded(false);
+    } catch (err) {
+      setError(err.message || "Couldn't save.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const low = item.low_stock_threshold != null && Number(item.quantity_available) <= Number(item.low_stock_threshold);
+
+  return (
+    <div
+      style={{ background: "#fff", border: `1px solid rgba(31,36,33,0.05)`, boxShadow: "0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04)" }}
+      className="rounded-xl p-4"
+    >
+      <div className="flex items-center justify-between gap-2 cursor-pointer" onClick={() => setExpanded((v) => !v)}>
+        <div>
+          <div className="text-sm font-medium">{item.name}</div>
+          <div className="text-xs mt-0.5" style={{ color: low ? RUST : "#8A8578" }}>
+            {item.quantity_available} available
+            {Number(item.quantity_on_hold) > 0 ? ` (${item.quantity_on_hold} on hold)` : ""}
+          </div>
+        </div>
+        <span style={{ color: "#8A8578" }}>{expanded ? "▾" : "▸"}</span>
+      </div>
+      {expanded && (
+        <div className="mt-3 flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <label className="text-xs" style={{ color: "#8A8578" }}>Quantity on hand</label>
+          <input
+            type="number" min="0" step="1" value={qty} onChange={(e) => setQty(e.target.value)}
+            style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+          />
+          <label className="text-xs" style={{ color: "#8A8578" }}>Unit cost</label>
+          <input
+            type="number" min="0" step="0.01" value={cost} onChange={(e) => setCost(e.target.value)} placeholder="0.00"
+            style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+          />
+          <label className="text-xs" style={{ color: "#8A8578" }}>Low stock alert threshold</label>
+          <input
+            type="number" min="0" step="1" value={threshold} onChange={(e) => setThreshold(e.target.value)} placeholder="none"
+            style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+          />
+          {error && <div style={{ color: RUST }} className="text-xs">{error}</div>}
+          <button
+            onClick={handleSave} disabled={saving}
+            style={{ background: CHARCOAL, color: "#fff", opacity: saving ? 0.6 : 1 }}
+            className="w-full rounded-lg py-2 text-xs font-medium mt-1"
+          >
+            {saving ? "Saving..." : "Save"}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Inventory tab -- only reachable at all when employee.can_manage_inventory
+// is true (see the bottom-nav wiring further down and GET /api/auth/me).
+// Lists every catalog item with tracking turned on, same underlying data as
+// the admin apps' Inventory > Items view, plus the "Scan barcode" entry point
+// into BarcodeScanSheet below.
+function InventoryView({ items, loading, onOpenScan, onSaveItem }) {
+  const [search, setSearch] = useState("");
+  const filtered = items.filter((i) => !search || i.name.toLowerCase().indexOf(search.toLowerCase()) !== -1);
+
+  return (
+    <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
+      <div className="mb-4 flex items-center justify-between">
+        <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+          Inventory
+        </h2>
+        <button
+          onClick={onOpenScan}
+          style={{ background: CHARCOAL, color: "#fff" }}
+          className="rounded-xl px-3 py-1.5 text-xs font-medium uppercase tracking-widest flex items-center gap-1.5"
+        >
+          <ScanBarcode size={14} /> Scan barcode
+        </button>
+      </div>
+      <input
+        value={search}
+        onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search inventory..."
+        style={{ border: `1px solid ${LINE}`, background: "#FBFAF7" }}
+        className="w-full px-3 py-2 text-sm rounded-xl mb-4 outline-none"
+      />
+      {loading ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>Loading…</p>
+      ) : filtered.length === 0 ? (
+        <p className="text-sm" style={{ color: "#8A8578" }}>
+          {items.length === 0 ? "No tracked inventory items yet -- scan a barcode to add one." : "No items match that search."}
+        </p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {filtered.map((item) => (
+            <InventoryItemRow key={item.id} item={item} onSave={onSaveItem} />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Bottom sheet reachable from the Inventory tab's "Scan barcode" button.
+// Uses the device's own camera via ZXing's browser decoder -- no dedicated
+// hardware scanner required (though a USB/Bluetooth one would also work,
+// since those just "type" into whatever's focused). A barcode already on a
+// catalog item jumps straight to a restock quantity; an unknown one offers to
+// create a new item, with a best-effort name suggestion from a public UPC
+// database (see GET /api/employee-inventory/lookup-barcode/:barcode).
+function BarcodeScanSheet({ open, onClose, onDone }) {
+  const videoRef = useRef(null);
+  const readerRef = useRef(null);
+  const activeRef = useRef(false);
+  const [stage, setStage] = useState("scanning"); // scanning | looking-up | matched | new-item | error
+  const [scannedBarcode, setScannedBarcode] = useState("");
+  const [matchedItem, setMatchedItem] = useState(null);
+  const [suggestion, setSuggestion] = useState(null);
+  const [error, setError] = useState("");
+  const [qtyInput, setQtyInput] = useState("1");
+  const [nameInput, setNameInput] = useState("");
+  const [newQtyInput, setNewQtyInput] = useState("1");
+  const [costInput, setCostInput] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+
+  function stopScan() {
+    activeRef.current = false;
+    if (readerRef.current) {
+      try { readerRef.current.reset(); } catch { /* already stopped */ }
+      readerRef.current = null;
+    }
+  }
+
+  function resetToScanning() {
+    setStage("scanning");
+    setError("");
+    setMatchedItem(null);
+    setSuggestion(null);
+    setScannedBarcode("");
+    setQtyInput("1");
+    setNameInput("");
+    setNewQtyInput("1");
+    setCostInput("");
+  }
+
+  useEffect(() => {
+    if (!open) {
+      stopScan();
+      return;
+    }
+    resetToScanning();
+    activeRef.current = true;
+    const reader = new BrowserMultiFormatReader();
+    readerRef.current = reader;
+    reader
+      .decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+        if (!activeRef.current || !result) return;
+        handleScanned(result.getText());
+      })
+      .catch((err) => {
+        setStage("error");
+        setError("Couldn't access the camera: " + (err.message || "permission denied."));
+      });
+    return () => stopScan();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  async function handleScanned(barcode) {
+    if (!activeRef.current) return;
+    stopScan();
+    setScannedBarcode(barcode);
+    setStage("looking-up");
+    try {
+      const data = await lookupInventoryBarcode(barcode);
+      if (data.found_in_catalog) {
+        setMatchedItem(data.item);
+        setStage("matched");
+      } else {
+        setSuggestion(data.suggestion);
+        setNameInput((data.suggestion && data.suggestion.name) || "");
+        setStage("new-item");
+      }
+    } catch (err) {
+      setError(err.message || "Couldn't look up that barcode.");
+      setStage("error");
+    }
+  }
+
+  function scanAgain() {
+    resetToScanning();
+    activeRef.current = true;
+    const reader = new BrowserMultiFormatReader();
+    readerRef.current = reader;
+    reader
+      .decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+        if (!activeRef.current || !result) return;
+        handleScanned(result.getText());
+      })
+      .catch((err) => {
+        setStage("error");
+        setError("Couldn't access the camera: " + (err.message || "permission denied."));
+      });
+  }
+
+  async function submitRestock() {
+    const received = Math.max(0, Math.round(Number(qtyInput)) || 0);
+    if (received <= 0) { setError("Enter a quantity greater than 0."); return; }
+    setSubmitting(true);
+    setError("");
+    try {
+      await updateInventoryCatalogItem(matchedItem.id, {
+        quantity_on_hand: Number(matchedItem.quantity_on_hand || 0) + received,
+        track_inventory: true,
+      });
+      await onDone();
+      onClose();
+    } catch (err) {
+      setError(err.message || "Couldn't update stock.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function submitNewItem() {
+    const name = nameInput.trim();
+    if (!name) { setError("Enter a name for this item."); return; }
+    const qty = Math.max(0, Math.round(Number(newQtyInput)) || 0);
+    const unitCost = costInput === "" ? null : Number(costInput) || 0;
+    setSubmitting(true);
+    setError("");
+    try {
+      const created = await addInventoryCatalogItem({ name, barcode: scannedBarcode });
+      await updateInventoryCatalogItem(created.id, { track_inventory: true, quantity_on_hand: qty, unit_cost: unitCost });
+      await onDone();
+      onClose();
+    } catch (err) {
+      setError(err.message || "Couldn't add this item.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  if (!open) return null;
+
+  return (
+    <div onClick={onClose} style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 100 }} className="flex items-end">
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: PAPER, width: "100%", maxHeight: "85vh", overflowY: "auto",
+          borderTopLeftRadius: 24, borderTopRightRadius: 24,
+          boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
+          padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest flex items-center gap-2">
+            <ScanBarcode size={14} /> Scan barcode
+          </h2>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+            &times;
+          </button>
+        </div>
+
+        {(stage === "scanning" || stage === "looking-up") && (
+          <>
+            <div style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
+              <video ref={videoRef} muted playsInline style={{ width: "100%", display: "block" }} />
+            </div>
+            <p className="text-xs text-center" style={{ color: "#8A8578" }}>
+              {stage === "looking-up" ? `Looking up ${scannedBarcode}...` : "Point the camera at a barcode..."}
+            </p>
+          </>
+        )}
+
+        {stage === "error" && (
+          <>
+            <div style={{ background: "#fff", border: `1.5px solid ${RUST}`, color: RUST }} className="rounded-lg p-3 text-xs mb-3">
+              {error}
+            </div>
+            <button onClick={scanAgain} style={{ background: CHARCOAL, color: "#fff" }} className="w-full rounded-lg py-2 text-xs font-medium">
+              Scan again
+            </button>
+          </>
+        )}
+
+        {stage === "matched" && matchedItem && (
+          <div className="flex flex-col gap-2">
+            <div className="text-sm font-medium">{matchedItem.name}</div>
+            <div className="text-xs" style={{ color: "#8A8578" }}>
+              Currently {matchedItem.quantity_on_hand} on hand
+              {!matchedItem.track_inventory ? " -- inventory tracking is off for this item, turning it on now" : ""}
+            </div>
+            <label className="text-xs mt-1" style={{ color: "#8A8578" }}>Quantity received</label>
+            <input
+              type="number" min="1" step="1" value={qtyInput} onChange={(e) => setQtyInput(e.target.value)}
+              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            />
+            {error && <div style={{ color: RUST }} className="text-xs">{error}</div>}
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={submitRestock} disabled={submitting}
+                style={{ background: CHARCOAL, color: "#fff", opacity: submitting ? 0.6 : 1 }}
+                className="flex-1 rounded-lg py-2 text-xs font-medium"
+              >
+                {submitting ? "Saving..." : "Add to stock"}
+              </button>
+              <button onClick={scanAgain} style={{ background: "#fff", color: CHARCOAL, border: `1.5px solid ${LINE}` }} className="flex-1 rounded-lg py-2 text-xs font-medium">
+                Scan again
+              </button>
+            </div>
+          </div>
+        )}
+
+        {stage === "new-item" && (
+          <div className="flex flex-col gap-2">
+            <p className="text-xs" style={{ color: "#8A8578" }}>
+              {suggestion && suggestion.name
+                ? "No catalog item has this barcode yet -- found a possible match online:"
+                : "No catalog item has this barcode yet, and it wasn't found in a public product database."}
+            </p>
+            <label className="text-xs" style={{ color: "#8A8578" }}>Name / description</label>
+            <input
+              value={nameInput} onChange={(e) => setNameInput(e.target.value)} placeholder="Enter a product name"
+              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            />
+            <label className="text-xs" style={{ color: "#8A8578" }}>Starting quantity on hand</label>
+            <input
+              type="number" min="0" step="1" value={newQtyInput} onChange={(e) => setNewQtyInput(e.target.value)}
+              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            />
+            <label className="text-xs" style={{ color: "#8A8578" }}>Unit cost (optional)</label>
+            <input
+              type="number" min="0" step="0.01" value={costInput} onChange={(e) => setCostInput(e.target.value)} placeholder="0.00"
+              style={{ border: `1px solid ${LINE}`, background: "#fff" }} className="rounded-lg px-2 py-1.5 text-sm"
+            />
+            {error && <div style={{ color: RUST }} className="text-xs">{error}</div>}
+            <div className="flex gap-2 mt-1">
+              <button
+                onClick={submitNewItem} disabled={submitting}
+                style={{ background: CHARCOAL, color: "#fff", opacity: submitting ? 0.6 : 1 }}
+                className="flex-1 rounded-lg py-2 text-xs font-medium"
+              >
+                {submitting ? "Saving..." : "Add to catalog"}
+              </button>
+              <button onClick={scanAgain} style={{ background: "#fff", color: CHARCOAL, border: `1.5px solid ${LINE}` }} className="flex-1 rounded-lg py-2 text-xs font-medium">
+                Scan again
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Direct chat with the office (there's one thread per employee). Stays
 // visible after clocking out so history isn't lost, but the composer is
 // disabled until the next clock-in -- messages can only be sent while on
@@ -1877,6 +2260,9 @@ const [emailInput, setEmailInput] = useState("");
   });
   const [customers, setCustomers] = useState([]);
   const [customersLoading, setCustomersLoading] = useState(false);
+  const [inventoryItems, setInventoryItems] = useState([]);
+  const [inventoryLoading, setInventoryLoading] = useState(false);
+  const [showBarcodeScanSheet, setShowBarcodeScanSheet] = useState(false);
   const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
@@ -2222,6 +2608,23 @@ const [emailInput, setEmailInput] = useState("");
     }
   }
 
+  async function loadInventoryItems() {
+    setInventoryLoading(true);
+    try {
+      const rows = await getMyInventoryItems();
+      setInventoryItems(rows);
+    } catch {
+      // non-fatal — leave whatever was last loaded
+    } finally {
+      setInventoryLoading(false);
+    }
+  }
+
+  async function saveInventoryItem(id, patch) {
+    const updated = await updateInventoryCatalogItem(id, patch);
+    setInventoryItems((items) => items.map((i) => (i.id === id ? { ...i, ...updated, quantity_available: updated.quantity_on_hand - updated.quantity_on_hold } : i)));
+  }
+
   // Full fetch -- marks the office's messages as read. Only call this when
   // the Chat tab is actually open; use refreshChatUnreadCount for background
   // polling so the badge doesn't get silently cleared before it's seen.
@@ -2352,6 +2755,7 @@ const [emailInput, setEmailInput] = useState("");
       loadPullSheets();
     }
     if (view === "customers" && loggedIn) loadCustomers();
+    if (view === "inventory" && loggedIn) loadInventoryItems();
     if (view === "chat" && loggedIn) {
       if (chatSubtab === "direct") loadChatMessages();
       else loadTeamThreads();
@@ -2707,11 +3111,15 @@ const [emailInput, setEmailInput] = useState("");
     if (Math.abs(deltaX) < 70) return; // too short to be deliberate
     if (Math.abs(deltaX) < Math.abs(deltaY) * 1.5) return; // more vertical than horizontal -- was a scroll
 
-    const idx = VIEW_ORDER.indexOf(view);
-    if (deltaX < 0 && idx < VIEW_ORDER.length - 1) {
-      setView(VIEW_ORDER[idx + 1]);
+    // Inventory only joins the swipe order for employees who actually have
+    // the tab -- otherwise swiping past Chat would land on a view with no
+    // nav button highlighted for anyone else.
+    const viewOrder = employee?.can_manage_inventory ? [...VIEW_ORDER, "inventory"] : VIEW_ORDER;
+    const idx = viewOrder.indexOf(view);
+    if (deltaX < 0 && idx < viewOrder.length - 1) {
+      setView(viewOrder[idx + 1]);
     } else if (deltaX > 0 && idx > 0) {
-      setView(VIEW_ORDER[idx - 1]);
+      setView(viewOrder[idx - 1]);
     }
   }
 
@@ -2789,6 +3197,20 @@ const [emailInput, setEmailInput] = useState("");
           </>
         ) : view === "customers" ? (
           <CustomersView customers={customers} loading={customersLoading} />
+        ) : view === "inventory" ? (
+          <>
+            <InventoryView
+              items={inventoryItems}
+              loading={inventoryLoading}
+              onOpenScan={() => setShowBarcodeScanSheet(true)}
+              onSaveItem={saveInventoryItem}
+            />
+            <BarcodeScanSheet
+              open={showBarcodeScanSheet}
+              onClose={() => setShowBarcodeScanSheet(false)}
+              onDone={loadInventoryItems}
+            />
+          </>
         ) : view === "chat" ? (
           <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
             <div className="mb-4 flex items-center justify-between">
@@ -3172,6 +3594,24 @@ const [emailInput, setEmailInput] = useState("");
               </span>
             )}
           </button>
+          {employee?.can_manage_inventory && (
+            <button
+              onClick={() => setView("inventory")}
+              style={{ color: view === "inventory" ? CHARCOAL : "#8A8578", fontFamily: "'Oswald', sans-serif" }}
+              className="flex-1 py-3 text-xs flex flex-col items-center gap-1 uppercase tracking-widest"
+            >
+              <span
+                style={{
+                  display: "flex", alignItems: "center", justifyContent: "center", width: 30, height: 30, borderRadius: 12,
+                  background: view === "inventory" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : "transparent",
+                  boxShadow: view === "inventory" ? "0 3px 8px rgba(219,138,22,0.35)" : "none",
+                }}
+              >
+                <Package size={16} style={{ color: view === "inventory" ? CHARCOAL : "#8A8578" }} />
+              </span>
+              Inventory
+            </button>
+          )}
         </div>
       </div>
     </div>

@@ -1034,6 +1034,10 @@
     <input id="edit-emp-state" placeholder="CO" />
     <label>Zip</label>
     <input id="edit-emp-zip" placeholder="80202" style="margin-bottom:16px;" />
+    <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:16px;">
+      <input type="checkbox" id="edit-emp-inventory-permission" style="width:16px; height:16px; margin:0;" />
+      Inventory permissions -- can scan barcodes and edit inventory from their own app
+    </label>
     <button class="btn-primary" onclick="submitEditEmployee()">Save changes</button>
   </div>
 </div>
@@ -2402,6 +2406,7 @@ function openEditEmployeeSheet(id) {
   document.getElementById("edit-emp-city").value = e.city || "";
   document.getElementById("edit-emp-state").value = e.state || "";
   document.getElementById("edit-emp-zip").value = e.zip || "";
+  document.getElementById("edit-emp-inventory-permission").checked = !!e.can_manage_inventory;
   document.getElementById("edit-emp-error").style.display = "none";
   document.getElementById("edit-emp-success").style.display = "none";
   document.getElementById("edit-employee-sheet").classList.add("visible");
@@ -2437,6 +2442,7 @@ async function submitEditEmployee() {
     city: document.getElementById("edit-emp-city").value.trim() || null,
     state: document.getElementById("edit-emp-state").value.trim() || null,
     zip: document.getElementById("edit-emp-zip").value.trim() || null,
+    can_manage_inventory: document.getElementById("edit-emp-inventory-permission").checked,
   };
   if (pin) patch.pin = pin;
   try {

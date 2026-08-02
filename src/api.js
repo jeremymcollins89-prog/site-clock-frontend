@@ -133,6 +133,27 @@ async function getCompanyLogo() {
   return apiFetch("/api/schedule/company-logo");
 }
 
+// ---------- Inventory (permission-gated, see employees.can_manage_inventory) ----------
+// Every call here 403s server-side if the logged-in employee doesn't have
+// the permission -- the app only shows the Inventory tab at all when
+// employee.can_manage_inventory is true (set at login/restoreSession time),
+// but the backend re-checks independently rather than trusting that.
+async function getMyInventoryItems() {
+  return apiFetch("/api/employee-inventory/items");
+}
+
+async function lookupInventoryBarcode(barcode) {
+  return apiFetch(`/api/employee-inventory/lookup-barcode/${encodeURIComponent(barcode)}`);
+}
+
+async function addInventoryCatalogItem(payload) {
+  return apiFetch("/api/employee-inventory/catalog-items", { method: "POST", body: payload });
+}
+
+async function updateInventoryCatalogItem(id, patch) {
+  return apiFetch(`/api/employee-inventory/catalog-items/${id}`, { method: "PATCH", body: patch });
+}
+
 // Read-only attachment access for the employee app -- metadata list plus a
 // blob-URL viewer, mirroring the pattern used in the admin pages'
 // viewAttachment. Employees can look at what's attached to a job but never
@@ -271,4 +292,8 @@ export {
   getPullSheetsUnseenCount,
   getMyPullSheet,
   submitPulledQuantities,
+  getMyInventoryItems,
+  lookupInventoryBarcode,
+  addInventoryCatalogItem,
+  updateInventoryCatalogItem,
 };
