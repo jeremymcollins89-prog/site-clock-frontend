@@ -1187,6 +1187,8 @@
     <div id="customer-sheet-error" class="error"></div>
     <label>Name</label>
     <input id="customer-name-input" placeholder="e.g. Smith" />
+    <label>Company name (optional)</label>
+    <input id="customer-company-name-input" placeholder="e.g. Smith Roofing LLC" />
     <label>Phone</label>
     <input id="customer-phone-input" placeholder="(555) 555-5555" />
     <label>Email</label>
@@ -3717,12 +3719,18 @@ function renderJobCustomerDropdown() {
   const raw = document.getElementById("job-customer-search-input").value.trim();
   const term = raw.toLowerCase();
   const customers = window.allCustomers || [];
-  const matches = term ? customers.filter(function(c) { return c.name.toLowerCase().indexOf(term) !== -1; }) : customers;
+  const matches = term
+    ? customers.filter(function(c) {
+        return c.name.toLowerCase().indexOf(term) !== -1 || (c.company_name || "").toLowerCase().indexOf(term) !== -1;
+      })
+    : customers;
   const exactMatch = customers.some(function(c) { return c.name.toLowerCase() === term; });
 
   const rows = matches.slice(0, 30).map(function(c) {
     return '<div style="padding:8px 10px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
-      'onclick="selectJobCustomer(\'' + c.id + '\')">' + escapeHtml(c.name) + '</div>';
+      'onclick="selectJobCustomer(\'' + c.id + '\')">' + escapeHtml(c.name) +
+      (c.company_name ? ' <span style="color:#8A8578;">&middot; ' + escapeHtml(c.company_name) + '</span>' : '') +
+      '</div>';
   });
 
   if (raw && !exactMatch) {
@@ -4009,7 +4017,9 @@ function renderCustomersList() {
   const search = searchEl ? searchEl.value.trim().toLowerCase() : "";
   const list = document.getElementById("customers-list");
   const customers = (window.allCustomers || []).filter(function(c) {
-    return !search || c.name.toLowerCase().indexOf(search) !== -1;
+    return !search ||
+      c.name.toLowerCase().indexOf(search) !== -1 ||
+      (c.company_name || "").toLowerCase().indexOf(search) !== -1;
   });
 
   if (customers.length === 0) {
@@ -4026,6 +4036,7 @@ function renderCustomersList() {
       (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + '</a></div>' : "");
     return '<div class="card">' +
       '<strong>' + escapeHtml(c.name) + '</strong>' +
+      (c.company_name ? '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(c.company_name) + '</div>' : '') +
       details +
       (c.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + escapeHtml(c.notes) + '</div>' : '') +
       '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">' +
@@ -4043,6 +4054,7 @@ function openCustomerSheet(customerId, prefillName) {
   document.getElementById("customer-sheet-title").textContent = customer ? "Edit customer" : "New customer";
   document.getElementById("customer-sheet-error").style.display = "none";
   document.getElementById("customer-name-input").value = customer ? customer.name : (prefillName || "");
+  document.getElementById("customer-company-name-input").value = customer ? (customer.company_name || "") : "";
   document.getElementById("customer-phone-input").value = customer ? (customer.phone || "") : "";
   document.getElementById("customer-email-input").value = customer ? (customer.email || "") : "";
   document.getElementById("customer-street-input").value = customer ? (customer.street || "") : "";
@@ -4150,6 +4162,7 @@ async function submitCustomer() {
   }
   const payload = {
     name: name,
+    company_name: document.getElementById("customer-company-name-input").value.trim(),
     phone: document.getElementById("customer-phone-input").value.trim(),
     email: document.getElementById("customer-email-input").value.trim(),
     street: document.getElementById("customer-street-input").value.trim(),
