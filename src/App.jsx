@@ -494,6 +494,241 @@ function RocketLaunchOverlay({ onDone }) {
   );
 }
 
+// Hidden easter egg -- see handleLogoSecretTap (tap the header logo/title 7x
+// fast) in the main App component below for how this gets opened. Deliberately
+// undocumented anywhere in the UI itself; if you know, you know.
+const SNAKE_GRID = 15;
+const SNAKE_CELL = 18;
+const SNAKE_TICK_MS = 140;
+const SNAKE_BEST_KEY = "site-clock-snake-best";
+
+function snakeRandomFood(snake) {
+  let pos;
+  do {
+    pos = { x: Math.floor(Math.random() * SNAKE_GRID), y: Math.floor(Math.random() * SNAKE_GRID) };
+  } while (snake.some((seg) => seg.x === pos.x && seg.y === pos.y));
+  return pos;
+}
+
+function SnakeGame({ open, onClose }) {
+  const canvasRef = useRef(null);
+  const snakeRef = useRef([{ x: 7, y: 7 }, { x: 6, y: 7 }, { x: 5, y: 7 }]);
+  const dirRef = useRef({ x: 1, y: 0 });
+  const nextDirRef = useRef({ x: 1, y: 0 });
+  const foodRef = useRef({ x: 10, y: 7 });
+  const touchStartRef = useRef(null);
+  const [score, setScore] = useState(0);
+  const [best, setBest] = useState(() => Number(localStorage.getItem(SNAKE_BEST_KEY) || 0));
+  const [gameOver, setGameOver] = useState(false);
+
+  function draw() {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = CHARCOAL;
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    snakeRef.current.forEach((seg, i) => {
+      ctx.fillStyle = i === 0 ? AMBER : TEAL;
+      ctx.fillRect(seg.x * SNAKE_CELL + 1, seg.y * SNAKE_CELL + 1, SNAKE_CELL - 2, SNAKE_CELL - 2);
+    });
+    ctx.fillStyle = RUST;
+    ctx.fillRect(foodRef.current.x * SNAKE_CELL + 2, foodRef.current.y * SNAKE_CELL + 2, SNAKE_CELL - 4, SNAKE_CELL - 4);
+  }
+
+  function resetGame() {
+    const startSnake = [{ x: 7, y: 7 }, { x: 6, y: 7 }, { x: 5, y: 7 }];
+    snakeRef.current = startSnake;
+    dirRef.current = { x: 1, y: 0 };
+    nextDirRef.current = { x: 1, y: 0 };
+    foodRef.current = snakeRandomFood(startSnake);
+    setScore(0);
+    setGameOver(false);
+  }
+
+  useEffect(() => {
+    if (!open) return;
+    resetGame();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (open) draw();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open]);
+
+  useEffect(() => {
+    if (!open || gameOver) return;
+    const interval = setInterval(() => {
+      dirRef.current = nextDirRef.current;
+      const head = snakeRef.current[0];
+      const newHead = { x: head.x + dirRef.current.x, y: head.y + dirRef.current.y };
+      const hitWall = newHead.x < 0 || newHead.x >= SNAKE_GRID || newHead.y < 0 || newHead.y >= SNAKE_GRID;
+      const hitSelf = snakeRef.current.some((seg) => seg.x === newHead.x && seg.y === newHead.y);
+      if (hitWall || hitSelf) {
+        setGameOver(true);
+        return;
+      }
+      const ateFood = newHead.x === foodRef.current.x && newHead.y === foodRef.current.y;
+      const newSnake = [newHead, ...snakeRef.current];
+      if (!ateFood) {
+        newSnake.pop();
+      } else {
+        foodRef.current = snakeRandomFood(newSnake);
+        setScore((s) => {
+          const next = s + 1;
+          setBest((b) => {
+            if (next <= b) return b;
+            localStorage.setItem(SNAKE_BEST_KEY, String(next));
+            return next;
+          });
+          return next;
+        });
+      }
+      snakeRef.current = newSnake;
+      draw();
+    }, SNAKE_TICK_MS);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, gameOver]);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleKey(e) {
+      if (e.key === "ArrowUp") setDirection(0, -1);
+      else if (e.key === "ArrowDown") setDirection(0, 1);
+      else if (e.key === "ArrowLeft") setDirection(-1, 0);
+      else if (e.key === "ArrowRight") setDirection(1, 0);
+    }
+    window.addEventListener("keydown", handleKey);
+    return () => window.removeEventListener("keydown", handleKey);
+  }, [open]);
+
+  function setDirection(x, y) {
+    // Can't reverse straight into your own neck.
+    if (dirRef.current.x === -x && dirRef.current.y === -y) return;
+    nextDirRef.current = { x, y };
+  }
+
+  function handleTouchStart(e) {
+    const t = e.touches[0];
+    touchStartRef.current = { x: t.clientX, y: t.clientY };
+  }
+  function handleTouchEnd(e) {
+    if (!touchStartRef.current) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - touchStartRef.current.x;
+    const dy = t.clientY - touchStartRef.current.y;
+    touchStartRef.current = null;
+    if (Math.max(Math.abs(dx), Math.abs(dy)) < 20) return;
+    if (Math.abs(dx) > Math.abs(dy)) setDirection(dx > 0 ? 1 : -1, 0);
+    else setDirection(0, dy > 0 ? 1 : -1);
+  }
+
+  if (!open) return null;
+
+  const canvasSize = SNAKE_GRID * SNAKE_CELL;
+  const dpadBtnStyle = {
+    width: 44,
+    height: 44,
+    borderRadius: 10,
+    border: "none",
+    background: LINE,
+    color: CHARCOAL,
+    fontSize: 18,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{ position: "fixed", inset: 0, background: "rgba(31,36,33,0.5)", zIndex: 200 }}
+      className="flex items-end"
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          background: PAPER,
+          width: "100%",
+          maxHeight: "92vh",
+          overflowY: "auto",
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          boxShadow: "0 -12px 32px rgba(31,36,33,0.18)",
+          padding: "20px 20px calc(20px + env(safe-area-inset-bottom))",
+          fontFamily: "'IBM Plex Mono', monospace",
+        }}
+      >
+        <div className="flex items-center justify-between mb-3">
+          <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
+            Snake
+          </h2>
+          <button onClick={onClose} style={{ fontSize: 22, lineHeight: 1, color: CHARCOAL, background: "transparent", border: "none" }}>
+            &times;
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between mb-2 text-xs" style={{ color: "#8A8578" }}>
+          <span>Score: {score}</span>
+          <span>Best: {best}</span>
+        </div>
+
+        <div className="flex justify-center">
+          <div style={{ position: "relative", width: canvasSize, height: canvasSize }}>
+            <canvas
+              ref={canvasRef}
+              width={canvasSize}
+              height={canvasSize}
+              style={{ borderRadius: 10, touchAction: "none", display: "block" }}
+              onTouchStart={handleTouchStart}
+              onTouchEnd={handleTouchEnd}
+            />
+            {gameOver && (
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  background: "rgba(31,36,33,0.8)",
+                  borderRadius: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  gap: 10,
+                }}
+              >
+                <p style={{ color: "#fff" }} className="text-sm font-semibold">
+                  Game over — score {score}
+                </p>
+                <button
+                  onClick={resetGame}
+                  className="text-xs px-4 py-2 rounded-lg font-medium"
+                  style={{ background: TEAL, color: "#fff" }}
+                >
+                  Play again
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="flex flex-col items-center gap-1 mt-4">
+          <button onClick={() => setDirection(0, -1)} style={dpadBtnStyle}>↑</button>
+          <div className="flex gap-1">
+            <button onClick={() => setDirection(-1, 0)} style={dpadBtnStyle}>←</button>
+            <button onClick={() => setDirection(0, 1)} style={dpadBtnStyle}>↓</button>
+            <button onClick={() => setDirection(1, 0)} style={dpadBtnStyle}>→</button>
+          </div>
+        </div>
+        <p className="text-xs text-center mt-3" style={{ color: "#8A8578" }}>
+          Swipe on the board or use the arrows.
+        </p>
+      </div>
+    </div>
+  );
+}
+
 function pad(n) { return n.toString().padStart(2, "0"); }
 
 function formatElapsed(ms) {
@@ -2720,6 +2955,23 @@ export default function TimeClock() {
   // the header falls back to the plain "Site Clock" text.
   const [companyLogo, setCompanyLogo] = useState(null);
 
+  // Easter egg: tap the header logo/title 7 times within 2 seconds to open
+  // Snake. secretTapsRef (not state) so counting taps never triggers a
+  // re-render on its own -- only the resulting setShowSnake(true) does.
+  const [showSnake, setShowSnake] = useState(false);
+  const secretTapsRef = useRef({ count: 0, timer: null });
+  function handleLogoSecretTap() {
+    const s = secretTapsRef.current;
+    s.count += 1;
+    clearTimeout(s.timer);
+    if (s.count >= 7) {
+      s.count = 0;
+      setShowSnake(true);
+    } else {
+      s.timer = setTimeout(() => { s.count = 0; }, 2000);
+    }
+  }
+
 const [emailInput, setEmailInput] = useState("");
   const [pinInput, setPinInput] = useState("");
   const [loginError, setLoginError] = useState("");
@@ -3638,19 +3890,23 @@ const [emailInput, setEmailInput] = useState("");
       {activeAnimation === "fireworks" && <FireworksOverlay onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "birthday" && <BirthdayOverlay name={employee?.name} onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "rocket" && <RocketLaunchOverlay onDone={() => setActiveAnimation(null)} />}
+      <SnakeGame open={showSnake} onClose={() => setShowSnake(false)} />
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-1">
-          {companyLogo ? (
-            <img
-              src={companyLogo}
-              alt="Company logo"
-              style={{ maxHeight: 40, maxWidth: 180, borderRadius: 6, background: "#fff", padding: 3, objectFit: "contain" }}
-            />
-          ) : (
-            <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
-              Site Clock
-            </h1>
-          )}
+          {/* No visible hint on purpose -- tap this 7x fast to open Snake. */}
+          <div onClick={handleLogoSecretTap} style={{ cursor: "default" }}>
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt="Company logo"
+                style={{ maxHeight: 40, maxWidth: 180, borderRadius: 6, background: "#fff", padding: 3, objectFit: "contain" }}
+              />
+            ) : (
+              <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
+                Site Clock
+              </h1>
+            )}
+          </div>
           <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: "#8A8578" }}>
             <LogOut size={12} /> {employee?.name}
           </button>
