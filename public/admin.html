@@ -4211,23 +4211,29 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
     return;
   }
 
-  const size = 160, radius = 58, strokeWidth = 26, circumference = 2 * Math.PI * radius;
+  // A small blank gap after each segment (rather than one solid touching
+  // ring) plus rounded ends reads as a much more polished, "designed" donut
+  // -- same idea as the little breaks between rings in an Apple Watch-style
+  // activity chart. Segments below the gap size just render as a small
+  // rounded dot rather than disappearing.
+  const size = 180, radius = 66, strokeWidth = 24, circumference = 2 * Math.PI * radius, gap = 8;
   let cumulative = 0;
   const segments = methodOrder
     .filter(function(m) { return counts[m].total > 0; })
     .map(function(m) {
       const length = (counts[m].total / paidTotal) * circumference;
+      const visibleLength = Math.max(length - gap, 1);
       const dashoffset = -cumulative;
       cumulative += length;
       return '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + radius + '" fill="none" stroke="' + methodColors[m] + '" ' +
-        'stroke-width="' + strokeWidth + '" stroke-dasharray="' + length + ' ' + (circumference - length) + '" ' +
+        'stroke-width="' + strokeWidth + '" stroke-linecap="round" stroke-dasharray="' + visibleLength + ' ' + (circumference - visibleLength) + '" ' +
         'stroke-dashoffset="' + dashoffset + '" transform="rotate(-90 ' + (size / 2) + ' ' + (size / 2) + ')">' +
         '<title>' + methodLabels[m] + ': ' + fmtMoney(counts[m].total) + '</title>' +
       '</circle>';
     }).join("");
 
   const donutHtml =
-    '<svg viewBox="0 0 ' + size + ' ' + size + '" style="width:150px; height:150px; flex-shrink:0;">' +
+    '<svg viewBox="0 0 ' + size + ' ' + size + '" style="width:170px; height:170px; flex-shrink:0;">' +
       '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + radius + '" fill="none" stroke="#EDEAE1" stroke-width="' + strokeWidth + '" />' +
       segments +
       '<text x="' + (size / 2) + '" y="' + (size / 2 - 6) + '" text-anchor="middle" font-size="17" font-weight="800" fill="#1F2421">' + fmtMoney(paidTotal) + '</text>' +
@@ -4238,9 +4244,9 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
 
   const legendHtml = methodOrder.map(function(m) {
     const row = counts[m];
-    return '<div style="display:flex; align-items:center; justify-content:space-between; gap:10px; padding:7px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
-      '<span style="display:flex; align-items:center; gap:8px;">' +
-        '<span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:' + methodColors[m] + '; flex-shrink:0;"></span>' +
+    return '<div style="display:flex; align-items:center; justify-content:space-between; gap:14px; padding:11px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
+      '<span style="display:flex; align-items:center; gap:9px;">' +
+        '<span style="display:inline-block; width:11px; height:11px; border-radius:3px; background:' + methodColors[m] + '; flex-shrink:0;"></span>' +
         methodLabels[m] +
       '</span>' +
       '<span style="color:#8A8578; white-space:nowrap;">' + row.count + (row.count === 1 ? " sale" : " sales") + ' &middot; ' + fmtMoney(row.total) + '</span>' +
@@ -4248,9 +4254,9 @@ function renderBillingPaymentBreakdown(paidInvoices, paidTotal) {
   }).join("");
 
   container.innerHTML =
-    '<div style="display:flex; gap:24px; align-items:center; flex-wrap:wrap;">' +
+    '<div style="display:flex; gap:36px; align-items:center; flex-wrap:wrap;">' +
       donutHtml +
-      '<div style="flex:1; min-width:220px;">' + legendHtml + '</div>' +
+      '<div style="flex:1; min-width:240px;">' + legendHtml + '</div>' +
     '</div>';
 }
 
