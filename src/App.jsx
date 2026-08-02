@@ -5,6 +5,7 @@ import {
   login,
   restoreSession,
   logout,
+  pingActivity,
   clockAction,
   startAutoSync,
   apiFetch,
@@ -2908,6 +2909,25 @@ const [emailInput, setEmailInput] = useState("");
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Global click heartbeat: any tap anywhere in the app while logged in
+  // counts as "using the app" for the platform dashboard's dormant-days
+  // figure, not just moments the app happens to be loading/saving data on
+  // its own. Throttled to once every 5 minutes so a tap-happy session
+  // doesn't spam the server -- it's throttled again server-side too, per
+  // company, to once an hour (see backend middleware/requireAuth.js).
+  useEffect(() => {
+    if (!loggedIn) return;
+    let lastPingAt = 0;
+    function handleClick() {
+      const now = Date.now();
+      if (now - lastPingAt < 5 * 60 * 1000) return;
+      lastPingAt = now;
+      pingActivity();
+    }
+    document.addEventListener("click", handleClick);
+    return () => document.removeEventListener("click", handleClick);
+  }, [loggedIn]);
 
   // If a job notification is tapped while the app is in the background,
   // the service worker posts a message asking us to jump to the Schedule tab.

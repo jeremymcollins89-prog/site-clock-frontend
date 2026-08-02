@@ -1671,6 +1671,11 @@ const admin = {
   },
   hasSession: () => Boolean(getToken()),
   logout: () => clearToken(),
+  // Fire-and-forget: fed by a global click listener further down so any real
+  // interaction while logged in counts as "using the app" for the platform
+  // dashboard's dormant-days figure, not just moments the app happens to be
+  // loading/saving data on its own.
+  pingActivity: () => apiFetch("/api/admin/activity-ping", { method: "POST" }).catch(() => {}),
   forgotPassword: (email) => apiFetch("/api/admin/forgot-password", { method: "POST", body: { email } }),
   changePassword: (currentPassword, newPassword) =>
     apiFetch("/api/admin/change-password", { method: "POST", body: { current_password: currentPassword, new_password: newPassword } }),
@@ -8397,6 +8402,21 @@ async function submitNewTeamChat() {
     errEl.style.display = "block";
   }
 }
+
+// Global click heartbeat: any click anywhere in the app while logged in
+// counts as "using the app" for the platform dashboard's dormant-days figure,
+// not just moments the app happens to be loading/saving data on its own.
+// Throttled client-side to once every 5 minutes so a click-happy session
+// doesn't spam the server -- it's throttled again server-side too, per
+// company, to once an hour (see middleware/requireAdmin.js).
+let lastActivityPingAt = 0;
+document.addEventListener("click", function() {
+  if (!admin.hasSession()) return;
+  const now = Date.now();
+  if (now - lastActivityPingAt < 5 * 60 * 1000) return;
+  lastActivityPingAt = now;
+  admin.pingActivity();
+});
 
 init();
 </script>

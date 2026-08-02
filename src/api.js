@@ -47,6 +47,14 @@ async function apiFetch(path, { method = "GET", body } = {}) {
   return data;
 }
 
+// Fire-and-forget: fed by a global click listener in App.jsx so any real
+// interaction while logged in counts as "using the app" for the platform
+// dashboard's dormant-days figure, not just moments the app happens to be
+// loading/saving data on its own.
+function pingActivity() {
+  return apiFetch("/api/auth/activity-ping", { method: "POST" }).catch(() => {});
+}
+
 async function login(email, pin) {
   const data = await apiFetch("/api/auth/login", { method: "POST", body: { email, pin } });
   saveSession(data.token, data.employee);
@@ -262,6 +270,7 @@ export {
   restoreSession,
   logout,
   getSavedEmployee,
+  pingActivity,
   clockAction,
   startAutoSync,
   apiFetch,
