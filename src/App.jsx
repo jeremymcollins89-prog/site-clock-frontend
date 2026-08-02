@@ -1759,9 +1759,9 @@ function enhanceCanvasForDecode(ctx, width, height) {
 }
 
 function installFrameEnhancer(reader, onSharpness) {
-  const originalDraw = reader.drawFrameOnCanvas.bind(reader);
-  reader.drawFrameOnCanvas = (...args) => {
-    originalDraw(...args);
+  const originalDrawFrame = reader.drawFrameOnCanvas.bind(reader);
+  const originalDrawImage = reader.drawImageOnCanvas.bind(reader);
+  const afterDraw = () => {
     try {
       const canvas = reader.captureCanvas;
       const ctx = reader.captureCanvasContext;
@@ -1774,7 +1774,20 @@ function installFrameEnhancer(reader, onSharpness) {
       // frame instead of breaking the scan if this throws for any reason
     }
   };
+  // drawFrameOnCanvas runs for the continuous <video> preview loop;
+  // drawImageOnCanvas runs when we decodeOnce() against a still <img> (see
+  // captureStill below) -- patching both means the same contrast/sharpen
+  // boost applies no matter which source produced the frame.
+  reader.drawFrameOnCanvas = (...args) => { originalDrawFrame(...args); afterDraw(); };
+  reader.drawImageOnCanvas = (...args) => { originalDrawImage(...args); afterDraw(); };
 }
+
+// Crossing TRIGGER_HIGH while armed fires one auto-capture and disarms;
+// dropping back below ARM_LOW re-arms it. This stops a held-steady, still-
+// blurry phone from firing (and clicking) over and over -- it has to
+// actually leave and re-enter "looks sharp" territory to fire again.
+const BARCODE_CAPTURE_ARM_LOW = 35;
+const BARCODE_CAPTURE_TRIGGER_HIGH = 65;
 
 // Bottom sheet reachable from the Inventory tab's "Scan barcode" button.
 // Uses the device's own camera via ZXing's browser decoder -- no dedicated
@@ -1789,6 +1802,10 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const activeRef = useRef(false);
   const torchTrackRef = useRef(null);
   const activeTrackRef = useRef(null); // shared by tap-to-focus and the zoom slider
+  const imageCaptureRef = useRef(null);
+  const stillReaderRef = useRef(null);
+  const armedRef = useRef(true); // auto-capture arm/disarm state (see updateSharpness)
+  const capturingRef = useRef(false); // synchronous guard -- read inside closures that outlive re-renders
   const [stage, setStage] = useState("scanning"); // scanning | looking-up | matched | new-item | error
   const [scannedBarcode, setScannedBarcode] = useState("");
   const [matchedItem, setMatchedItem] = useState(null);
@@ -1805,15 +1822,21 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const [zoomValue, setZoomValue] = useState(1);
   const [sharpness, setSharpness] = useState(0); // 0-100, relative live "Focus" indicator
   const [refocusing, setRefocusing] = useState(false);
+  const [capturingPhoto, setCapturingPhoto] = useState(false);
 
   function stopScan() {
     activeRef.current = false;
     torchTrackRef.current = null;
     activeTrackRef.current = null;
+    imageCaptureRef.current = null;
+    stillReaderRef.current = null;
+    armedRef.current = true;
+    capturingRef.current = false;
     setTorchSupported(false);
     setTorchOn(false);
     setZoomCaps(null);
     setSharpness(0);
+    setCapturingPhoto(false);
     if (readerRef.current) {
       try { readerRef.current.reset(); } catch { /* already stopped */ }
       readerRef.current = null;
@@ -1917,9 +1940,66 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 
   // Squashes the raw (unbounded) edge-strength score into a 0-100 bar so it
   // always renders sensibly regardless of resolution or lighting -- this is
-  // a relative live indicator, not a calibrated measurement.
+  // a relative live indicator, not a calibrated measurement. Also drives the
+  // auto-capture arm/disarm described above captureStill.
   function updateSharpness(score) {
-    setSharpness(100 * (1 - 1 / (1 + score / 12)));
+    const pct = 100 * (1 - 1 / (1 + score / 12));
+    setSharpness(pct);
+    if (pct < BARCODE_CAPTURE_ARM_LOW) {
+      armedRef.current = true;
+    } else if (pct > BARCODE_CAPTURE_TRIGGER_HIGH && armedRef.current && !capturingRef.current) {
+      armedRef.current = false;
+      captureStill();
+    }
+  }
+
+  // The live <video> preview stream is deliberately lower-quality than the
+  // phone's actual photo-capture pipeline (the one the native Camera app
+  // uses) -- that gap is exactly why a barcode can read perfectly in the
+  // native camera but not from our preview frames. ImageCapture.takePhoto()
+  // asks the browser to trigger that same higher-quality capture pipeline
+  // instead, at the cost of a brief pause (and, on Samsung phones, an
+  // unmutable shutter click -- an OS-level privacy requirement, not a bug).
+  // Falls back to a plain single decode attempt against the current video
+  // frame if takePhoto isn't available or fails for any reason.
+  function captureStill() {
+    if (capturingRef.current || !activeRef.current) return;
+    capturingRef.current = true;
+    setCapturingPhoto(true);
+
+    const finish = (resultText) => {
+      capturingRef.current = false;
+      setCapturingPhoto(false);
+      if (resultText && activeRef.current) handleScanned(resultText);
+    };
+
+    const decodeFromLiveFrame = () => {
+      const video = videoRef.current;
+      const stillReader = stillReaderRef.current;
+      if (!video || !stillReader) { finish(null); return; }
+      stillReader.decodeOnce(video, false, false).then((result) => finish(result.getText())).catch(() => finish(null));
+    };
+
+    const capture = imageCaptureRef.current;
+    if (capture) {
+      capture
+        .takePhoto()
+        .then((blob) => {
+          const url = URL.createObjectURL(blob);
+          const img = new Image();
+          img.onload = () => {
+            URL.revokeObjectURL(url);
+            const stillReader = stillReaderRef.current;
+            if (!activeRef.current || !stillReader) { finish(null); return; }
+            stillReader.decodeOnce(img, false, false).then((result) => finish(result.getText())).catch(() => finish(null));
+          };
+          img.onerror = () => { URL.revokeObjectURL(url); decodeFromLiveFrame(); };
+          img.src = url;
+        })
+        .catch(decodeFromLiveFrame);
+    } else {
+      decodeFromLiveFrame();
+    }
   }
 
   function beginDecoding() {
@@ -1929,6 +2009,15 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     const reader = new BrowserMultiFormatReader(hints, 300);
     readerRef.current = reader;
     installFrameEnhancer(reader, updateSharpness);
+    // A separate reader for still-photo decodes: it gets its own internal
+    // capture canvas sized to whatever image it's given, instead of reusing
+    // (and being cropped by) the continuous reader's canvas, which is sized
+    // for the smaller live-preview frame.
+    const stillReader = new BrowserMultiFormatReader(hints, 300);
+    installFrameEnhancer(stillReader);
+    stillReaderRef.current = stillReader;
+    armedRef.current = true;
+    capturingRef.current = false;
     const onDecode = (result) => {
       if (!activeRef.current || !result) return;
       handleScanned(result.getText());
@@ -1945,6 +2034,11 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
         applyContinuousFocusIfSupported(track);
         setupTorchIfSupported(track);
         setupZoomIfSupported(track);
+        if (typeof ImageCapture !== "undefined" && track) {
+          try { imageCaptureRef.current = new ImageCapture(track); } catch { imageCaptureRef.current = null; }
+        } else {
+          imageCaptureRef.current = null;
+        }
       })
       .catch(onCameraError);
   }
@@ -2051,10 +2145,14 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
           <>
             <div
               onClick={handleTap}
-              style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 10, cursor: "pointer" }}
+              style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 8, cursor: "pointer", height: "38vh", maxHeight: 320 }}
               title="Tap to refocus"
             >
-              <video ref={videoRef} muted playsInline style={{ width: "100%", display: "block" }} />
+              {/* Phones often return a portrait (tall) camera stream -- capping the
+                  box height and cropping with objectFit instead of sizing off the
+                  video's native aspect ratio keeps the rest of the controls
+                  (zoom, focus meter, status) on screen without scrolling. */}
+              <video ref={videoRef} muted playsInline style={{ width: "100%", height: "100%", display: "block", objectFit: "cover" }} />
               {torchSupported && (
                 <button
                   onClick={(e) => { e.stopPropagation(); toggleTorch(); }}
@@ -2086,12 +2184,22 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
                 <div style={{ height: "100%", width: `${sharpness.toFixed(0)}%`, background: TEAL, transition: "width 0.15s linear" }} />
               </div>
             </div>
+            <button
+              onClick={captureStill}
+              disabled={capturingPhoto}
+              style={{ background: TEAL, color: "#fff", opacity: capturingPhoto ? 0.6 : 1 }}
+              className="w-full rounded-lg py-2 text-xs font-medium mb-2"
+            >
+              {capturingPhoto ? "Capturing..." : "Capture photo"}
+            </button>
             <p className="text-xs text-center" style={{ color: "#8A8578" }}>
-              {refocusing
-                ? "Refocusing..."
-                : stage === "looking-up"
-                  ? `Looking up ${scannedBarcode}...`
-                  : "Point the camera at a barcode and hold steady. Tap the video to refocus, and watch the Focus bar fill in as it sharpens."}
+              {capturingPhoto
+                ? "Capturing a clear photo..."
+                : refocusing
+                  ? "Refocusing..."
+                  : stage === "looking-up"
+                    ? `Looking up ${scannedBarcode}...`
+                    : "Point the camera at a barcode and hold steady. Tap the video to refocus, or tap Capture photo to grab a sharp still -- the Focus bar fills in as it sharpens and will auto-capture once it's high."}
             </p>
           </>
         )}
