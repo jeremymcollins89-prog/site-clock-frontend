@@ -46,6 +46,8 @@
     --surface: #FFFFFF;
     --input-bg: #FBFAF7;
     --muted: #8A8578;
+    --danger: #B4231F;
+    --success: #2B6E5C;
   }
   [data-theme="night"] {
     --ink: #F4F2ED;
@@ -60,6 +62,8 @@
     --teal-deep: #3E7161;
     --rust: #E8754C;
     --rust-deep: #C25730;
+    --danger: #E0574A;
+    --success: #4FAE8C;
   }
   * { box-sizing: border-box; }
   html, body {
@@ -1086,7 +1090,7 @@
     <input id="edit-emp-state" placeholder="CO" />
     <label>Zip</label>
     <input id="edit-emp-zip" placeholder="80202" style="margin-bottom:16px;" />
-    <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:16px;">
+    <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:16px;">
       <input type="checkbox" id="edit-emp-inventory-permission" style="width:16px; height:16px; margin:0;" />
       Inventory permissions -- can scan barcodes and edit inventory from their own app
     </label>
@@ -1096,31 +1100,31 @@
 
 <div class="anim-popover" id="anim-popover">
   <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); font-weight:700; margin-bottom:10px;">Clock-in animations</div>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="none" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     No animation
   </label>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="fireworks" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Fireworks celebration
   </label>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="birthday" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Happy Birthday celebration
   </label>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="rocket" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Rocket Launch
   </label>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="fall" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Fall / Thanksgiving
   </label>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="easter" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Spring / Easter
   </label>
-  <label style="font-size:13px; color:#1F2421; display:flex; align-items:center; gap:8px; cursor:pointer;">
+  <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer;">
     <input type="radio" name="anim-popover-choice" value="christmas" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Christmas / Winter
   </label>
@@ -1187,14 +1191,14 @@
         <a id="route-maps-link" href="#" target="_blank" class="btn-secondary" style="width:auto; text-decoration:none; display:inline-block; text-align:center;">Preview in Google Maps</a>
         <button class="btn-primary" style="width:auto;" onclick="sendCurrentRoute()">Send route</button>
         <button class="btn-secondary" style="width:auto;" onclick="reoptimizeCurrentRoute()">Re-optimize</button>
-        <button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="deleteCurrentRoute()">Delete route</button>
+        <button class="btn-secondary" style="width:auto; color:var(--danger); border-color:var(--danger);" onclick="deleteCurrentRoute()">Delete route</button>
       </div>
       <div id="route-stops-list"></div>
     </div>
 
     <p style="font-size:11px; color:var(--muted); margin:14px 0 4px;">
       <span style="color:#1E88FF;">&#9679;</span> on-the-clock employees &nbsp;
-      <span style="color:#2B6E5C;">&#9679;</span> shop &nbsp;
+      <span style="color:var(--success);">&#9679;</span> shop &nbsp;
       <span style="color:#C1502E;">&#9679;</span> route stops
     </p>
     <div id="route-map" style="height:260px; border-radius:10px; border:1.5px solid var(--line);"></div>
@@ -3115,7 +3119,7 @@ function renderTimeOffPending() {
           note +
         '</div>' +
         '<div style="display:flex; gap:8px;">' +
-          '<button class="btn-secondary" style="width:auto; color:#B4231F; border-color:#B4231F;" onclick="reviewTimeOff(\'' + r.id + '\', \'denied\')">Deny</button>' +
+          '<button class="btn-secondary" style="width:auto; color:var(--danger); border-color:var(--danger);" onclick="reviewTimeOff(\'' + r.id + '\', \'denied\')">Deny</button>' +
           '<button class="btn-primary" style="width:auto;" onclick="reviewTimeOff(\'' + r.id + '\', \'approved\')">Approve</button>' +
         '</div>' +
       '</div>' +
@@ -3133,13 +3137,13 @@ function renderTimeOffHistory() {
     return;
   }
   wrap.innerHTML = reviewed.map(function(r) {
-    const statusColor = r.status === "approved" ? "#2B6E5C" : "#B4231F";
+    const statusColor = r.status === "approved" ? "var(--success)" : "var(--danger)";
     const note = r.note ? '<div style="font-size:12px; color:var(--muted); margin-top:2px;">' + escapeHtml(r.note) + '</div>' : "";
     return '<div style="padding:8px 0; border-bottom:1px solid var(--line);">' +
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
         '<div>' +
           '<span style="font-weight:600;">' + escapeHtml(r.employee_name) + '</span>' +
-          '<span style="font-size:13px; color:#5B5647;"> · ' + escapeHtml(formatTimeOffRange(r)) + '</span>' +
+          '<span style="font-size:13px; color:var(--ink);"> · ' + escapeHtml(formatTimeOffRange(r)) + '</span>' +
         '</div>' +
         '<span style="font-size:12px; font-weight:600; color:' + statusColor + ';">' + (r.status === "approved" ? "Approved" : "Denied") + '</span>' +
       '</div>' +
@@ -3240,7 +3244,7 @@ function renderRouteCandidatesList(candidates) {
     // address on file but haven't successfully looked up its map coordinates
     // yet (most often a customer added before route-building existed). The
     // retry button below fixes this without touching the Customers tab.
-    const note = disabled ? ' <span style="color:#B4231F; font-size:11px;">(address not yet located on the map)</span>' : "";
+    const note = disabled ? ' <span style="color:var(--danger); font-size:11px;">(address not yet located on the map)</span>' : "";
     return '<label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; ' +
       (disabled ? 'opacity:0.5;' : '') + '">' +
       '<input type="checkbox" data-idx="' + i + '" class="route-candidate-check" ' + (disabled ? 'disabled' : 'checked') + ' />' +
@@ -3352,7 +3356,7 @@ function renderRouteStopsList(route) {
       '<span style="flex:1; font-size:13px;">' + escapeHtml(stop.title) + ' &middot; ' + escapeHtml(stop.address_label || "") + '</span>' +
       '<button class="btn-secondary" style="width:auto; padding:4px 8px;" ' + (i === 0 ? "disabled" : "") + ' onclick="moveRouteStop(' + i + ', -1)">&uarr;</button>' +
       '<button class="btn-secondary" style="width:auto; padding:4px 8px;" ' + (i === route.stops.length - 1 ? "disabled" : "") + ' onclick="moveRouteStop(' + i + ', 1)">&darr;</button>' +
-      '<button class="btn-secondary" style="width:auto; padding:4px 8px; color:#B4231F; border-color:#B4231F;" onclick="removeRouteStop(\'' + stop.id + '\')">Remove</button>' +
+      '<button class="btn-secondary" style="width:auto; padding:4px 8px; color:var(--danger); border-color:var(--danger);" onclick="removeRouteStop(\'' + stop.id + '\')">Remove</button>' +
       '</div>';
   }).join("");
 }
@@ -3458,7 +3462,7 @@ async function refreshRouteMap() {
     const shopLoc = await admin.getShopLocation();
     if (shopLoc && shopLoc.shop_lat != null && shopLoc.shop_lng != null) {
       shop = { lat: shopLoc.shop_lat, lng: shopLoc.shop_lng };
-      L.marker([shop.lat, shop.lng], { icon: routeStopIcon("S", "#2B6E5C") }).bindTooltip("Shop").addTo(routeMapLayer);
+      L.marker([shop.lat, shop.lng], { icon: routeStopIcon("S", "var(--success)") }).bindTooltip("Shop").addTo(routeMapLayer);
       points.push([shop.lat, shop.lng]);
     }
   } catch (err) { /* no shop location set yet -- fine, just skip that marker */ }
@@ -3699,7 +3703,7 @@ function renderPendingJobAttachments() {
       '<span style="font-size:13px;">' + escapeHtml(file.name) + '</span>' +
       '<span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">' +
         '<span style="font-size:11px; color:var(--muted);">' + formatFileSize(file.size) + '</span>' +
-        '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:#B4231F; border-color:#B4231F;" ' +
+        '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:var(--danger); border-color:var(--danger);" ' +
           'onclick="removePendingJobAttachment(' + idx + ')">Remove</button>' +
       '</span>' +
     '</div>';
@@ -3746,13 +3750,13 @@ async function renderAttachmentsList(containerId, entityType, entityId) {
         '</span>' +
         '<span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">' +
           '<span style="font-size:11px; color:var(--muted);">' + formatFileSize(a.file_size) + '</span>' +
-          '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:#B4231F; border-color:#B4231F;" ' +
+          '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:var(--danger); border-color:var(--danger);" ' +
             'onclick="deleteAttachmentFile(\'' + a.id + '\', \'' + entityType + '\', \'' + entityId + '\', \'' + containerId + '\')">Remove</button>' +
         '</span>' +
       '</div>';
     }).join("");
   } catch (err) {
-    container.innerHTML = '<p style="font-size:12px; color:#B4231F;">Couldn\'t load attachments.</p>';
+    container.innerHTML = '<p style="font-size:12px; color:var(--danger);">Couldn\'t load attachments.</p>';
   }
 }
 
@@ -4594,7 +4598,7 @@ function renderBillingPaymentBreakdown(data) {
     '<svg viewBox="0 0 ' + size + ' ' + size + '" style="width:170px; height:170px; flex-shrink:0;">' +
       '<circle cx="' + (size / 2) + '" cy="' + (size / 2) + '" r="' + radius + '" fill="none" stroke="#EDEAE1" stroke-width="' + strokeWidth + '" />' +
       segments +
-      '<text x="' + (size / 2) + '" y="' + (size / 2 - 6) + '" text-anchor="middle" font-size="17" font-weight="800" fill="#1F2421">' + fmtMoney(paidTotal) + '</text>' +
+      '<text x="' + (size / 2) + '" y="' + (size / 2 - 6) + '" text-anchor="middle" font-size="17" font-weight="800" fill="var(--ink)">' + fmtMoney(paidTotal) + '</text>' +
       '<text x="' + (size / 2) + '" y="' + (size / 2 + 15) + '" text-anchor="middle" font-size="12" fill="#8A8578">' +
         paymentCount + (paymentCount === 1 ? " payment" : " payments") +
       '</text>' +
@@ -6049,7 +6053,7 @@ function renderMonthlyProfitChart(months) {
       '<rect x="' + x + '" y="' + y + '" width="' + barWidth + '" height="' + Math.max(barH, 1.5) + '" rx="3" fill="' + fill + '">' +
         '<title>' + fmtMoney(value) + '</title>' +
       '</rect>' +
-      '<text x="' + (x + barWidth / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="10" font-weight="700" fill="#1F2421">' + labelText + '</text>' +
+      '<text x="' + (x + barWidth / 2) + '" y="' + labelY + '" text-anchor="middle" font-size="10" font-weight="700" fill="var(--ink)">' + labelText + '</text>' +
     '</g>';
   }
 
@@ -6059,14 +6063,14 @@ function renderMonthlyProfitChart(months) {
     const startX = groupX + (groupW - pairW) / 2;
     const prev = i > 0 ? months[i - 1] : null;
     return bar(startX, m.gross_profit, prev ? prev.gross_profit : null, "#F4B04C") +
-      bar(startX + barWidth + barGap, m.net_profit, prev ? prev.net_profit : null, "#2B6E5C") +
+      bar(startX + barWidth + barGap, m.net_profit, prev ? prev.net_profit : null, "var(--success)") +
       '<text x="' + (groupX + groupW / 2) + '" y="' + (height - 10) + '" text-anchor="middle" font-size="12" fill="#8A8578">' + m.label + '</text>';
   }).join("");
 
   const legend =
-    '<div style="display:flex; gap:16px; justify-content:center; margin-bottom:4px; font-size:12px; color:#4A4A42;">' +
+    '<div style="display:flex; gap:16px; justify-content:center; margin-bottom:4px; font-size:12px; color:var(--ink);">' +
       '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#F4B04C; margin-right:5px;"></span>Gross Profit</span>' +
-      '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#2B6E5C; margin-right:5px;"></span>Net Profit</span>' +
+      '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:var(--success); margin-right:5px;"></span>Net Profit</span>' +
     '</div>';
 
   if (!months.length) {
