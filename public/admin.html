@@ -6629,12 +6629,12 @@ async function deletePullSheetConfirm(id) {
 // an employee actually reported (and Fulfill/Cancel from there) without
 // having to print the PDF just to check.
 async function viewPullSheetDetail(id) {
-  const errEl = document.getElementById("pull-sheet-modal-error");
+  const errEl = document.getElementById("pull-sheet-sheet-error");
   errEl.style.display = "none";
   document.getElementById("pull-sheet-picker-step").style.display = "none";
   document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "none";
-  document.getElementById("pull-sheet-modal").classList.add("visible");
+  document.getElementById("pull-sheet-sheet").classList.add("visible");
   try {
     const sheet = await admin.getPullSheet(id);
     currentPullSheetId = sheet.id;
