@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode } from "lucide-react";
-import { BrowserMultiFormatReader } from "@zxing/library";
+import { BrowserMultiFormatReader, DecodeHintType } from "@zxing/library";
 import {
   login,
   restoreSession,
@@ -1691,24 +1691,49 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     setCostInput("");
   }
 
+  // Requests a higher-resolution rear-camera stream with continuous autofocus
+  // instead of letting the browser pick its own (often low-res, fixed-focus)
+  // default -- that default is usually fine on a laptop webcam but produces
+  // blurry up-close video on phones, which is exactly where barcode scanning
+  // needs sharp focus. TRY_HARDER tells ZXing to spend more effort decoding a
+  // less-than-perfect frame instead of giving up immediately.
+  function beginDecoding() {
+    activeRef.current = true;
+    const hints = new Map();
+    hints.set(DecodeHintType.TRY_HARDER, true);
+    const reader = new BrowserMultiFormatReader(hints, 150);
+    readerRef.current = reader;
+    const constraints = {
+      video: {
+        facingMode: { ideal: "environment" },
+        width: { ideal: 1920 },
+        height: { ideal: 1080 },
+        advanced: [{ focusMode: "continuous" }],
+      },
+    };
+    const onDecode = (result) => {
+      if (!activeRef.current || !result) return;
+      handleScanned(result.getText());
+    };
+    const onCameraError = (err) => {
+      setStage("error");
+      setError("Couldn't access the camera: " + (err.message || "permission denied."));
+    };
+    reader.decodeFromConstraints(constraints, videoRef.current, onDecode).catch(() => {
+      // A handful of older browsers reject the whole request if any part of
+      // "advanced" isn't understood, rather than just ignoring that part --
+      // fall back to a plainer rear-camera request so the user isn't stuck.
+      reader.decodeFromConstraints({ video: { facingMode: { ideal: "environment" } } }, videoRef.current, onDecode).catch(onCameraError);
+    });
+  }
+
   useEffect(() => {
     if (!open) {
       stopScan();
       return;
     }
     resetToScanning();
-    activeRef.current = true;
-    const reader = new BrowserMultiFormatReader();
-    readerRef.current = reader;
-    reader
-      .decodeFromVideoDevice(undefined, videoRef.current, (result) => {
-        if (!activeRef.current || !result) return;
-        handleScanned(result.getText());
-      })
-      .catch((err) => {
-        setStage("error");
-        setError("Couldn't access the camera: " + (err.message || "permission denied."));
-      });
+    beginDecoding();
     return () => stopScan();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open]);
@@ -1736,18 +1761,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 
   function scanAgain() {
     resetToScanning();
-    activeRef.current = true;
-    const reader = new BrowserMultiFormatReader();
-    readerRef.current = reader;
-    reader
-      .decodeFromVideoDevice(undefined, videoRef.current, (result) => {
-        if (!activeRef.current || !result) return;
-        handleScanned(result.getText());
-      })
-      .catch((err) => {
-        setStage("error");
-        setError("Couldn't access the camera: " + (err.message || "permission denied."));
-      });
+    beginDecoding();
   }
 
   async function submitRestock() {
@@ -1815,9 +1829,20 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
           <>
             <div style={{ position: "relative", background: "#000", borderRadius: 12, overflow: "hidden", marginBottom: 10 }}>
               <video ref={videoRef} muted playsInline style={{ width: "100%", display: "block" }} />
+              <div style={{ position: "absolute", inset: 0, pointerEvents: "none", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <div
+                  style={{
+                    width: "78%", maxWidth: 340, height: "38%",
+                    border: "2px solid rgba(255,255,255,0.6)", borderRadius: 10,
+                    position: "relative", boxShadow: "0 0 0 2000px rgba(0,0,0,0.35)",
+                  }}
+                >
+                  <div className="barcode-scan-reticle-line" />
+                </div>
+              </div>
             </div>
             <p className="text-xs text-center" style={{ color: "#8A8578" }}>
-              {stage === "looking-up" ? `Looking up ${scannedBarcode}...` : "Point the camera at a barcode..."}
+              {stage === "looking-up" ? `Looking up ${scannedBarcode}...` : "Hold the barcode flat, fill the box, and move closer/farther until it's sharp..."}
             </p>
           </>
         )}
