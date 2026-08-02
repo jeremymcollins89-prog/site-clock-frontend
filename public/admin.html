@@ -6346,7 +6346,8 @@ function renderInventorySettingsList() {
             'onblur="saveInventoryField(\'' + item.id + '\', \'unit_cost\', this.value)" /></td>' +
           '<td><input type="number" min="0" step="1" class="inv-grid-input" data-col="threshold" placeholder="Off" value="' + threshold + '" style="width:90px;" ' +
             'onblur="saveInventoryField(\'' + item.id + '\', \'low_stock_threshold\', this.value)" /></td>' +
-          '<td><span class="inv-row-status" id="inv-status-' + item.id + '" style="font-size:11px;"></span></td>' +
+          '<td style="white-space:nowrap;"><span class="inv-row-status" id="inv-status-' + item.id + '" style="font-size:11px;"></span>' +
+            '<button class="btn-small" style="background:#C1502E;" onclick="deleteInventoryItemConfirm(\'' + item.id + '\')">Delete</button></td>' +
         '</tr>';
       }).join("") +
       '</tbody>' +
@@ -6410,6 +6411,30 @@ async function saveInventoryField(itemId, field, rawValue) {
       statusEl.textContent = err.message || "Error";
       statusEl.style.color = "var(--rust)";
     }
+  }
+}
+
+// Fully removes the catalog item (same DELETE used by the plain Catalog tab)
+// -- for when an item is discontinued, not just out of stock. Existing
+// invoices/quotes/pull sheets that already reference it keep their stored
+// name/quantity/price untouched (the link is just cleared), but any *open*
+// quote/invoice/pull sheet currently holding stock against it will no longer
+// show that hold once it's gone, so the confirm warns if quantity_on_hold > 0
+// rather than letting that happen silently.
+async function deleteInventoryItemConfirm(id) {
+  const item = (window.allCatalogItems || []).find(function(i) { return i.id === id; });
+  const onHold = item ? Number(item.quantity_on_hold || 0) : 0;
+  const warning = onHold > 0
+    ? " It currently has " + onHold + " unit(s) on hold from an open quote, invoice, or pull sheet -- those will no longer show this hold once it's deleted."
+    : "";
+  if (!confirm('Delete "' + (item ? item.name : "this item") + '" entirely? This can\'t be undone.' + warning)) return;
+  try {
+    await admin.deleteCatalogItem(id);
+    await loadCatalogItems();
+    renderInventorySettingsList();
+    if (document.getElementById("inventory-items-body")) loadInventory();
+  } catch (err) {
+    alert(err.message || "Couldn't delete this item.");
   }
 }
 
