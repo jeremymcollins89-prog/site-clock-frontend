@@ -485,7 +485,7 @@
         </div>
         <input type="file" id="customer-import-input" accept=".csv,text/csv" style="display:none;" onchange="handleCustomerImportFile(event)" />
         <p style="font-size:11px; color:#8A8578; margin:8px 0 0;">
-          Import expects a CSV with a Name column (Phone, Email, Street, City, State, Zip, Notes are optional). Rows matching an existing customer's name are skipped.
+          Import expects a CSV with a Name column (Company Name, Phone, Email, Street, City, State, Zip, Notes are optional). Rows matching an existing customer's name are skipped.
         </p>
       </div>
       <input id="customer-search-input" placeholder="Search by name..." oninput="renderCustomersList()" />
@@ -3393,7 +3393,8 @@ function renderDayJobCard(j) {
       '<span class="type-badge">' + (EVENT_TYPE_LABELS[j.event_type] || "Job") + '</span>' +
     '</div>' +
     (j.customer_name ? '<div style="font-size:12px; color:#8A8578; margin-top:6px;">' +
-      '<strong>' + escapeHtml(j.customer_name) + '</strong>' +
+      '<strong>' + escapeHtml(j.customer_company_name || j.customer_name) + '</strong>' +
+      (j.customer_company_name ? '<br/>' + escapeHtml(j.customer_name) : "") +
       (j.customer_phone ? '<br/><a class="link" href="' + escapeHtml(telUrl(j.customer_phone)) + '">' + escapeHtml(j.customer_phone) + '</a>' : "") +
       (jobAddress ? '<br/><a class="link" href="' + escapeHtml(mapsUrl(jobAddress)) + '" target="_blank">' + escapeHtml(jobAddress) + '</a>' : "") +
     '</div>' : '') +
@@ -3737,8 +3738,10 @@ function renderJobCustomerDropdown() {
 
   const rows = matches.slice(0, 30).map(function(c) {
     return '<div style="padding:8px 10px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
-      'onclick="selectJobCustomer(\'' + c.id + '\')">' + escapeHtml(c.name) +
-      (c.company_name ? ' <span style="color:#8A8578;">&middot; ' + escapeHtml(c.company_name) + '</span>' : '') +
+      'onclick="selectJobCustomer(\'' + c.id + '\')">' +
+      (c.company_name
+        ? escapeHtml(c.company_name) + ' <span style="color:#8A8578;">&middot; ' + escapeHtml(c.name) + '</span>'
+        : escapeHtml(c.name)) +
       '</div>';
   });
 
@@ -3888,7 +3891,8 @@ async function loadCustomers() {
 
 // ---------- Customer CSV import/export ----------
 const CUSTOMER_CSV_FIELD_ALIASES = {
-  name: ["name", "full name", "customer", "customer name", "company", "company name"],
+  name: ["name", "full name", "customer", "customer name"],
+  company_name: ["company", "company name", "business", "business name"],
   phone: ["phone", "phone number", "mobile", "cell", "cell phone"],
   email: ["email", "email address"],
   street: ["street", "address", "address1", "address 1", "street address"],
@@ -4010,11 +4014,11 @@ function exportCustomersCsv() {
     alert("No customers to export yet.");
     return;
   }
-  const headers = ["Name", "Phone", "Email", "Street", "City", "State", "Zip", "Notes"];
+  const headers = ["Name", "Company Name", "Phone", "Email", "Street", "City", "State", "Zip", "Notes"];
   const lines = [headers.join(",")];
   customers.forEach(function(c) {
     lines.push([
-      csvEscape(c.name), csvEscape(c.phone), csvEscape(c.email), csvEscape(c.street),
+      csvEscape(c.name), csvEscape(c.company_name), csvEscape(c.phone), csvEscape(c.email), csvEscape(c.street),
       csvEscape(c.city), csvEscape(c.state), csvEscape(c.zip), csvEscape(c.notes),
     ].join(","));
   });
@@ -4050,8 +4054,10 @@ function renderCustomersList() {
       (c.email ? '<div style="font-size:12.5px;"><a class="link" href="mailto:' + escapeHtml(c.email) + '">' + escapeHtml(c.email) + '</a></div>' : "") +
       (fullAddress ? '<div style="font-size:12.5px;"><a class="link" href="' + escapeHtml(mapsUrl(fullAddress)) + '" target="_blank">' + escapeHtml(fullAddress) + '</a></div>' : "");
     return '<div class="card">' +
-      '<strong>' + escapeHtml(c.name) + '</strong>' +
-      (c.company_name ? '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(c.company_name) + '</div>' : '') +
+      (c.company_name ?
+        '<strong>' + escapeHtml(c.company_name) + '</strong>' +
+        '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(c.name) + '</div>'
+        : '<strong>' + escapeHtml(c.name) + '</strong>') +
       details +
       (c.notes ? '<div style="font-size:12px; color:#8A8578; margin-top:4px;">' + escapeHtml(c.notes) + '</div>' : '') +
       '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">' +
@@ -4257,7 +4263,7 @@ async function openCustomerHistorySheet(id) {
   }).join("");
 
   document.getElementById("customer-history-content").innerHTML =
-    '<h2 style="margin-top:0; font-size:18px;">' + escapeHtml(customer.name) + '</h2>' +
+    '<h2 style="margin-top:0; font-size:18px;">' + escapeHtml(customerDisplayName(customer.name, customer.company_name)) + '</h2>' +
     '<p style="font-size:12px; color:#8A8578; margin-top:-8px;">Appointments and invoices</p>' +
     (rows || '<p style="color:#8A8578; font-size:13px;">Nothing on file for this customer yet.</p>');
 
@@ -4594,7 +4600,7 @@ async function renderTransactionsList() {
     return '<div class="card">' +
       '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
         '<div>' +
-          '<strong>' + escapeHtml(p.customer_name) + '</strong><br/>' +
+          '<strong>' + escapeHtml(customerDisplayName(p.customer_name, p.customer_company_name)) + '</strong><br/>' +
           '<span style="font-size:12px; color:#8A8578;">Invoice #' + p.invoice_number + '</span>' +
         '</div>' +
         '<strong>' + fmtMoney(p.amount) + '</strong>' +
@@ -4617,6 +4623,7 @@ function onInvoicesSearchInput() {
 
 function invoiceMatchesTerm(inv, term) {
   return inv.customer_name.toLowerCase().indexOf(term) !== -1 ||
+    (inv.customer_company_name || "").toLowerCase().indexOf(term) !== -1 ||
     String(inv.invoice_number).indexOf(term) !== -1;
 }
 
@@ -4636,7 +4643,7 @@ function renderInvoicesSearchDropdown() {
     dropdown.innerHTML = matches.map(function(inv) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectInvoicesSearchResult(\'' + inv.id + '\')">' +
-        '<div style="font-weight:600; font-size:13px;">Invoice #' + inv.invoice_number + ' &middot; ' + escapeHtml(inv.customer_name) + '</div>' +
+        '<div style="font-weight:600; font-size:13px;">Invoice #' + inv.invoice_number + ' &middot; ' + escapeHtml(customerDisplayName(inv.customer_name, inv.customer_company_name)) + '</div>' +
         '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(inv.total) + '</div>' +
       '</div>';
     }).join("");
@@ -4700,7 +4707,7 @@ function renderInvoicesList() {
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) +
-        '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(inv.customer_name) + '</div>' +
+        '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(customerDisplayName(inv.customer_name, inv.customer_company_name)) + '</div>' +
         '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
           PAYMENT_TERMS_LABELS[inv.payment_terms] + ' &middot; Due ' + inv.due_date.slice(0, 10) +
         '</div>' +
@@ -4812,7 +4819,7 @@ async function openInvoiceSheet(invoiceId) {
 
   const customers = window.allCustomers || [];
   document.getElementById("invoice-customer-input").innerHTML =
-    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
+    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(customerDisplayName(c.name, c.company_name)) + '</option>'; }).join("");
   document.getElementById("invoice-customer-input").value = invoice ? invoice.customer_id : (customers[0] ? customers[0].id : "");
 
   document.getElementById("invoice-terms-input").value = invoice ? invoice.payment_terms : "due_on_receipt";
@@ -5158,6 +5165,7 @@ function onQuotesSearchInput() {
 
 function quoteMatchesTerm(q, term) {
   return q.customer_name.toLowerCase().indexOf(term) !== -1 ||
+    (q.customer_company_name || "").toLowerCase().indexOf(term) !== -1 ||
     String(q.quote_number).indexOf(term) !== -1;
 }
 
@@ -5177,7 +5185,7 @@ function renderQuotesSearchDropdown() {
     dropdown.innerHTML = matches.map(function(q) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectQuotesSearchResult(\'' + q.id + '\')">' +
-        '<div style="font-weight:600; font-size:13px;">Quote #' + q.quote_number + ' &middot; ' + escapeHtml(q.customer_name) + '</div>' +
+        '<div style="font-weight:600; font-size:13px;">Quote #' + q.quote_number + ' &middot; ' + escapeHtml(customerDisplayName(q.customer_name, q.customer_company_name)) + '</div>' +
         '<div style="font-size:11px; color:#8A8578;">' + fmtMoney(q.total) + '</div>' +
       '</div>';
     }).join("");
@@ -5241,7 +5249,7 @@ function renderQuotesList() {
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Quote #' + q.quote_number + '</strong> ' + quoteStatusBadge(q) +
-        '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(q.customer_name) + '</div>' +
+        '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(customerDisplayName(q.customer_name, q.customer_company_name)) + '</div>' +
         '<div style="font-size:12px; color:#8A8578; margin-top:2px;">' +
           (q.expiration_date ? 'Valid until ' + q.expiration_date.slice(0, 10) : 'No expiration set') +
         '</div>' +
@@ -5394,7 +5402,7 @@ async function openQuoteSheet(quoteId) {
 
   const customers = window.allCustomers || [];
   document.getElementById("quote-customer-input").innerHTML =
-    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(c.name) + '</option>'; }).join("");
+    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(customerDisplayName(c.name, c.company_name)) + '</option>'; }).join("");
   document.getElementById("quote-customer-input").value = quote ? quote.customer_id : (customers[0] ? customers[0].id : "");
 
   document.getElementById("quote-issue-date-input").value = quote ? quote.issue_date.slice(0, 10) : todayStr();
@@ -6008,7 +6016,7 @@ function renderInvoiceBreakdownRows(start, end, mode) {
     const dateLabel = mode === "invoiced" ? (inv.issue_date || "").slice(0, 10) : inv.paid_at.slice(0, 10);
     return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer;" ' +
       'onclick="closeReportBreakdownSheet(); viewInvoicePdf(\'' + inv.id + '\');">' +
-      '<span>#' + inv.invoice_number + ' &middot; ' + escapeHtml(inv.customer_name) + ' &middot; ' + dateLabel + '</span>' +
+      '<span>#' + inv.invoice_number + ' &middot; ' + escapeHtml(customerDisplayName(inv.customer_name, inv.customer_company_name)) + ' &middot; ' + dateLabel + '</span>' +
       '<span>' + fmtMoney(inv.total) + '</span>' +
     '</div>';
   }).join("");
@@ -6205,7 +6213,7 @@ function renderItemHoldsList(holds) {
         '<strong>' + escapeHtml(h.label || "") + '</strong>' +
         '<span style="font-size:12px; color:#8A8578;">' + h.quantity + ' held</span>' +
       '</div>' +
-      '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(h.customer_name || "") + '</div>' +
+      '<div style="font-size:12px; color:#8A8578;">' + escapeHtml(customerDisplayName(h.customer_name, h.customer_company_name) || "") + '</div>' +
     '</div>';
   }).join("");
 }
@@ -6396,7 +6404,7 @@ async function loadPullSheets() {
           : '');
       return '<tr>' +
         '<td>' + escapeHtml(s.source_label || "") + '</td>' +
-        '<td>' + escapeHtml(s.customer_name || "") + '</td>' +
+        '<td>' + escapeHtml(customerDisplayName(s.customer_name, s.customer_company_name) || "") + '</td>' +
         '<td>' + s.item_count + '</td>' +
         '<td>' + statusBadge + '</td>' +
         '<td style="white-space:nowrap;">' + actions + '</td>' +
@@ -6424,8 +6432,8 @@ async function renderPullSheetSourceList() {
   try {
     const sources = await admin.getPullSheetSources();
     const rows = [].concat(
-      sources.quotes.map(function(q) { return { source_type: "quote", id: q.id, label: "Quote #" + q.number, customer_name: q.customer_name }; }),
-      sources.invoices.map(function(i) { return { source_type: "invoice", id: i.id, label: "Invoice #" + i.number, customer_name: i.customer_name }; })
+      sources.quotes.map(function(q) { return { source_type: "quote", id: q.id, label: "Quote #" + q.number, customer_name: q.customer_name, customer_company_name: q.customer_company_name }; }),
+      sources.invoices.map(function(i) { return { source_type: "invoice", id: i.id, label: "Invoice #" + i.number, customer_name: i.customer_name, customer_company_name: i.customer_company_name }; })
     );
     if (rows.length === 0) {
       list.innerHTML = '<p style="font-size:12px; color:#8A8578;">No open quotes or invoices have inventory-tracked items left to pull.</p>';
@@ -6434,7 +6442,7 @@ async function renderPullSheetSourceList() {
     list.innerHTML = rows.map(function(r) {
       return '<div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;" ' +
         'onclick="selectPullSheetSource(\'' + r.source_type + '\', \'' + r.id + '\')">' +
-        '<div><strong>' + escapeHtml(r.label) + '</strong><div style="font-size:12px; color:#8A8578;">' + escapeHtml(r.customer_name) + '</div></div>' +
+        '<div><strong>' + escapeHtml(r.label) + '</strong><div style="font-size:12px; color:#8A8578;">' + escapeHtml(customerDisplayName(r.customer_name, r.customer_company_name)) + '</div></div>' +
         '<span style="color:#8A8578;">&rsaquo;</span>' +
       '</div>';
     }).join("");
@@ -6557,7 +6565,7 @@ function renderPullSheetDetailStep(sheet) {
   const statusLabel = sheet.status === "fulfilled" ? " -- fulfilled"
     : sheet.status === "pulled" ? " -- reported by employee, not yet fulfilled"
     : " -- not yet fulfilled";
-  document.getElementById("pull-sheet-detail-header").textContent = (sheet.customer_name || "") + statusLabel;
+  document.getElementById("pull-sheet-detail-header").textContent = customerDisplayName(sheet.customer_name, sheet.customer_company_name) + statusLabel;
   document.getElementById("pull-sheet-detail-items").innerHTML = (sheet.items || []).map(function(item) {
     const pulled = item.quantity_pulled == null ? '<span style="color:#8A8578;">--</span>' : item.quantity_pulled;
     return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td><td>' + pulled + '</td></tr>';
@@ -7446,6 +7454,14 @@ function escapeHtml(str) {
   return String(str == null ? "" : str).replace(/[&<>"']/g, function(c) {
     return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
   });
+}
+
+// Company name shows first whenever a customer has one -- the person's name
+// becomes secondary. Used for any compact, single-line rendering of a
+// customer (dropdown options, inline labels, tooltips). Plain text, not
+// HTML-escaped -- caller escapes if inserting into innerHTML.
+function customerDisplayName(name, companyName) {
+  return companyName ? (companyName + " (" + (name || "") + ")") : (name || "");
 }
 
 let chatThreads = [];
