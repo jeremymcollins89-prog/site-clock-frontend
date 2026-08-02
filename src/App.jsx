@@ -6,6 +6,8 @@ import {
   restoreSession,
   logout,
   pingActivity,
+  submitSnakeScore,
+  getSnakeLeaderboard,
   clockAction,
   startAutoSync,
   apiFetch,
@@ -517,9 +519,22 @@ function SnakeGame({ open, onClose }) {
   const nextDirRef = useRef({ x: 1, y: 0 });
   const foodRef = useRef({ x: 10, y: 7 });
   const touchStartRef = useRef(null);
+  const scoreRef = useRef(0); // mirrors `score` state so the game-over handler (inside a
+  // setInterval closure that only gets recreated when `open`/`gameOver`
+  // change, not on every point scored) always has the true current score
+  // instead of whatever value was captured when the interval was created.
   const [score, setScore] = useState(0);
   const [best, setBest] = useState(() => Number(localStorage.getItem(SNAKE_BEST_KEY) || 0));
   const [gameOver, setGameOver] = useState(false);
+  const [leaderboard, setLeaderboard] = useState([]);
+
+  function loadLeaderboard() {
+    getSnakeLeaderboard().then(setLeaderboard).catch(() => {});
+  }
+
+  useEffect(() => {
+    if (open) loadLeaderboard();
+  }, [open]);
 
   function draw() {
     const canvas = canvasRef.current;
@@ -541,6 +556,7 @@ function SnakeGame({ open, onClose }) {
     dirRef.current = { x: 1, y: 0 };
     nextDirRef.current = { x: 1, y: 0 };
     foodRef.current = snakeRandomFood(startSnake);
+    scoreRef.current = 0;
     setScore(0);
     setGameOver(false);
   }
@@ -566,6 +582,13 @@ function SnakeGame({ open, onClose }) {
       const hitSelf = snakeRef.current.some((seg) => seg.x === newHead.x && seg.y === newHead.y);
       if (hitWall || hitSelf) {
         setGameOver(true);
+        // Fire-and-forget: submit whatever the run's final score was (the
+        // backend takes GREATEST against their existing best, so this is
+        // safe to call even on a worse-than-usual run), then refresh the
+        // board so a new personal best shows up immediately.
+        if (scoreRef.current > 0) {
+          submitSnakeScore(scoreRef.current).then(loadLeaderboard).catch(() => {});
+        }
         return;
       }
       const ateFood = newHead.x === foodRef.current.x && newHead.y === foodRef.current.y;
@@ -576,6 +599,7 @@ function SnakeGame({ open, onClose }) {
         foodRef.current = snakeRandomFood(newSnake);
         setScore((s) => {
           const next = s + 1;
+          scoreRef.current = next;
           setBest((b) => {
             if (next <= b) return b;
             localStorage.setItem(SNAKE_BEST_KEY, String(next));
@@ -721,9 +745,37 @@ function SnakeGame({ open, onClose }) {
             <button onClick={() => setDirection(1, 0)} style={dpadBtnStyle}>→</button>
           </div>
         </div>
-        <p className="text-xs text-center mt-3" style={{ color: "#8A8578" }}>
+        <p className="text-xs text-center mt-3 mb-4" style={{ color: "#8A8578" }}>
           Swipe on the board or use the arrows.
         </p>
+
+        {/* Global leaderboard -- every company on the platform shares one
+            board, so a good run here shows up next to names from other
+            businesses entirely, not just coworkers. */}
+        <div className="h-px w-full mb-3" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
+        <h3 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xs uppercase tracking-widest mb-2 text-center">
+          Global leaderboard
+        </h3>
+        {leaderboard.length === 0 ? (
+          <p className="text-xs text-center pb-2" style={{ color: "#8A8578" }}>
+            No scores yet -- be the first.
+          </p>
+        ) : (
+          <div className="flex flex-col gap-1 pb-2">
+            {leaderboard.map((row, i) => (
+              <div key={i} className="flex items-center justify-between text-xs" style={{ padding: "4px 2px" }}>
+                <span className="flex items-center gap-2" style={{ minWidth: 0 }}>
+                  <span style={{ color: "#8A8578", width: 16, flexShrink: 0 }}>{i + 1}.</span>
+                  <span className="truncate" style={{ fontWeight: 600 }}>{row.employee_name}</span>
+                  {row.company_name && (
+                    <span className="truncate" style={{ color: "#8A8578" }}>— {row.company_name}</span>
+                  )}
+                </span>
+                <span style={{ color: TEAL, fontWeight: 700, flexShrink: 0, marginLeft: 8 }}>{row.best_score}</span>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

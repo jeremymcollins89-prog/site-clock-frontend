@@ -55,6 +55,14 @@ function pingActivity() {
   return apiFetch("/api/auth/activity-ping", { method: "POST" }).catch(() => {});
 }
 
+// Snake easter egg's global leaderboard -- see App.jsx's SnakeGame.
+function submitSnakeScore(score) {
+  return apiFetch("/api/auth/snake-score", { method: "POST", body: { score } });
+}
+function getSnakeLeaderboard() {
+  return apiFetch("/api/auth/snake-leaderboard");
+}
+
 async function login(email, pin) {
   const data = await apiFetch("/api/auth/login", { method: "POST", body: { email, pin } });
   saveSession(data.token, data.employee);
@@ -271,6 +279,8 @@ export {
   logout,
   getSavedEmployee,
   pingActivity,
+  submitSnakeScore,
+  getSnakeLeaderboard,
   clockAction,
   startAutoSync,
   apiFetch,
