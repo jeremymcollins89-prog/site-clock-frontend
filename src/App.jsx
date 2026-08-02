@@ -120,8 +120,9 @@ const LINE = "#D8D3C4";
 // Full-screen clock-in celebration, shown briefly after a clock-in when the
 // employee has a clock-in animation picked (set per-person in the admin
 // app's employee section, via clock_in_animation: "none" | "fireworks" |
-// "birthday"). Pure canvas animations, no dependencies. Both animations run
-// for exactly the same duration so they feel consistent.
+// "birthday" | "rocket" | "fall" | "easter" | "christmas"). Pure canvas
+// animations, no dependencies. All of them run for exactly the same
+// duration so they feel consistent.
 const ANIMATION_DURATION_MS = 12000;
 const FIREWORKS_DURATION_MS = ANIMATION_DURATION_MS;
 // Rocket launch splits the same 12s window into a 3s countdown (still on
@@ -335,8 +336,11 @@ function BirthdayOverlay({ name, onDone }) {
           left: "50%",
           transform: "translate(-50%, -50%)",
           textAlign: "center",
-          color: "#fff",
-          textShadow: "0 2px 12px rgba(0,0,0,0.45)",
+          // Dark text + a light halo (rather than white text + a dark
+          // shadow) so this reads clearly against the app's light PAPER
+          // background, not just against a dark photo/video background.
+          color: CHARCOAL,
+          textShadow: "0 0 10px rgba(244,242,237,0.95), 0 0 4px rgba(244,242,237,0.95), 0 2px 6px rgba(244,242,237,0.7)",
           fontSize: "clamp(24px, 6vw, 44px)",
           fontWeight: 800,
           padding: "0 16px",
@@ -344,6 +348,312 @@ function BirthdayOverlay({ name, onDone }) {
       >
         🎉 Happy Birthday{name ? `, ${name}` : ""}! 🎂
       </div>
+    </div>
+  );
+}
+
+// Shared caption style for the three seasonal overlays below and Birthday
+// above -- dark text with a light halo (not white-on-dark) so it reads
+// clearly against the app's light PAPER background rather than needing a
+// dark photo/video behind it.
+const CELEBRATION_CAPTION_STYLE = {
+  position: "absolute",
+  top: "38%",
+  left: "50%",
+  transform: "translate(-50%, -50%)",
+  textAlign: "center",
+  color: CHARCOAL,
+  textShadow: "0 0 10px rgba(244,242,237,0.95), 0 0 4px rgba(244,242,237,0.95), 0 2px 6px rgba(244,242,237,0.7)",
+  fontSize: "clamp(24px, 6vw, 44px)",
+  fontWeight: 800,
+  padding: "0 16px",
+};
+
+// Full-screen falling-leaves celebration, shown after a clock-in when
+// clock_in_animation is "fall". Same ref-based timing/hard-stop pattern as
+// the other overlays, at the shared ANIMATION_DURATION_MS. Leaves sway
+// side-to-side as a function of how far they've fallen (not raw elapsed
+// time), so the motion stays smooth regardless of frame rate.
+function FallOverlay({ onDone }) {
+  const canvasRef = useRef(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+    function handleResize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", handleResize);
+
+    const colors = [RUST, RUST_DEEP, AMBER, AMBER_DEEP, "#8B5A2B"];
+    let leaves = [];
+
+    function spawnLeaves(count) {
+      for (let i = 0; i < count; i++) {
+        leaves.push({
+          x: Math.random() * width,
+          y: -20 - Math.random() * height * 0.3,
+          vy: 1 + Math.random() * 1.4,
+          swayFreq: 0.01 + Math.random() * 0.012,
+          swayAmp: 20 + Math.random() * 30,
+          swayOffset: Math.random() * Math.PI * 2,
+          size: 8 + Math.random() * 8,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.06,
+          color: colors[Math.floor(Math.random() * colors.length)],
+        });
+      }
+    }
+    spawnLeaves(50);
+
+    const startedAt = performance.now();
+    const spawnIntervalMs = 400;
+    let lastSpawnAt = 0;
+    let raf;
+    let stopped = false;
+
+    function tick(now) {
+      const elapsed = now - startedAt;
+      ctx.clearRect(0, 0, width, height);
+
+      if (elapsed < ANIMATION_DURATION_MS && now - lastSpawnAt >= spawnIntervalMs) {
+        spawnLeaves(10);
+        lastSpawnAt = now;
+      }
+
+      leaves.forEach((l) => { l.y += l.vy; l.rotation += l.rotSpeed; });
+      leaves = leaves.filter((l) => l.y < height + 30);
+
+      leaves.forEach((l) => {
+        const swayX = l.x + Math.sin(l.y * l.swayFreq + l.swayOffset) * l.swayAmp;
+        ctx.save();
+        ctx.translate(swayX, l.y);
+        ctx.rotate(l.rotation);
+        ctx.fillStyle = l.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, l.size, l.size * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      if (elapsed >= ANIMATION_DURATION_MS && (leaves.length === 0 || elapsed >= ANIMATION_DURATION_MS + 1200)) {
+        if (!stopped) {
+          stopped = true;
+          window.removeEventListener("resize", handleResize);
+          onDoneRef.current && onDoneRef.current();
+        }
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+      <canvas ref={canvasRef} style={{ position: "absolute", inset: 0 }} />
+      <div style={CELEBRATION_CAPTION_STYLE}>🍂 Happy Thanksgiving! 🦃</div>
+    </div>
+  );
+}
+
+// Full-screen falling-petals celebration, shown after a clock-in when
+// clock_in_animation is "easter". Pastel palette + slower drift than the
+// fall leaves so it reads as gentle spring weather rather than a storm.
+function EasterOverlay({ onDone }) {
+  const canvasRef = useRef(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+    function handleResize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", handleResize);
+
+    const colors = ["#F4A6C1", "#C6A8E0", "#F4D35E", "#8FCBEA", "#8FE0C4"];
+    let petals = [];
+
+    function spawnPetals(count) {
+      for (let i = 0; i < count; i++) {
+        petals.push({
+          x: Math.random() * width,
+          y: -20 - Math.random() * height * 0.3,
+          vy: 0.6 + Math.random() * 1,
+          swayFreq: 0.012 + Math.random() * 0.014,
+          swayAmp: 25 + Math.random() * 35,
+          swayOffset: Math.random() * Math.PI * 2,
+          size: 7 + Math.random() * 7,
+          rotation: Math.random() * Math.PI * 2,
+          rotSpeed: (Math.random() - 0.5) * 0.05,
+          color: colors[Math.floor(Math.random() * colors.length)],
+        });
+      }
+    }
+    spawnPetals(50);
+
+    const startedAt = performance.now();
+    const spawnIntervalMs = 400;
+    let lastSpawnAt = 0;
+    let raf;
+    let stopped = false;
+
+    function tick(now) {
+      const elapsed = now - startedAt;
+      ctx.clearRect(0, 0, width, height);
+
+      if (elapsed < ANIMATION_DURATION_MS && now - lastSpawnAt >= spawnIntervalMs) {
+        spawnPetals(10);
+        lastSpawnAt = now;
+      }
+
+      petals.forEach((p) => { p.y += p.vy; p.rotation += p.rotSpeed; });
+      petals = petals.filter((p) => p.y < height + 30);
+
+      petals.forEach((p) => {
+        const swayX = p.x + Math.sin(p.y * p.swayFreq + p.swayOffset) * p.swayAmp;
+        ctx.save();
+        ctx.translate(swayX, p.y);
+        ctx.rotate(p.rotation);
+        ctx.fillStyle = p.color;
+        ctx.beginPath();
+        ctx.ellipse(0, 0, p.size, p.size * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      if (elapsed >= ANIMATION_DURATION_MS && (petals.length === 0 || elapsed >= ANIMATION_DURATION_MS + 1200)) {
+        if (!stopped) {
+          stopped = true;
+          window.removeEventListener("resize", handleResize);
+          onDoneRef.current && onDoneRef.current();
+        }
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+      <canvas ref={canvasRef} style={{ position: "absolute", inset: 0 }} />
+      <div style={CELEBRATION_CAPTION_STYLE}>🐣 Happy Easter! 🌷</div>
+    </div>
+  );
+}
+
+// Full-screen falling-snow celebration, shown after a clock-in when
+// clock_in_animation is "christmas". Deliberately NOT plain white snow --
+// on this app's light background that would have the same low-contrast
+// problem the Birthday caption had, so the flakes use a cool icy-blue
+// palette instead, which stays visible against the light PAPER background.
+function ChristmasOverlay({ onDone }) {
+  const canvasRef = useRef(null);
+  const onDoneRef = useRef(onDone);
+  onDoneRef.current = onDone;
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext("2d");
+    let width = (canvas.width = window.innerWidth);
+    let height = (canvas.height = window.innerHeight);
+    function handleResize() {
+      width = canvas.width = window.innerWidth;
+      height = canvas.height = window.innerHeight;
+    }
+    window.addEventListener("resize", handleResize);
+
+    const colors = ["#5A8FB5", "#8FCBEA", "#2B6E8F", "#BFE3F7"];
+    let flakes = [];
+
+    function spawnFlakes(count) {
+      for (let i = 0; i < count; i++) {
+        flakes.push({
+          x: Math.random() * width,
+          y: -20 - Math.random() * height * 0.3,
+          vy: 0.7 + Math.random() * 1.2,
+          swayFreq: 0.01 + Math.random() * 0.012,
+          swayAmp: 15 + Math.random() * 25,
+          swayOffset: Math.random() * Math.PI * 2,
+          size: 3 + Math.random() * 4,
+          color: colors[Math.floor(Math.random() * colors.length)],
+        });
+      }
+    }
+    spawnFlakes(70);
+
+    const startedAt = performance.now();
+    const spawnIntervalMs = 350;
+    let lastSpawnAt = 0;
+    let raf;
+    let stopped = false;
+
+    function tick(now) {
+      const elapsed = now - startedAt;
+      ctx.clearRect(0, 0, width, height);
+
+      if (elapsed < ANIMATION_DURATION_MS && now - lastSpawnAt >= spawnIntervalMs) {
+        spawnFlakes(18);
+        lastSpawnAt = now;
+      }
+
+      flakes.forEach((f) => { f.y += f.vy; });
+      flakes = flakes.filter((f) => f.y < height + 20);
+
+      flakes.forEach((f) => {
+        const swayX = f.x + Math.sin(f.y * f.swayFreq + f.swayOffset) * f.swayAmp;
+        ctx.fillStyle = f.color;
+        ctx.beginPath();
+        ctx.arc(swayX, f.y, f.size, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      if (elapsed >= ANIMATION_DURATION_MS && (flakes.length === 0 || elapsed >= ANIMATION_DURATION_MS + 1200)) {
+        if (!stopped) {
+          stopped = true;
+          window.removeEventListener("resize", handleResize);
+          onDoneRef.current && onDoneRef.current();
+        }
+        return;
+      }
+      raf = requestAnimationFrame(tick);
+    }
+    raf = requestAnimationFrame(tick);
+
+    return () => {
+      cancelAnimationFrame(raf);
+      window.removeEventListener("resize", handleResize);
+    };
+  }, []);
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 9999, pointerEvents: "none" }}>
+      <canvas ref={canvasRef} style={{ position: "absolute", inset: 0 }} />
+      <div style={CELEBRATION_CAPTION_STYLE}>❄️ Merry Christmas! 🎄</div>
     </div>
   );
 }
@@ -3094,8 +3404,9 @@ const [emailInput, setEmailInput] = useState("");
   const [submitted, setSubmitted] = useState(false);
   const [actionError, setActionError] = useState("");
   const [savedOffline, setSavedOffline] = useState(false);
-  // "fireworks" | "birthday" | null -- which clock-in celebration overlay
-  // (if any) is currently showing, based on the employee's clock_in_animation.
+  // "fireworks" | "birthday" | "rocket" | "fall" | "easter" | "christmas" |
+  // null -- which clock-in celebration overlay (if any) is currently
+  // showing, based on the employee's clock_in_animation.
   const [activeAnimation, setActiveAnimation] = useState(null);
   // Geolocation-based auto clock in/out — each company sets its own shop
   // location (Settings tab in the admin app); the backend sends it back on
@@ -3119,7 +3430,7 @@ const [emailInput, setEmailInput] = useState("");
     }
     setJobName("Shop");
     setStatus("working");
-    if (["fireworks", "birthday", "rocket"].includes(employee?.clock_in_animation)) {
+    if (["fireworks", "birthday", "rocket", "fall", "easter", "christmas"].includes(employee?.clock_in_animation)) {
       setActiveAnimation(employee.clock_in_animation);
     }
   }
@@ -3713,7 +4024,7 @@ const [emailInput, setEmailInput] = useState("");
     // A fresh manual clock-in means any earlier "don't auto clock-in" flag
     // (from a previous manual clock-out) is stale — clear it.
     clearAutoClockInSuppression();
-    if (["fireworks", "birthday", "rocket"].includes(employee?.clock_in_animation)) {
+    if (["fireworks", "birthday", "rocket", "fall", "easter", "christmas"].includes(employee?.clock_in_animation)) {
       setActiveAnimation(employee.clock_in_animation);
     }
   }
@@ -3947,6 +4258,9 @@ const [emailInput, setEmailInput] = useState("");
       {activeAnimation === "fireworks" && <FireworksOverlay onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "birthday" && <BirthdayOverlay name={employee?.name} onDone={() => setActiveAnimation(null)} />}
       {activeAnimation === "rocket" && <RocketLaunchOverlay onDone={() => setActiveAnimation(null)} />}
+      {activeAnimation === "fall" && <FallOverlay onDone={() => setActiveAnimation(null)} />}
+      {activeAnimation === "easter" && <EasterOverlay onDone={() => setActiveAnimation(null)} />}
+      {activeAnimation === "christmas" && <ChristmasOverlay onDone={() => setActiveAnimation(null)} />}
       <SnakeGame open={showSnake} onClose={() => setShowSnake(false)} />
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
         <div className="flex items-center justify-between mb-1">
