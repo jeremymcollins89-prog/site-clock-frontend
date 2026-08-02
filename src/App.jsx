@@ -1782,6 +1782,33 @@ function installFrameEnhancer(reader, onSharpness) {
   reader.drawImageOnCanvas = (...args) => { originalDrawImage(...args); afterDraw(); };
 }
 
+// Native camera photos are often huge (8-50+ megapixels) -- that can hit
+// canvas size limits on some mobile browsers and makes the per-pixel
+// contrast/sharpen pass slow for no decode benefit (barcodes don't need
+// more than roughly 1600px on the long side to read cleanly). Downscaling
+// first, onto a fresh <img> so it has proper naturalWidth/naturalHeight,
+// keeps decoding fast and avoids that failure mode entirely.
+function downscaleImageForDecode(img, maxDim) {
+  return new Promise((resolve) => {
+    const w = img.naturalWidth || img.width;
+    const h = img.naturalHeight || img.height;
+    if (!w || !h || Math.max(w, h) <= maxDim) { resolve(img); return; }
+    const scale = maxDim / Math.max(w, h);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    const ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob((blob) => {
+      if (!blob) { resolve(img); return; }
+      const scaledImg = new Image();
+      scaledImg.onload = () => resolve(scaledImg);
+      scaledImg.onerror = () => resolve(img);
+      scaledImg.src = URL.createObjectURL(blob);
+    }, "image/jpeg", 0.92);
+  });
+}
+
 // Crossing TRIGGER_HIGH while armed fires one auto-capture and disarms;
 // dropping back below ARM_LOW re-arms it. This stops a held-steady, still-
 // blurry phone from firing (and clicking) over and over -- it has to
@@ -1992,7 +2019,10 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
             URL.revokeObjectURL(url);
             const stillReader = stillReaderRef.current;
             if (!activeRef.current || !stillReader) { finish(null); return; }
-            stillReader.decodeOnce(img, false, false).then((result) => finish(result.getText())).catch(() => finish(null));
+            downscaleImageForDecode(img, 1600)
+              .then((finalImg) => stillReader.decodeOnce(finalImg, false, false))
+              .then((result) => finish(result.getText()))
+              .catch(() => finish(null));
           };
           img.onerror = () => { URL.revokeObjectURL(url); decodeFromLiveFrame(); };
           img.src = url;
@@ -2029,12 +2059,12 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      stillReaderRef.current
-        .decodeOnce(img, false, false)
+      downscaleImageForDecode(img, 1600)
+        .then((finalImg) => stillReaderRef.current.decodeOnce(finalImg, false, false))
         .then((result) => { setCapturingPhoto(false); handleScanned(result.getText()); })
         .catch(() => {
           setCapturingPhoto(false);
-          setError("Couldn't find a barcode in that photo -- try again, making sure the barcode fills more of the frame and is in focus.");
+          setError("Couldn't find a barcode in that photo -- back off a little so the WHOLE barcode is visible with a bit of white space around it (too close can crop it or cut off the margin it needs), then try again.");
         });
     };
     img.onerror = () => {
@@ -2202,7 +2232,10 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
               Use camera app for a sharper photo
             </button>
             <p className="text-xs text-center mb-3" style={{ color: "#8A8578" }}>
-              Recommended -- opens your phone's real camera app instead of the in-app preview.
+              Recommended -- opens your phone's real camera app instead of the in-app preview. Back
+              off enough that the WHOLE barcode, plus a little white space around it, fits in the
+              photo -- getting too close can crop the barcode or cut off the blank margin it needs
+              to be readable.
             </p>
             <p className="text-xs text-center mb-1.5 uppercase tracking-widest" style={{ color: "#8A8578" }}>
               or use the live scanner

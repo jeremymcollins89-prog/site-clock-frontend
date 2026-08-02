@@ -1480,7 +1480,7 @@
     <div id="barcode-scan-error" class="error" style="display:none;"></div>
     <input type="file" id="barcode-scan-file-input" accept="image/*" capture="environment" style="display:none;" onchange="handleBarcodeFileCapture(event)" />
     <button class="btn-primary" style="width:100%; margin-bottom:4px;" onclick="document.getElementById('barcode-scan-file-input').click()">Use camera app for a sharper photo</button>
-    <p style="font-size:11px; color:#8A8578; text-align:center; margin:0 0 10px;">Recommended -- opens your phone's real camera app instead of the in-app preview.</p>
+    <p style="font-size:11px; color:#8A8578; text-align:center; margin:0 0 10px;">Recommended -- opens your phone's real camera app instead of the in-app preview. Back off enough that the WHOLE barcode, plus a little white space around it, fits in the photo -- getting too close can crop the barcode or cut off the blank margin it needs to be readable.</p>
     <p style="font-size:11px; color:#8A8578; text-align:center; margin:0 0 6px; text-transform:uppercase; letter-spacing:0.05em;">or use the live scanner</p>
     <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:8px; cursor:pointer; height:38vh; max-height:320px;" onclick="handleBarcodeScanTap(event)" title="Tap to refocus">
       <video id="barcode-scan-video" style="width:100%; height:100%; display:block; object-fit:cover;" muted playsinline></video>
@@ -7251,7 +7251,9 @@ function captureBarcodeStill() {
       img.onload = function() {
         URL.revokeObjectURL(url);
         if (!barcodeScanActive || !barcodeStillReader) { finishAttempt(null); return; }
-        barcodeStillReader.decodeOnce(img, false, false).then(function(result) {
+        downscaleImageForDecode(img, 1600).then(function(finalImg) {
+          return barcodeStillReader.decodeOnce(finalImg, false, false);
+        }).then(function(result) {
           finishAttempt(result.getText());
         }).catch(function() {
           finishAttempt(null);
@@ -7268,6 +7270,33 @@ function captureBarcodeStill() {
   } else {
     decodeFromLiveFrame();
   }
+}
+
+// Native camera photos are often huge (8-50+ megapixels) -- that can hit
+// canvas size limits on some mobile browsers and makes the per-pixel
+// contrast/sharpen pass slow for no decode benefit (barcodes don't need
+// more than roughly 1600px on the long side to read cleanly). Downscaling
+// first, onto a fresh <img> so it has proper naturalWidth/naturalHeight,
+// keeps decoding fast and avoids that failure mode entirely.
+function downscaleImageForDecode(img, maxDim) {
+  return new Promise(function(resolve) {
+    var w = img.naturalWidth || img.width;
+    var h = img.naturalHeight || img.height;
+    if (!w || !h || Math.max(w, h) <= maxDim) { resolve(img); return; }
+    var scale = maxDim / Math.max(w, h);
+    var canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale);
+    canvas.height = Math.round(h * scale);
+    var ctx = canvas.getContext("2d");
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    canvas.toBlob(function(blob) {
+      if (!blob) { resolve(img); return; }
+      var scaledImg = new Image();
+      scaledImg.onload = function() { resolve(scaledImg); };
+      scaledImg.onerror = function() { resolve(img); };
+      scaledImg.src = URL.createObjectURL(blob);
+    }, "image/jpeg", 0.92);
+  });
 }
 
 // The live preview and even ImageCapture.takePhoto() both still go through
@@ -7297,11 +7326,13 @@ function handleBarcodeFileCapture(event) {
   var img = new Image();
   img.onload = function() {
     URL.revokeObjectURL(url);
-    barcodeStillReader.decodeOnce(img, false, false).then(function(result) {
+    downscaleImageForDecode(img, 1600).then(function(finalImg) {
+      return barcodeStillReader.decodeOnce(finalImg, false, false);
+    }).then(function(result) {
       handleBarcodeScanned(result.getText());
     }).catch(function() {
       statusEl.textContent = prevText;
-      errorEl.textContent = "Couldn't find a barcode in that photo -- try again, making sure the barcode fills more of the frame and is in focus.";
+      errorEl.textContent = "Couldn't find a barcode in that photo -- back off a little so the WHOLE barcode is visible with a bit of white space around it (too close can crop it or cut off the margin it needs), then try again.";
       errorEl.style.display = "block";
     });
   };
