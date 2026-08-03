@@ -744,6 +744,19 @@
               <tbody id="pull-sheets-list-body"></tbody>
             </table>
           </div>
+
+          <h3 style="margin:16px 0 6px; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleFulfilledPullSheetsSection()">
+            <span id="fulfilled-pull-sheets-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
+            Fulfilled pull sheets <span id="fulfilled-pull-sheets-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span>
+          </h3>
+          <div id="fulfilled-pull-sheets-section-body" style="display:none;">
+            <div class="table-scroll">
+              <table>
+                <thead><tr><th>Job</th><th>Customer</th><th>Items</th><th>Status</th><th></th></tr></thead>
+                <tbody id="fulfilled-pull-sheets-list-body"></tbody>
+              </table>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -6581,39 +6594,69 @@ function updatePullSheetsNavBadge(sheets) {
   }
 }
 
+function renderPullSheetRow(s) {
+  const statusBadge = s.status === "fulfilled"
+    ? '<span style="color: var(--teal); font-weight:600;">Fulfilled</span>'
+    : s.status === "pulled"
+    ? '<span style="color: var(--amber-deep); font-weight:600;">Reported</span>'
+    : '<span style="color:var(--muted);">Open</span>';
+  const actions = '<button class="save-btn" style="background: var(--charcoal); margin-right:6px;" onclick="viewPullSheetDetail(\'' + s.id + '\')">View</button>' +
+    '<button class="save-btn" style="background: var(--teal-deep); margin-right:6px;" onclick="viewPullSheetPdf(\'' + s.id + '\')">Print</button>' +
+    (s.status !== "fulfilled"
+      ? '<button class="save-btn" style="background: var(--teal); margin-right:6px;" onclick="fulfillPullSheetFromList(\'' + s.id + '\')">Fulfill</button>' +
+        '<button class="save-btn" style="background: #C1502E;" onclick="deletePullSheetConfirm(\'' + s.id + '\')">Delete</button>'
+      : '');
+  return '<tr>' +
+    '<td>' + escapeHtml(s.source_label || "") + '</td>' +
+    '<td>' + escapeHtml(customerDisplayName(s.customer_name, s.customer_company_name) || "") + '</td>' +
+    '<td>' + s.item_count + '</td>' +
+    '<td>' + statusBadge + '</td>' +
+    '<td style="white-space:nowrap;">' + actions + '</td>' +
+  '</tr>';
+}
+
+// Fulfilled sheets are done -- there's nothing left to act on, so they move
+// into their own collapsed-by-default section (same pattern as Inactive
+// employees) rather than piling up at the bottom of the main list and
+// burying the open/reported ones an admin actually still needs to work.
 async function loadPullSheets() {
   const body = document.getElementById("pull-sheets-list-body");
+  const fulfilledBody = document.getElementById("fulfilled-pull-sheets-list-body");
+  const fulfilledBadge = document.getElementById("fulfilled-pull-sheets-count-badge");
   if (!body) return;
   try {
     const sheets = await admin.listPullSheets();
     updatePullSheetsNavBadge(sheets);
-    if (sheets.length === 0) {
-      body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:16px;">No pull sheets built yet.</td></tr>';
-      return;
+    const openSheets = sheets.filter(function(s) { return s.status !== "fulfilled"; });
+    const fulfilledSheets = sheets.filter(function(s) { return s.status === "fulfilled"; });
+
+    body.innerHTML = openSheets.length
+      ? openSheets.map(renderPullSheetRow).join("")
+      : '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:16px;">No open pull sheets.</td></tr>';
+
+    if (fulfilledBody) {
+      fulfilledBody.innerHTML = fulfilledSheets.length
+        ? fulfilledSheets.map(renderPullSheetRow).join("")
+        : '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:16px;">No fulfilled pull sheets yet.</td></tr>';
     }
-    body.innerHTML = sheets.map(function(s) {
-      const statusBadge = s.status === "fulfilled"
-        ? '<span style="color: var(--teal); font-weight:600;">Fulfilled</span>'
-        : s.status === "pulled"
-        ? '<span style="color: var(--amber-deep); font-weight:600;">Reported</span>'
-        : '<span style="color:var(--muted);">Open</span>';
-      const actions = '<button class="save-btn" style="background: var(--charcoal); margin-right:6px;" onclick="viewPullSheetDetail(\'' + s.id + '\')">View</button>' +
-        '<button class="save-btn" style="background: var(--teal-deep); margin-right:6px;" onclick="viewPullSheetPdf(\'' + s.id + '\')">Print</button>' +
-        (s.status !== "fulfilled"
-          ? '<button class="save-btn" style="background: var(--teal); margin-right:6px;" onclick="fulfillPullSheetFromList(\'' + s.id + '\')">Fulfill</button>' +
-            '<button class="save-btn" style="background: #C1502E;" onclick="deletePullSheetConfirm(\'' + s.id + '\')">Delete</button>'
-          : '');
-      return '<tr>' +
-        '<td>' + escapeHtml(s.source_label || "") + '</td>' +
-        '<td>' + escapeHtml(customerDisplayName(s.customer_name, s.customer_company_name) || "") + '</td>' +
-        '<td>' + s.item_count + '</td>' +
-        '<td>' + statusBadge + '</td>' +
-        '<td style="white-space:nowrap;">' + actions + '</td>' +
-      '</tr>';
-    }).join("");
+    if (fulfilledBadge) fulfilledBadge.textContent = fulfilledSheets.length ? "(" + fulfilledSheets.length + ")" : "";
   } catch (err) {
     body.innerHTML = '<tr><td colspan="5" style="text-align:center; color:var(--muted); padding:16px;">Couldn\'t load pull sheets.</td></tr>';
   }
+}
+
+let fulfilledPullSheetsSectionExpanded = false;
+
+function toggleFulfilledPullSheetsSection() {
+  fulfilledPullSheetsSectionExpanded = !fulfilledPullSheetsSectionExpanded;
+  applyFulfilledPullSheetsSectionState();
+}
+
+function applyFulfilledPullSheetsSectionState() {
+  const sectionBody = document.getElementById("fulfilled-pull-sheets-section-body");
+  const icon = document.getElementById("fulfilled-pull-sheets-toggle-icon");
+  if (sectionBody) sectionBody.style.display = fulfilledPullSheetsSectionExpanded ? "block" : "none";
+  if (icon) icon.style.transform = fulfilledPullSheetsSectionExpanded ? "rotate(90deg)" : "rotate(0deg)";
 }
 
 async function openBuildPullSheetSheet() {
