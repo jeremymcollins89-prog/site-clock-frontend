@@ -3684,6 +3684,8 @@ const [emailInput, setEmailInput] = useState("");
     clockInTime: employee?.auto_clockin_time,
     clockOutTime: employee?.auto_clockout_time,
     sessionReady: !checkingSession,
+    onLeftRangeWhileSuppressed: () =>
+      apiFetch("/api/time-entries/clear-auto-clockin-suppression", { method: "POST" }),
   });
   useEffect(() => {
     if (status === "off") return;
@@ -4272,7 +4274,11 @@ const [emailInput, setEmailInput] = useState("");
 
   async function clockOut() {
     setActionError("");
-    const res = await clockAction(`/api/time-entries/${entryId}/clock-out`, {});
+    // manual: true tells the backend this is a genuine manual clock-out (not
+    // the geofence-driven autoClockOut a few lines up), so it can set the
+    // shared, server-side auto_clockin_suppressed flag alongside the local
+    // one below -- see utils/autoClockinSuppression.js on the backend.
+    const res = await clockAction(`/api/time-entries/${entryId}/clock-out`, { manual: true });
     setSavedOffline(res.offline);
     setStatus("off");
     setEntryId(null);
@@ -4282,7 +4288,9 @@ const [emailInput, setEmailInput] = useState("");
     // Manual clock-out takes precedence over auto clock-in: don't let the
     // geo check clock them right back in just because they're still
     // standing at the shop. This sticks even if the app is closed and
-    // reopened, and only clears once they've actually left.
+    // reopened, and only clears once they've actually left. Kept locally
+    // too (in addition to the server-side flag above) so this still works
+    // instantly offline, before the request above has even synced.
     markManualClockOut();
     await refreshFromServer();
   }

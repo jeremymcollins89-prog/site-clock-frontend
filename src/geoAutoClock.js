@@ -67,7 +67,7 @@ function clearAutoClockInSuppression() {
   }
 }
 
-function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockInTime, clockOutTime, sessionReady }) {
+function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shopLat, shopLng, radiusMeters, clockInTime, clockOutTime, sessionReady, onLeftRangeWhileSuppressed }) {
   const [permission, setPermission] = useState("unknown");
   const [withinRange, setWithinRange] = useState(null);
   const [distanceMeters, setDistanceMeters] = useState(null);
@@ -107,6 +107,15 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     // needs to be protected — the next arrival is a genuine new one.
     if (!inRange && isAutoClockInSuppressed()) {
       clearAutoClockInSuppression();
+      // Also tell the server, so the shared, cross-device suppression flag
+      // (utils/autoClockinSuppression.js) doesn't stay stuck true for any
+      // other client -- e.g. a future native background client -- reading
+      // it after this browser tab is closed. Best-effort: this is just
+      // keeping the server in sync with what we already decided locally, so
+      // a failure here shouldn't block or retry, only get logged.
+      if (onLeftRangeWhileSuppressed) {
+        Promise.resolve(onLeftRangeWhileSuppressed()).catch(() => {});
+      }
     }
 
     if (actingRef.current) return;
