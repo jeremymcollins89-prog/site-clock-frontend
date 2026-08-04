@@ -54,7 +54,7 @@
 
 <div class="box">
   <h1>Privacy Policy</h1>
-  <p class="sub">Coll Timeclock — last updated July 28, 2026</p>
+  <p class="sub">Coll Timeclock — last updated August 3, 2026</p>
 
   <p>Coll Timeclock is a work-hours tracking service used by employers ("companies") and their
   employees. This page explains what information we collect through the employee app and the
@@ -110,7 +110,15 @@
     thread, all within the app.</li>
     <li><strong>Push notification data:</strong> if an employee or admin enables notifications, we
     store a device push subscription token, used only to deliver that company's own schedule, chat,
-    break, and long-shift-alert notifications to that device.</li>
+    break, long-shift-alert, and inventory pull-sheet notifications to that device.</li>
+    <li><strong>Inventory and catalog data:</strong> if a company tracks inventory, we store the item
+    names, quantities on hand, barcodes, and "pull sheets" (a list of items a job needs, and how much
+    of each has been pulled) that company enters or generates. This is the company's own business
+    data about its own stock, not information about any individual person.</li>
+    <li><strong>Camera access for barcode scanning:</strong> if a company or an employee it has
+    authorized uses the barcode-scanning feature to look up or add an inventory item, the device
+    camera is used live, in the moment, to read the barcode in view. We don't capture, store, or send
+    us any photo or video from that camera session.</li>
   </ul>
 
   <h2>How we use this information</h2>
@@ -130,15 +138,20 @@
     account.</li>
     <li>To process online invoice payments through Stripe and email the paying customer an
     automatic payment receipt.</li>
+    <li>To let a company track its own inventory, build pull sheets for jobs, and use its camera to
+    scan barcodes and look up items.</li>
   </ul>
 
   <h2>What we don't do</h2>
   <ul>
     <li>We don't sell or share your data with advertisers or unrelated third parties.</li>
     <li>We don't track location outside of the clock-in/out check described above.</li>
+    <li>We don't capture, store, or transmit any image or video from a device's camera — it's used
+    live, only to read a barcode in the moment you're scanning it.</li>
     <li>Each company's data — employees, time records, pay rates, customers, quotes, invoices,
-    expenses, routes, file attachments, time off requests, and chat messages — is only visible to
-    that company's own admin account, never to other companies using Coll Timeclock.</li>
+    expenses, routes, file attachments, time off requests, chat messages, and inventory/catalog data —
+    is only visible to that company's own admin account, never to other companies using Coll
+    Timeclock.</li>
   </ul>
 
   <h2>Service providers we use</h2>
