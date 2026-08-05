@@ -8559,6 +8559,24 @@ document.addEventListener("click", function() {
   admin.pingActivity();
 });
 
+// Lets the native Android admin app hand off a session after its own
+// native login screen calls POST /api/admin/login directly -- same pattern
+// as the employee PWA's adoptTokenFromUrl() in api.js/App.jsx. Reads
+// ?token= from the URL, stores it the normal way, then strips it from the
+// address bar so it never lingers in browser history.
+function adoptTokenFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+  if (!token) return false;
+  setToken(token);
+  params.delete("token");
+  const qs = params.toString();
+  const newUrl = window.location.pathname + (qs ? "?" + qs : "") + window.location.hash;
+  window.history.replaceState({}, "", newUrl);
+  return true;
+}
+
+adoptTokenFromUrl();
 init();
 </script>
 </body>
