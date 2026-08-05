@@ -8,5 +8,15 @@
         "19:9E:8F:CA:F0:76:F6:30:74:70:1D:C3:61:18:22:B1:1B:A0:9E:83:40:9C:52:5C:F7:07:6A:84:CE:A8:5C:26"
       ]
     }
+  },
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.collbusinesssolutions.admin",
+      "sha256_cert_fingerprints": [
+        "39:16:3F:14:61:03:6C:1C:16:D4:2D:83:40:A6:D5:F3:4F:CB:F3:4B:32:C6:82:57:D6:C6:FD:59:9F:E1:28:3C"
+      ]
+    }
   }
 ]
