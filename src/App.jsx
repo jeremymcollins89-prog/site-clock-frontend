@@ -2524,10 +2524,16 @@ function enhanceCanvasForDecode(ctx, width, height) {
   return edgeSum / n;
 }
 
-function installFrameEnhancer(reader, onSharpness) {
+// enhanceRef is only passed for the still-photo reader -- decodeStillPhotoRobustly
+// (below) flips it on/off between attempts, since some photos decode better raw
+// and others need the contrast/sharpen boost. The continuous live-preview reader
+// is called with no enhanceRef, so it keeps the old always-on behavior (the Focus
+// bar and auto-capture trigger depend on a sharpness score every frame).
+function installFrameEnhancer(reader, onSharpness, enhanceRef) {
   const originalDrawFrame = reader.drawFrameOnCanvas.bind(reader);
   const originalDrawImage = reader.drawImageOnCanvas.bind(reader);
   const afterDraw = () => {
+    if (enhanceRef && !enhanceRef.current) return;
     try {
       const canvas = reader.captureCanvas;
       const ctx = reader.captureCanvasContext;
@@ -2548,31 +2554,86 @@ function installFrameEnhancer(reader, onSharpness) {
   reader.drawImageOnCanvas = (...args) => { originalDrawImage(...args); afterDraw(); };
 }
 
-// Native camera photos are often huge (8-50+ megapixels) -- that can hit
-// canvas size limits on some mobile browsers and makes the per-pixel
-// contrast/sharpen pass slow for no decode benefit (barcodes don't need
-// more than roughly 1600px on the long side to read cleanly). Downscaling
-// first, onto a fresh <img> so it has proper naturalWidth/naturalHeight,
-// keeps decoding fast and avoids that failure mode entirely.
-function downscaleImageForDecode(img, maxDim) {
+// Draws `img` onto a fresh canvas -- optionally downscaled (capped to maxDim on
+// the long side), rotated by 0/90/180/270 degrees, and/or color-inverted -- then
+// hands back a new <img> pointed at that canvas (the same "canvas -> blob ->
+// Image" round trip as before, so it has proper naturalWidth/naturalHeight for
+// ZXing to read). Rotation covers a sideways/upside-down photo; inversion covers
+// light-on-dark labels, since ZXing's own built-in inverted-colors retry only
+// ever runs for <video> frames, never for still <img> decodes (checked directly
+// in @zxing/library's source -- doAutoInvert is hardcoded off for images).
+function prepareDecodeVariant(img, { maxDim, rotation = 0, invert = false } = {}) {
   return new Promise((resolve) => {
-    const w = img.naturalWidth || img.width;
-    const h = img.naturalHeight || img.height;
-    if (!w || !h || Math.max(w, h) <= maxDim) { resolve(img); return; }
-    const scale = maxDim / Math.max(w, h);
+    const w0 = img.naturalWidth || img.width;
+    const h0 = img.naturalHeight || img.height;
+    if (!w0 || !h0) { resolve(img); return; }
+    const scale = maxDim && Math.max(w0, h0) > maxDim ? maxDim / Math.max(w0, h0) : 1;
+    const w = Math.round(w0 * scale);
+    const h = Math.round(h0 * scale);
+    const swap = rotation === 90 || rotation === 270;
     const canvas = document.createElement("canvas");
-    canvas.width = Math.round(w * scale);
-    canvas.height = Math.round(h * scale);
+    canvas.width = swap ? h : w;
+    canvas.height = swap ? w : h;
     const ctx = canvas.getContext("2d");
-    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    if (invert) ctx.filter = "invert(1)";
+    ctx.translate(canvas.width / 2, canvas.height / 2);
+    if (rotation) ctx.rotate((rotation * Math.PI) / 180);
+    ctx.drawImage(img, -w / 2, -h / 2, w, h);
     canvas.toBlob((blob) => {
       if (!blob) { resolve(img); return; }
-      const scaledImg = new Image();
-      scaledImg.onload = () => resolve(scaledImg);
-      scaledImg.onerror = () => resolve(img);
-      scaledImg.src = URL.createObjectURL(blob);
-    }, "image/jpeg", 0.92);
+      const outImg = new Image();
+      outImg.onload = () => resolve(outImg);
+      outImg.onerror = () => resolve(img);
+      outImg.src = URL.createObjectURL(blob);
+    }, "image/jpeg", 0.95);
   });
+}
+
+// A single fixed-scale, fixed-orientation, raw-pixels decode attempt is exactly
+// why a barcode that reads perfectly fine to the human eye can still fail here:
+// native camera photos are 3000-4000px+ on the long side, and capping that down
+// to 1600px before decoding (the old behavior) throws away most of the extra
+// detail native capture was supposed to provide in the first place. This tries
+// several combinations of resolution, rotation, contrast-enhancement, and color
+// inversion, ordered so the most likely combination (full detail, upright, raw)
+// goes first and later, less-likely ones only run if everything before them
+// failed -- so a good photo still resolves quickly, and a marginal one gets a
+// real shot at succeeding instead of one guess.
+const BARCODE_DECODE_ATTEMPTS = [
+  { maxDim: 2400, rotation: 0, invert: false, enhance: false },
+  { maxDim: 2400, rotation: 0, invert: false, enhance: true },
+  { maxDim: 2400, rotation: 0, invert: true, enhance: false },
+  { maxDim: 1600, rotation: 0, invert: false, enhance: false },
+  { maxDim: 1600, rotation: 0, invert: false, enhance: true },
+  { maxDim: 2400, rotation: 180, invert: false, enhance: false },
+  { maxDim: 2400, rotation: 90, invert: false, enhance: false },
+  { maxDim: 2400, rotation: 270, invert: false, enhance: false },
+];
+
+async function decodeStillPhotoRobustly(reader, img, enhanceRef) {
+  const variantCache = new Map();
+  for (const attempt of BARCODE_DECODE_ATTEMPTS) {
+    const key = `${attempt.maxDim}-${attempt.rotation}-${attempt.invert}`;
+    let variant = variantCache.get(key);
+    if (!variant) {
+      variant = await prepareDecodeVariant(img, attempt);
+      variantCache.set(key, variant);
+    }
+    if (enhanceRef) enhanceRef.current = attempt.enhance;
+    // ZXing caches its internal capture canvas at whatever size the first image
+    // it saw was, and never resizes it for later calls -- without clearing these,
+    // a rotated (swapped width/height) or differently-scaled variant here would
+    // get drawn into a stale, wrong-sized canvas and decode against garbage.
+    reader.captureCanvas = undefined;
+    reader.captureCanvasContext = undefined;
+    try {
+      const result = await reader.decodeOnce(variant, false, false);
+      return result.getText();
+    } catch {
+      // try the next combination
+    }
+  }
+  return null;
 }
 
 // Crossing TRIGGER_HIGH while armed fires one auto-capture and disarms;
@@ -2598,6 +2659,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
   const activeTrackRef = useRef(null); // shared by tap-to-focus and the zoom slider
   const imageCaptureRef = useRef(null);
   const stillReaderRef = useRef(null);
+  const stillEnhanceRef = useRef(false); // toggled per-attempt by decodeStillPhotoRobustly
   const armedRef = useRef(true); // auto-capture arm/disarm state (see updateSharpness)
   const capturingRef = useRef(false); // synchronous guard -- read inside closures that outlive re-renders
   const [stage, setStage] = useState("scanning"); // scanning | looking-up | matched | new-item | error
@@ -2785,9 +2847,8 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
             URL.revokeObjectURL(url);
             const stillReader = stillReaderRef.current;
             if (!activeRef.current || !stillReader) { finish(null); return; }
-            downscaleImageForDecode(img, 1600)
-              .then((finalImg) => stillReader.decodeOnce(finalImg, false, false))
-              .then((result) => finish(result.getText()))
+            decodeStillPhotoRobustly(stillReader, img, stillEnhanceRef)
+              .then((text) => finish(text))
               .catch(() => finish(null));
           };
           img.onerror = () => { URL.revokeObjectURL(url); decodeFromLiveFrame(); };
@@ -2824,7 +2885,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
       const hints = new Map();
       hints.set(DecodeHintType.TRY_HARDER, true);
       const stillReader = new BrowserMultiFormatReader(hints, 300);
-      installFrameEnhancer(stillReader);
+      installFrameEnhancer(stillReader, null, stillEnhanceRef);
       stillReaderRef.current = stillReader;
     }
     setError("");
@@ -2833,9 +2894,12 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     const img = new Image();
     img.onload = () => {
       URL.revokeObjectURL(url);
-      downscaleImageForDecode(img, 1600)
-        .then((finalImg) => stillReaderRef.current.decodeOnce(finalImg, false, false))
-        .then((result) => { setCapturingPhoto(false); handleScanned(result.getText()); })
+      decodeStillPhotoRobustly(stillReaderRef.current, img, stillEnhanceRef)
+        .then((text) => {
+          setCapturingPhoto(false);
+          if (text) { handleScanned(text); return; }
+          setError("Couldn't find a barcode in that photo -- back off a little so the WHOLE barcode is visible with a bit of white space around it (too close can crop it or cut off the margin it needs), then try again.");
+        })
         .catch(() => {
           setCapturingPhoto(false);
           setError("Couldn't find a barcode in that photo -- back off a little so the WHOLE barcode is visible with a bit of white space around it (too close can crop it or cut off the margin it needs), then try again.");
@@ -2874,7 +2938,7 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
     // (and being cropped by) the continuous reader's canvas, which is sized
     // for the smaller live-preview frame.
     const stillReader = new BrowserMultiFormatReader(hints, 300);
-    installFrameEnhancer(stillReader);
+    installFrameEnhancer(stillReader, null, stillEnhanceRef);
     stillReaderRef.current = stillReader;
     armedRef.current = true;
     capturingRef.current = false;
