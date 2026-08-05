@@ -54,7 +54,7 @@
 
 <div class="box">
   <h1>Privacy Policy</h1>
-  <p class="sub">Coll Timeclock — last updated August 3, 2026</p>
+  <p class="sub">Coll Timeclock — last updated August 4, 2026</p>
 
   <p>Coll Timeclock is a work-hours tracking service used by employers ("companies") and their
   employees. This page explains what information we collect through the employee app and the
@@ -72,14 +72,17 @@
     <li><strong>Compensation info:</strong> if a company chooses to set hourly pay rates for its
     employees, that rate is stored and used only to calculate that company's own labor cost and
     profit reports. It is not shown to the employee it belongs to inside the app.</li>
-    <li><strong>Location data:</strong> if an employee's company has location-based auto clock-in/out
-    enabled, the app checks the device's GPS location against the company's registered shop address
-    to detect arrival and departure. This check only runs while the app is open or in the background
-    as permitted by your device, and only for employees whose company has turned this feature on. If
-    a company builds an optimized multi-stop route for a job, its customers' addresses are converted
-    to map coordinates (geocoded) to plan and display that route, and an admin can see the live
-    location of an employee who is currently clocked in and assigned to that route, for as long as
-    they're clocked in.</li>
+    <li><strong>Location data:</strong> Coll Timeclock collects location data to enable automatic
+    clock-in/out even when the app is closed or not in use, for employees whose company has turned
+    this feature on. The app checks the device's GPS location against the company's registered shop
+    address to detect arrival and departure, and this check can run in the background so an employee
+    doesn't have to keep the app open on their screen all shift. Your employer only sees the
+    resulting clock-in/out time entry from this check — not a continuous location trail. Separately,
+    if a company builds an optimized multi-stop route for a job, its customers' addresses are
+    converted to map coordinates (geocoded) to plan and display that route, and — only while an
+    employee is clocked in and assigned to that specific route — an admin can see that employee's
+    live location so the route and arrival times stay accurate. This location-sharing stops the
+    moment the employee clocks out.</li>
     <li><strong>Time off requests:</strong> the dates and optional note an employee submits when
     requesting time off, along with their employer's approve/deny decision on that request.</li>
     <li><strong>File attachments:</strong> photos, PDFs, and documents a company chooses to attach to
@@ -117,8 +120,9 @@
     data about its own stock, not information about any individual person.</li>
     <li><strong>Camera access for barcode scanning:</strong> if a company or an employee it has
     authorized uses the barcode-scanning feature to look up or add an inventory item, the device
-    camera is used live, in the moment, to read the barcode in view. We don't capture, store, or send
-    us any photo or video from that camera session.</li>
+    camera — either a live in-app preview or a photo taken with your device's own camera app — is
+    used only to read the barcode in view. That image is processed entirely on your device and is
+    never uploaded, stored, or sent to us.</li>
   </ul>
 
   <h2>How we use this information</h2>
@@ -146,8 +150,9 @@
   <ul>
     <li>We don't sell or share your data with advertisers or unrelated third parties.</li>
     <li>We don't track location outside of the clock-in/out check described above.</li>
-    <li>We don't capture, store, or transmit any image or video from a device's camera — it's used
-    live, only to read a barcode in the moment you're scanning it.</li>
+    <li>We don't capture, store, or transmit any image or video from a device's camera — whether
+    it's a live preview or a photo taken to scan a barcode, that image stays on your device and is
+    only used to read the barcode in view.</li>
     <li>Each company's data — employees, time records, pay rates, customers, quotes, invoices,
     expenses, routes, file attachments, time off requests, chat messages, and inventory/catalog data —
     is only visible to that company's own admin account, never to other companies using Coll
@@ -183,10 +188,19 @@
   connections. Passwords and PINs are hashed before storage. Access to admin and employee accounts
   is controlled through authenticated, time-limited login sessions.</p>
 
-  <h2>Data retention and deletion</h2>
+  <h2>Data retention</h2>
   <p>We retain account and time-record data for as long as a company's account is active, since
-  historical hours are part of payroll recordkeeping. An employee or admin can request that their
-  account or company data be deleted by contacting us at the address below.</p>
+  historical hours are part of payroll recordkeeping.</p>
+
+  <h2 id="delete-account">Request account or data deletion</h2>
+  <p>Any employee or admin can request deletion of their account and associated data — whether or
+  not you still have the app installed — by emailing
+  <a href="mailto:jeremymcollins89@gmail.com?subject=Delete%20my%20Coll%20Timeclock%20account">jeremymcollins89@gmail.com</a>
+  with the email address on the account and which company it belongs to. An admin can also request
+  deletion of their entire company's account and all its data the same way. We'll confirm by email
+  once it's done. Some records (for example, payroll time records or payment records a company is
+  legally required to keep for tax purposes) may be retained for the period required by law even
+  after an account deletion request, and this is disclosed to the requester at the time.</p>
 
   <h2>Children's privacy</h2>
   <p>Coll Timeclock is a workplace tool intended for employees of subscribing companies and is not

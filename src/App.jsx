@@ -3612,6 +3612,7 @@ export default function TimeClock() {
     setIsNightMode(next);
   }
 
+  const [showAccountMenu, setShowAccountMenu] = useState(false);
   const [showAnimationPicker, setShowAnimationPicker] = useState(false);
   const [savingAnimation, setSavingAnimation] = useState(false);
   const [animationSaveError, setAnimationSaveError] = useState("");
@@ -4301,6 +4302,18 @@ const [emailInput, setEmailInput] = useState("");
     setEntryId(null);
     setLog([]);
   }
+
+  // Google Play requires a visible, in-app way to request account/data
+  // deletion (not just a mention in the privacy policy) -- an email request
+  // is an accepted method as long as it's easy to find in the app itself.
+  // See privacy.html#delete-account for the matching policy language.
+  function handleRequestAccountDeletion() {
+    const subject = encodeURIComponent("Delete my Coll Timeclock account");
+    const body = encodeURIComponent(
+      `Please delete my Coll Timeclock account.\n\nName: ${employee?.name || ""}\n(Please reply from the email address on your account so we can verify it's you.)`
+    );
+    window.location.href = `mailto:jeremymcollins89@gmail.com?subject=${subject}&body=${body}`;
+  }
   async function clockIn() {
     setActionError("");
     const res = await clockAction("/api/time-entries/clock-in", {
@@ -4606,9 +4619,43 @@ const [emailInput, setEmailInput] = useState("");
             >
               <PartyPopper size={16} />
             </button>
-            <button onClick={handleLogout} className="text-xs flex items-center gap-1" style={{ color: MUTED }}>
-              <LogOut size={12} /> {employee?.name}
-            </button>
+            <div style={{ position: "relative" }}>
+              <button
+                onClick={() => setShowAccountMenu((v) => !v)}
+                className="text-xs flex items-center gap-1"
+                style={{ color: MUTED, background: "transparent", border: "none" }}
+              >
+                <LogOut size={12} /> {employee?.name}
+              </button>
+              {showAccountMenu && (
+                <>
+                  <div onClick={() => setShowAccountMenu(false)} style={{ position: "fixed", inset: 0, zIndex: 40 }} />
+                  <div
+                    style={{
+                      position: "absolute", top: "calc(100% + 6px)", right: 0, zIndex: 50,
+                      background: SURFACE, borderRadius: 12, minWidth: 190, overflow: "hidden",
+                      boxShadow: "0 10px 28px rgba(31,36,33,0.18)",
+                    }}
+                  >
+                    <button
+                      onClick={() => { setShowAccountMenu(false); handleLogout(); }}
+                      className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
+                      style={{ color: INK, background: SURFACE, border: "none", textAlign: "left" }}
+                    >
+                      <LogOut size={14} /> Log out
+                    </button>
+                    <div style={{ height: 1, background: LINE }} />
+                    <button
+                      onClick={() => { setShowAccountMenu(false); handleRequestAccountDeletion(); }}
+                      className="w-full flex items-center gap-2 text-xs font-medium px-3 py-2.5"
+                      style={{ color: RUST, background: SURFACE, border: "none", textAlign: "left" }}
+                    >
+                      Delete my account
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         <div className="h-px w-full mb-6" style={{ background: `repeating-linear-gradient(90deg, ${LINE} 0 6px, transparent 6px 12px)` }} />
