@@ -16,6 +16,7 @@ function loadZxing() {
 import {
   login,
   restoreSession,
+  adoptTokenFromUrl,
   logout,
   pingActivity,
   submitSnakeScore,
@@ -3744,6 +3745,11 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     (async () => {
       startAutoSync();
+      // If the native Android app just handed off a session (opened this
+      // site with ?token=... after its own native login screen), adopt it
+      // before the normal restore-session check below -- for every other
+      // launch (no token in the URL) this is a no-op and nothing changes.
+      adoptTokenFromUrl();
       const emp = await restoreSession();
       if (emp) {
         setEmployee(emp);

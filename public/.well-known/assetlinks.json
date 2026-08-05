@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.collbusinesssolutions.timeclock",
+      "sha256_cert_fingerprints": [
+        "19:9E:8F:CA:F0:76:F6:30:74:70:1D:C3:61:18:22:B1:1B:A0:9E:83:40:9C:52:5C:F7:07:6A:84:CE:A8:5C:26"
+      ]
+    }
+  }
+]

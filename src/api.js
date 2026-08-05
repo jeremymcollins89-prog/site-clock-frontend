@@ -85,6 +85,30 @@ async function restoreSession() {
   }
 }
 
+// Lets the native Android app hand off a session without asking the
+// employee to re-enter their PIN inside the web view: the native app logs
+// in once (its own login screen, calling POST /auth/login directly) and
+// opens this site with ?token=<the same 180-day token> in the URL. Adopting
+// it here just means "pretend this token was already saved" -- everything
+// after that (restoreSession -> GET /me) runs through the exact same path
+// as any other returning session. Returns true/false so the caller knows
+// whether to bother trying at all; a no-op (false) for every existing user
+// who never has a token param, so this changes nothing for them.
+function adoptTokenFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const token = params.get("token");
+  if (!token) return false;
+  localStorage.setItem(TOKEN_KEY, token);
+  // Scrub it from the address bar immediately -- this token grants full
+  // account access, so it shouldn't linger in browser history, get shared
+  // in a screenshot, or survive a page reload as a re-adoptable value.
+  params.delete("token");
+  const query = params.toString();
+  const clean = window.location.pathname + (query ? `?${query}` : "") + window.location.hash;
+  window.history.replaceState({}, "", clean);
+  return true;
+}
+
 async function forgotPin(email) {
   return apiFetch("/api/auth/forgot-pin", { method: "POST", body: { email } });
 }
@@ -282,6 +306,7 @@ function startAutoSync() {
 export {
   login,
   restoreSession,
+  adoptTokenFromUrl,
   logout,
   getSavedEmployee,
   pingActivity,
