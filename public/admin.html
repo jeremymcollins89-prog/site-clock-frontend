@@ -1789,6 +1789,7 @@ const admin = {
     return apiFetch(`/api/admin/time-entries?${qs}`);
   },
   updateTimeEntry: (id, patch) => apiFetch(`/api/admin/time-entries/${id}`, { method: "PATCH", body: patch }),
+  updateBreak: (timeEntryId, breakId, patch) => apiFetch(`/api/admin/time-entries/${timeEntryId}/breaks/${breakId}`, { method: "PATCH", body: patch }),
 
   getOverview: () => apiFetch("/api/admin/overview"),
   requestPing: (employeeId) => apiFetch(`/api/admin/employees/${employeeId}/request-ping`, { method: "POST" }),
@@ -2809,6 +2810,19 @@ async function renderEmployeeDetail(start, end) {
   // desktop: too easy to accidentally nudge a time punch while just reading
   // the time card when every field was editable by default.
   const cardsHtml = rows.map(function(r) {
+    // Each break gets its own Start/End pair -- tagged with data-break-id
+    // (rather than data-id) so saveEmployeeDetailRow can tell "this shift's
+    // own fields" apart from "one of its breaks" and send each to the right
+    // endpoint. An open break (forgot to punch back in) shows a blank End
+    // that an admin can now actually fill in, instead of only ever seeing a
+    // read-only, ever-growing "Break" total with no way to fix it.
+    const breaks = Array.isArray(r.breaks) ? r.breaks : [];
+    const breaksHtml = breaks.map(function(b) {
+      return '<div class="entry-field" style="display:flex; gap:8px;">' +
+        '<div style="flex:1;"><label>Break start</label><input type="datetime-local" value="' + (b.break_start ? toLocalDatetimeInputValue(b.break_start) : "") + '" data-break-field="break_start" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>' +
+        '<div style="flex:1;"><label>Break end' + (!b.break_end ? ' <span style="color:var(--rust);">(never ended)</span>' : '') + '</label><input type="datetime-local" value="' + (b.break_end ? toLocalDatetimeInputValue(b.break_end) : "") + '" data-break-field="break_end" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>' +
+      '</div>';
+    }).join("");
     return '<div class="entry-card">' +
       '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" disabled /></div>' +
       '<div class="entry-field"><label>Location</label><select data-field="location_type" data-id="' + r.time_entry_id + '" disabled>' +
@@ -2817,6 +2831,7 @@ async function renderEmployeeDetail(start, end) {
       '</select></div>' +
       '<div class="entry-field"><label>Clock in</label><input type="datetime-local" value="' + (r.clock_in ? toLocalDatetimeInputValue(r.clock_in) : "") + '" data-field="clock_in" data-id="' + r.time_entry_id + '" disabled /></div>' +
       '<div class="entry-field"><label>Clock out</label><input type="datetime-local" value="' + (r.clock_out ? toLocalDatetimeInputValue(r.clock_out) : "") + '" data-field="clock_out" data-id="' + r.time_entry_id + '" disabled /></div>' +
+      breaksHtml +
       '<div class="entry-meta"><div><strong>' + fmtDuration(r.worked_seconds) + '</strong>Worked</div><div><strong>' + fmtDuration(r.break_seconds) + '</strong>Break</div></div>' +
       '<button class="btn-secondary" onclick="toggleEmployeeRowEdit(\'' + r.time_entry_id + '\', this)">Edit</button>' +
     '</div>';
@@ -2896,15 +2911,30 @@ function toggleEmployeeRowEdit(id, btn) {
 async function saveEmployeeDetailRow(id, btn) {
   const inputs = document.querySelectorAll('#employee-sheet-content [data-id="' + id + '"]');
   const patch = {};
+  const breakPatches = {}; // break id -> { break_start?, break_end? }
   inputs.forEach(function(el) {
-    const field = el.dataset.field;
     let val = el.value;
+    if (el.dataset.breakId) {
+      // A break input (Start/End inside one of this shift's break rows) --
+      // save it to that break, not to the shift itself. An empty End is
+      // sent through as null (still open), not skipped, so an admin can
+      // clear a mistaken end time back to "never ended" if needed.
+      if (val) val = new Date(val).toISOString();
+      const breakId = el.dataset.breakId;
+      if (!breakPatches[breakId]) breakPatches[breakId] = {};
+      breakPatches[breakId][el.dataset.breakField] = val || null;
+      return;
+    }
+    const field = el.dataset.field;
     if ((field === "clock_in" || field === "clock_out") && val) val = new Date(val).toISOString();
     patch[field] = val;
   });
   if (btn) { btn.disabled = true; btn.textContent = "Saving..."; }
   try {
     await admin.updateTimeEntry(id, patch);
+    for (const breakId in breakPatches) {
+      await admin.updateBreak(id, breakId, breakPatches[breakId]);
+    }
     const start = document.getElementById("emp-detail-start").value;
     const end = document.getElementById("emp-detail-end").value;
     // Re-renders fresh from the server, so this card (and its Worked/Break
