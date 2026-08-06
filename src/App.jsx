@@ -3771,7 +3771,7 @@ const [emailInput, setEmailInput] = useState("");
     }
 
     sendPing();
-    const interval = setInterval(sendPing, 5 * 60 * 1000);
+    const interval = setInterval(sendPing, 30 * 60 * 1000);
     return () => clearInterval(interval);
   }, [status]);
   useEffect(() => {
