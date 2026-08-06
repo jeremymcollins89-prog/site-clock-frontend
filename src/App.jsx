@@ -4295,6 +4295,25 @@ const [emailInput, setEmailInput] = useState("");
 
   function handleLogout() {
     logout();
+    // Clearing this page's own session isn't enough when we're running
+    // inside the Coll Timeclock Android app -- that app stores its own
+    // separate login token natively so it can skip straight past the login
+    // screen on future opens, and that native token is untouched by
+    // anything happening on this page. Without this redirect, logging out
+    // here would look like it worked (this page shows the login form again)
+    // but the app would silently sign back in with the old token the next
+    // time it's opened. document.referrer is exactly "android-app://<package>"
+    // when a page is opened via a Trusted Web Activity, which is how we know
+    // we're actually inside the app (and not, say, a regular mobile browser)
+    // before trying this -- an intent:// URL means nothing to a normal
+    // browser.
+    if (document.referrer.indexOf("android-app://com.collbusinesssolutions.timeclock") === 0) {
+      try {
+        window.location.href = "intent://logout#Intent;scheme=collbusinesssolutionstimeclock;package=com.collbusinesssolutions.timeclock;end";
+      } catch {
+        // best-effort only -- the web-side logout above already succeeded
+      }
+    }
     setLoggedIn(false);
     setEmployee(null);
     setCompanyLogo(null);
