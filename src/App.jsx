@@ -3787,7 +3787,14 @@ const [emailInput, setEmailInput] = useState("");
           setLocationCheckNote("Couldn't get your current location.");
         }
       },
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+      // enableHighAccuracy forces a real GPS fix instead of network-based
+      // (cell/Wi-Fi) location -- network location depends on Google having
+      // crowd-sourced signal data for the area, which is often missing in
+      // rural/remote areas and fails outright with POSITION_UNAVAILABLE,
+      // exactly where an out-of-state "Traveling" employee is most likely to
+      // be. GPS works anywhere with sky view, at the cost of a slower first
+      // fix -- hence the longer timeout below.
+      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5 * 60 * 1000 }
     );
     return () => {
       cancelled = true;
