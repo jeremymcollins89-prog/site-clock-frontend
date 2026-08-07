@@ -3820,6 +3820,17 @@ const [emailInput, setEmailInput] = useState("");
         // instead of needing another round-trip to guess at it.
         const code = err && err.code;
         const raw = err && err.message ? ` (${err.message})` : "";
+        // Chrome's Trusted Web Activity wrapper intermittently fails to hand
+        // navigator.geolocation off to its native location service ("no twa
+        // found" / "NoTwaFound") -- a known, flaky Chromium quirk specific
+        // to running inside the wrapped Android app, not a real permission
+        // or GPS problem. It's not actionable, so show a plain note instead
+        // of the raw diagnostic and skip the permission cross-check below.
+        const isKnownTwaQuirk = err && err.message && /no\s*twa\s*found/i.test(err.message);
+        if (isKnownTwaQuirk) {
+          setLocationCheckNote("Couldn't auto-detect your location right now -- tap Traveling above if you're away from the shop.");
+          return;
+        }
         if (code === 1) {
           setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
         } else if (code === 3) {

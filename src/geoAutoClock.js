@@ -161,7 +161,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     // (GeofenceRegistrar.kt) drives real auto clock-in/out independently
     // and isn't affected by this. Surfacing it as a banner would just
     // cause needless worry over something that isn't actionable.
-    if (/no twa found/i.test(msg)) {
+    if (/no\s*twa\s*found/i.test(msg)) {
       return;
     }
     setGeoError(msg);
