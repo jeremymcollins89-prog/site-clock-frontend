@@ -7828,6 +7828,7 @@ const CATALOG_FIELD_ALIASES = {
   unit_price: ["unit price", "price", "rate", "amount", "sell price", "selling price"],
   quantity_on_hand: ["quantity", "qty", "quantity on hand", "qty on hand", "on hand", "stock", "in stock"],
   unit_cost: ["unit cost", "cost", "cost each", "cost per unit", "your cost", "cost $ each"],
+  barcode: ["barcode", "upc", "upc code", "ean", "gtin", "sku barcode"],
 };
 
 function mapRowsToCatalogItems(rows) {
@@ -7853,6 +7854,13 @@ function mapRowsToCatalogItems(rows) {
     if (fieldIndex.unit_cost !== undefined) {
       const raw = r[fieldIndex.unit_cost];
       if (raw !== null && raw !== "") obj.unit_cost = Number(String(raw).replace(/[$,]/g, "")) || 0;
+    }
+    if (fieldIndex.barcode !== undefined) {
+      const raw = r[fieldIndex.barcode];
+      // Spreadsheet apps love to turn a long numeric barcode into scientific
+      // notation (e.g. "8.9E+11") -- Number() would silently accept that and
+      // round-trip it wrong, so barcodes are always kept as plain text.
+      if (raw !== null && raw !== "") obj.barcode = String(raw).trim();
     }
     return obj;
   }).filter(function(o) { return o.name; });
@@ -7892,7 +7900,7 @@ async function handleCatalogImportFile(event) {
     const skippedDup = result.skipped.filter(function(s) { return s.reason === "duplicate"; }).length;
     const skippedNoName = result.skipped.filter(function(s) { return s.reason === "missing_name"; }).length;
     let msg = "Imported " + result.imported + " new catalog item(s).";
-    if (result.updated > 0) msg += "\nUpdated " + result.updated + " existing item(s) with quantity/cost from this file.";
+    if (result.updated > 0) msg += "\nUpdated " + result.updated + " existing item(s) with quantity/cost/barcode from this file.";
     if (skippedDup > 0) msg += "\nSkipped " + skippedDup + " that already exist with no changes to make.";
     if (skippedNoName > 0) msg += "\nSkipped " + skippedNoName + " with no name.";
     alert(msg);
