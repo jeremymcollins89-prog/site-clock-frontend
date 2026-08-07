@@ -4988,21 +4988,21 @@ const [emailInput, setEmailInput] = useState("");
           <div style={{ background: SURFACE, border: `1.5px dashed ${RUST}`, color: RUST }} className="rounded-xl p-3 mb-4 text-xs">
             Location access is off, so auto clock-in/out won't work — the manual buttons below still do. To enable it, allow location for this site in your phone's settings.
           </div>
-        )}{geo.configured && geo.permission !== "denied" && geo.geoError && (
-          // Anything other than a plain "permission denied" -- e.g. the
-          // same "no twa found" failure that used to silently break the
-          // Traveling auto-detect, here affecting the auto clock-in/out
-          // geofence's own location check. Shown separately (and worded
-          // differently) from the permission banner above since this isn't
-          // a permission problem the manual toggles below already cover --
-          // it means this specific web-side check couldn't get a location
-          // at all right now, though the phone's own native geofencing
-          // (which handles auto clock-in/out even while the app is fully
-          // closed) is unaffected by this and keeps working independently.
-          <div style={{ background: SURFACE, border: `1.5px dashed ${AMBER_DEEP}`, color: AMBER_DEEP }} className="rounded-xl p-3 mb-4 text-xs">
-            Location check (auto clock-in/out): {geo.geoError}
-          </div>
-        )}
+        )}{
+          // This used to also show a banner for geo.geoError (e.g. "no twa
+          // found", "timeout expired") on this same web-side backup check.
+          // That was a temporary diagnostic to find out whether the TWA
+          // wrapper's geolocation delegation bug also affects this check --
+          // it does, in more than one form, and it isn't fixable from here
+          // or actionable by the user. The phone's own native geofencing
+          // (which handles real auto clock-in/out even while the app is
+          // fully closed) is unaffected by this and keeps working
+          // independently, so surfacing this particular failure was just
+          // causing repeated false alarms over something harmless. Removed;
+          // geo.geoError is still tracked in state in case it's needed for
+          // debugging again later.
+          null
+        }
         {shiftTooLong && (
           <div style={{ background: SURFACE, border: `1.5px solid ${RUST}`, color: RUST, boxShadow: "0 6px 16px rgba(211,90,52,0.1)" }} className="rounded-xl p-3 mb-4 text-xs">
             You've been clocked in for over 10 hours — did you forget to clock out?
