@@ -165,6 +165,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     navigator.geolocation.getCurrentPosition(
       (pos) => {
         setPermission("granted");
+        setGeoError("");
         evaluate(pos);
       },
       handlePositionError,
@@ -174,6 +175,7 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     watchIdRef.current = navigator.geolocation.watchPosition(
       (pos) => {
         setPermission("granted");
+        setGeoError("");
         evaluate(pos);
       },
       handlePositionError,
@@ -183,7 +185,10 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     function onVisible() {
       if (document.visibilityState === "visible") {
         navigator.geolocation.getCurrentPosition(
-          (pos) => evaluate(pos),
+          (pos) => {
+            setGeoError("");
+            evaluate(pos);
+          },
           handlePositionError,
           { enableHighAccuracy: true, maximumAge: 10000, timeout: 15000 }
         );
