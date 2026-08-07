@@ -152,7 +152,19 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     if (err.code === err.PERMISSION_DENIED) {
       setPermission("denied");
     }
-    setGeoError(err.message || "Location error");
+    const msg = err.message || "Location error";
+    // Chrome's Trusted Web Activity wrapper intermittently fails to hand
+    // navigator.geolocation off to the native location service ("no twa
+    // found") -- a known, flaky Chromium quirk specific to running inside
+    // the wrapped Android app, not an actual location/permission problem.
+    // This web-side check is only a backup; native geofencing
+    // (GeofenceRegistrar.kt) drives real auto clock-in/out independently
+    // and isn't affected by this. Surfacing it as a banner would just
+    // cause needless worry over something that isn't actionable.
+    if (/no twa found/i.test(msg)) {
+      return;
+    }
+    setGeoError(msg);
   }
 
   useEffect(() => {
