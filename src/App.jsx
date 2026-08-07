@@ -3640,6 +3640,20 @@ const [emailInput, setEmailInput] = useState("");
   const [jobName, setJobName] = useState("");
   const [jobDraft, setJobDraft] = useState("");
   const [location, setLocation] = useState("in_town"); // matches backend enum
+  // True once the travel-check auto-detect (see effect below, near
+  // SHOP_LAT/SHOP_LNG) has set `location` to "traveling" on its own, so the
+  // UI can show a small "set automatically" hint. Cleared the moment the
+  // employee taps either toggle button manually.
+  const [locationAutoDetected, setLocationAutoDetected] = useState(false);
+  // Once true, the auto-detect effect below never touches `location` again
+  // this session -- a manual tap always wins, even if they later reopen the
+  // app while still off the clock.
+  const manualLocationRef = useRef(false);
+  function handleSelectLocation(val) {
+    manualLocationRef.current = true;
+    setLocationAutoDetected(false);
+    setLocation(val);
+  }
   const [clockInTime, setClockInTime] = useState(null);
   const [breakStartedAt, setBreakStartedAt] = useState(null);
   const breakReminderFiredRef = useRef(null);
@@ -3705,6 +3719,49 @@ const [emailInput, setEmailInput] = useState("");
   const SHOP_LAT = employee?.shop_lat != null ? Number(employee.shop_lat) : NaN;
   const SHOP_LNG = employee?.shop_lng != null ? Number(employee.shop_lng) : NaN;
   const SHOP_RADIUS_M = employee?.shop_radius_m != null ? Number(employee.shop_radius_m) : 152; // ~500ft
+
+  // Auto-defaults the In Town / Traveling toggle (rendered below in the
+  // off-duty clock-in card) to "Traveling" when the employee's current GPS
+  // position isn't in the same state as the shop -- someone who's out of
+  // state for a job shouldn't have to remember to flip this manually every
+  // time. Runs once whenever the off-duty screen is showing and the
+  // employee hasn't already picked a value by hand this session (see
+  // handleSelectLocation, which sets manualLocationRef and permanently
+  // opts this effect out). Every failure mode here (no geolocation support,
+  // permission denied, offline, shop location not configured on the admin
+  // side) just leaves the existing default in place -- this should never
+  // block or error out the clock-in screen.
+  useEffect(() => {
+    if (status !== "off") return;
+    if (manualLocationRef.current) return;
+    if (!navigator.geolocation) return;
+    let cancelled = false;
+    navigator.geolocation.getCurrentPosition(
+      async (pos) => {
+        if (cancelled || manualLocationRef.current) return;
+        try {
+          const res = await apiFetch(
+            `/api/time-entries/travel-check?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
+          );
+          if (cancelled || manualLocationRef.current) return;
+          if (res && res.traveling === true) {
+            setLocation("traveling");
+            setLocationAutoDetected(true);
+          } else if (res && res.traveling === false) {
+            setLocation("in_town");
+            setLocationAutoDetected(false);
+          }
+        } catch {
+          // Offline or a server hiccup -- silently keep the existing default.
+        }
+      },
+      () => {}, // permission denied / unavailable -- silently keep the existing default
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
+    );
+    return () => {
+      cancelled = true;
+    };
+  }, [status]);
 
   async function autoClockIn() {
     setActionError("");
@@ -4888,7 +4945,7 @@ const [emailInput, setEmailInput] = useState("");
           <div className="flex mb-4 rounded-xl overflow-hidden" style={{ border: `1.5px solid ${INK}` }}>
             <button
               disabled={status !== "off"}
-              onClick={() => setLocation("in_town")}
+              onClick={() => handleSelectLocation("in_town")}
               style={{
                 background: location === "in_town" ? `linear-gradient(135deg, #5C9481, ${TEAL_DEEP})` : "transparent",
                 color: location === "in_town" ? "#fff" : INK, fontFamily: "'Oswald', sans-serif",
@@ -4899,7 +4956,7 @@ const [emailInput, setEmailInput] = useState("");
             </button>
             <button
               disabled={status !== "off"}
-              onClick={() => setLocation("traveling")}
+              onClick={() => handleSelectLocation("traveling")}
               style={{
                 background: location === "traveling" ? `linear-gradient(135deg, #E4794F, ${RUST_DEEP})` : "transparent",
                 color: location === "traveling" ? "#fff" : INK, fontFamily: "'Oswald', sans-serif",
@@ -4909,6 +4966,11 @@ const [emailInput, setEmailInput] = useState("");
               <Plane size={14} /> TRAVELING
             </button>
           </div>
+          {status === "off" && locationAutoDetected && (
+            <div className="text-xs mb-3 -mt-3" style={{ color: MUTED }}>
+              Set to Traveling automatically based on your location — tap In Town if that's wrong.
+            </div>
+          )}
 
           <div className="flex gap-2">
             {status === "off" && (
