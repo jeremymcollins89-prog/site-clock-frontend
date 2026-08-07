@@ -3778,13 +3778,31 @@ const [emailInput, setEmailInput] = useState("");
       (err) => {
         if (cancelled) return;
         // GeolocationPositionError codes: 1 = permission denied, 2 = position
-        // unavailable, 3 = timeout.
-        if (err && err.code === 1) {
-          setLocationCheckNote("Location permission is off for this app, so Traveling can't auto-detect. Enable it in your phone's app settings.");
-        } else if (err && err.code === 3) {
-          setLocationCheckNote("Location check timed out -- try again in a moment.");
+        // unavailable, 3 = timeout. Including the raw code/message (rather
+        // than just a friendly summary) temporarily, so a failure mode we
+        // haven't seen yet is diagnosable from the phone screen itself
+        // instead of needing another round-trip to guess at it.
+        const code = err && err.code;
+        const raw = err && err.message ? ` (${err.message})` : "";
+        if (code === 1) {
+          setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+        } else if (code === 3) {
+          setLocationCheckNote(`Location check timed out -- try again in a moment${raw}.`);
         } else {
-          setLocationCheckNote("Couldn't get your current location.");
+          setLocationCheckNote(`Couldn't get your current location [code ${code}]${raw}.`);
+        }
+        // Cross-check against the Permissions API, independent of whether a
+        // GPS fix actually succeeded -- this tells us whether the browser
+        // engine itself believes it has location permission for this page at
+        // all, which is a different question from "GPS found a fix."
+        if (navigator.permissions && navigator.permissions.query) {
+          navigator.permissions
+            .query({ name: "geolocation" })
+            .then((status) => {
+              if (cancelled) return;
+              setLocationCheckNote((prev) => `${prev} [permission: ${status.state}]`);
+            })
+            .catch(() => {});
         }
       },
       // enableHighAccuracy forces a real GPS fix instead of network-based
