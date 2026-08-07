@@ -17,6 +17,7 @@ import {
   login,
   restoreSession,
   adoptTokenFromUrl,
+  adoptNativeLocationFromUrl,
   logout,
   pingActivity,
   submitSnakeScore,
@@ -3654,6 +3655,15 @@ const [emailInput, setEmailInput] = useState("");
   // this session -- a manual tap always wins, even if they later reopen the
   // app while still off the clock.
   const manualLocationRef = useRef(false);
+  // A one-time native GPS fix handed off by the Android app on launch (see
+  // adoptNativeLocationFromUrl() below and TwaLauncher.kt/LoginActivity.kt
+  // on the native side) -- { lat, lng, capturedAt } or null. The
+  // travel-check auto-detect effect prefers this over calling
+  // navigator.geolocation itself, since that call fails inside this app's
+  // Trusted Web Activity (Chrome tries to delegate it to a native service
+  // the app doesn't implement, and errors out with "no twa found" even
+  // though location permission is genuinely granted).
+  const nativeLocationRef = useRef(null);
   function handleSelectLocation(val) {
     manualLocationRef.current = true;
     setLocationAutoDetected(false);
@@ -3740,40 +3750,66 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     if (status !== "off") return;
     if (manualLocationRef.current) return;
+    let cancelled = false;
+
+    // Shared by both the native-handoff path and the browser-geolocation
+    // path below -- calls the server with a coordinate pair and applies
+    // whatever it decides.
+    async function checkCoords(lat, lng) {
+      try {
+        const res = await apiFetch(`/api/time-entries/travel-check?lat=${lat}&lng=${lng}`);
+        if (cancelled || manualLocationRef.current) return;
+        if (res && res.traveling === true) {
+          setLocation("traveling");
+          setLocationAutoDetected(true);
+          setLocationCheckNote("");
+        } else if (res && res.traveling === false) {
+          setLocation("in_town");
+          setLocationAutoDetected(false);
+          setLocationCheckNote("");
+        } else {
+          // Server couldn't make a confident call (shop location not set,
+          // or couldn't resolve a state for these coordinates) -- surface
+          // why instead of silently doing nothing, so this is debuggable
+          // from the phone itself without needing devtools.
+          setLocationCheckNote(
+            res && res.reason ? `Location auto-detect: ${res.reason}.` : "Couldn't confirm your location right now."
+          );
+        }
+      } catch (err) {
+        if (!cancelled) setLocationCheckNote("Couldn't reach the server to check your location.");
+      }
+    }
+
+    // Prefer the one-time native GPS handoff from the Android app (see
+    // nativeLocationRef's declaration above) when it's reasonably fresh --
+    // calling navigator.geolocation directly fails inside this app's
+    // Trusted Web Activity (Chrome tries to delegate the request to a
+    // native service the app doesn't implement, and errors out with "no
+    // twa found" even though location permission is genuinely granted).
+    // 30 minutes covers the realistic case (checking this screen shortly
+    // after opening the app); anything older falls back to trying the
+    // browser API directly, which still works fine outside the Android
+    // wrapper (desktop, iOS, or any future non-TWA context).
+    const handoff = nativeLocationRef.current;
+    const handoffFresh = handoff && Date.now() - handoff.capturedAt < 30 * 60 * 1000;
+    if (handoffFresh) {
+      setLocationCheckNote("Checking your location…");
+      checkCoords(handoff.lat, handoff.lng);
+      return () => {
+        cancelled = true;
+      };
+    }
+
     if (!navigator.geolocation) {
       setLocationCheckNote("Your browser doesn't support location, so this can't auto-detect.");
       return;
     }
-    let cancelled = false;
     setLocationCheckNote("Checking your location…");
     navigator.geolocation.getCurrentPosition(
-      async (pos) => {
+      (pos) => {
         if (cancelled || manualLocationRef.current) return;
-        try {
-          const res = await apiFetch(
-            `/api/time-entries/travel-check?lat=${pos.coords.latitude}&lng=${pos.coords.longitude}`
-          );
-          if (cancelled || manualLocationRef.current) return;
-          if (res && res.traveling === true) {
-            setLocation("traveling");
-            setLocationAutoDetected(true);
-            setLocationCheckNote("");
-          } else if (res && res.traveling === false) {
-            setLocation("in_town");
-            setLocationAutoDetected(false);
-            setLocationCheckNote("");
-          } else {
-            // Server couldn't make a confident call (shop location not set,
-            // or couldn't resolve a state for these coordinates) -- surface
-            // why instead of silently doing nothing, so this is debuggable
-            // from the phone itself without needing devtools.
-            setLocationCheckNote(
-              res && res.reason ? `Location auto-detect: ${res.reason}.` : "Couldn't confirm your location right now."
-            );
-          }
-        } catch (err) {
-          setLocationCheckNote("Couldn't reach the server to check your location.");
-        }
+        checkCoords(pos.coords.latitude, pos.coords.longitude);
       },
       (err) => {
         if (cancelled) return;
@@ -3928,6 +3964,9 @@ const [emailInput, setEmailInput] = useState("");
       // before the normal restore-session check below -- for every other
       // launch (no token in the URL) this is a no-op and nothing changes.
       adoptTokenFromUrl();
+      // Same launch, a second one-time handoff -- see nativeLocationRef's
+      // declaration above for why the native app sends this at all.
+      nativeLocationRef.current = adoptNativeLocationFromUrl();
       const emp = await restoreSession();
       if (emp) {
         setEmployee(emp);

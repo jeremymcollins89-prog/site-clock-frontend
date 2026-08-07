@@ -109,6 +109,31 @@ function adoptTokenFromUrl() {
   return true;
 }
 
+// Reads a one-time native GPS fix the Android app appends to the launch URL
+// as ?nlat=&nlng= (see TwaLauncher.kt / LoginActivity.kt) -- taken natively,
+// right before this page loads, using the same location stack the app's
+// geofence feature relies on. This exists because Chrome's own delegated
+// navigator.geolocation calls fail inside this app's Trusted Web Activity
+// (it doesn't implement the native service Chrome expects to hand requests
+// off to), so the web page can't reliably get a location fix on its own
+// while wrapped by the Android app. Mirrors adoptTokenFromUrl()'s
+// read-then-scrub pattern. Returns { lat, lng, capturedAt } or null.
+function adoptNativeLocationFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const latStr = params.get("nlat");
+  const lngStr = params.get("nlng");
+  if (!latStr || !lngStr) return null;
+  const lat = Number(latStr);
+  const lng = Number(lngStr);
+  params.delete("nlat");
+  params.delete("nlng");
+  const query = params.toString();
+  const clean = window.location.pathname + (query ? `?${query}` : "") + window.location.hash;
+  window.history.replaceState({}, "", clean);
+  if (!Number.isFinite(lat) || !Number.isFinite(lng)) return null;
+  return { lat, lng, capturedAt: Date.now() };
+}
+
 async function forgotPin(email) {
   return apiFetch("/api/auth/forgot-pin", { method: "POST", body: { email } });
 }
@@ -307,6 +332,7 @@ export {
   login,
   restoreSession,
   adoptTokenFromUrl,
+  adoptNativeLocationFromUrl,
   logout,
   getSavedEmployee,
   pingActivity,
