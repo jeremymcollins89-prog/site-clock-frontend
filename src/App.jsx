@@ -3645,6 +3645,11 @@ const [emailInput, setEmailInput] = useState("");
   // UI can show a small "set automatically" hint. Cleared the moment the
   // employee taps either toggle button manually.
   const [locationAutoDetected, setLocationAutoDetected] = useState(false);
+  // Human-readable status/error for the location auto-detect check below --
+  // shown in small print under the toggle so a failure (permission denied,
+  // no shop location configured, server unreachable, etc.) is visible right
+  // on the phone instead of failing invisibly. Empty string shows nothing.
+  const [locationCheckNote, setLocationCheckNote] = useState("");
   // Once true, the auto-detect effect below never touches `location` again
   // this session -- a manual tap always wins, even if they later reopen the
   // app while still off the clock.
@@ -3652,6 +3657,7 @@ const [emailInput, setEmailInput] = useState("");
   function handleSelectLocation(val) {
     manualLocationRef.current = true;
     setLocationAutoDetected(false);
+    setLocationCheckNote("");
     setLocation(val);
   }
   const [clockInTime, setClockInTime] = useState(null);
@@ -3734,8 +3740,12 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     if (status !== "off") return;
     if (manualLocationRef.current) return;
-    if (!navigator.geolocation) return;
+    if (!navigator.geolocation) {
+      setLocationCheckNote("Your browser doesn't support location, so this can't auto-detect.");
+      return;
+    }
     let cancelled = false;
+    setLocationCheckNote("Checking your location…");
     navigator.geolocation.getCurrentPosition(
       async (pos) => {
         if (cancelled || manualLocationRef.current) return;
@@ -3747,15 +3757,36 @@ const [emailInput, setEmailInput] = useState("");
           if (res && res.traveling === true) {
             setLocation("traveling");
             setLocationAutoDetected(true);
+            setLocationCheckNote("");
           } else if (res && res.traveling === false) {
             setLocation("in_town");
             setLocationAutoDetected(false);
+            setLocationCheckNote("");
+          } else {
+            // Server couldn't make a confident call (shop location not set,
+            // or couldn't resolve a state for these coordinates) -- surface
+            // why instead of silently doing nothing, so this is debuggable
+            // from the phone itself without needing devtools.
+            setLocationCheckNote(
+              res && res.reason ? `Location auto-detect: ${res.reason}.` : "Couldn't confirm your location right now."
+            );
           }
-        } catch {
-          // Offline or a server hiccup -- silently keep the existing default.
+        } catch (err) {
+          setLocationCheckNote("Couldn't reach the server to check your location.");
         }
       },
-      () => {}, // permission denied / unavailable -- silently keep the existing default
+      (err) => {
+        if (cancelled) return;
+        // GeolocationPositionError codes: 1 = permission denied, 2 = position
+        // unavailable, 3 = timeout.
+        if (err && err.code === 1) {
+          setLocationCheckNote("Location permission is off for this app, so Traveling can't auto-detect. Enable it in your phone's app settings.");
+        } else if (err && err.code === 3) {
+          setLocationCheckNote("Location check timed out -- try again in a moment.");
+        } else {
+          setLocationCheckNote("Couldn't get your current location.");
+        }
+      },
       { enableHighAccuracy: false, timeout: 8000, maximumAge: 5 * 60 * 1000 }
     );
     return () => {
@@ -4969,6 +5000,11 @@ const [emailInput, setEmailInput] = useState("");
           {status === "off" && locationAutoDetected && (
             <div className="text-xs mb-3 -mt-3" style={{ color: MUTED }}>
               Set to Traveling automatically based on your location — tap In Town if that's wrong.
+            </div>
+          )}
+          {status === "off" && !locationAutoDetected && locationCheckNote && (
+            <div className="text-xs mb-3 -mt-3" style={{ color: MUTED }}>
+              {locationCheckNote}
             </div>
           )}
 
