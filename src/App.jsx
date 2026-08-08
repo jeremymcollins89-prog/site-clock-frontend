@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useLayoutEffect, useRef } from "react";
 import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper, Sun, Moon } from "lucide-react";
 // @zxing/library is the single biggest contributor to the main JS bundle,
 // but only employees with can_manage_inventory ever open the barcode
@@ -3664,6 +3664,23 @@ const [emailInput, setEmailInput] = useState("");
   // the app doesn't implement, and errors out with "no twa found" even
   // though location permission is genuinely granted).
   const nativeLocationRef = useRef(null);
+  // Adopts the ?token= session handoff and the ?nlat=/?nlng= native GPS
+  // handoff as early as possible -- specifically in useLayoutEffect rather
+  // than the normal useEffect below (which also calls restoreSession() and
+  // the rest of app startup), because React runs all useLayoutEffects
+  // before any useEffect fires, regardless of source order. That ordering
+  // guarantee is the actual fix here: the travel-check auto-detect effect
+  // further down reads nativeLocationRef.current synchronously the moment
+  // it runs, and it's declared earlier in this component than the old
+  // useEffect that used to populate the ref -- so on every fresh app
+  // launch, the travel-check effect was running BEFORE the ref got set,
+  // always seeing it as empty and falling back to the browser's own
+  // geolocation call (which fails inside this Android wrapper) even though
+  // the native app had already handed off a perfectly good GPS fix.
+  useLayoutEffect(() => {
+    adoptTokenFromUrl();
+    nativeLocationRef.current = adoptNativeLocationFromUrl();
+  }, []);
   function handleSelectLocation(val) {
     manualLocationRef.current = true;
     setLocationAutoDetected(false);
@@ -3970,14 +3987,10 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     (async () => {
       startAutoSync();
-      // If the native Android app just handed off a session (opened this
-      // site with ?token=... after its own native login screen), adopt it
-      // before the normal restore-session check below -- for every other
-      // launch (no token in the URL) this is a no-op and nothing changes.
-      adoptTokenFromUrl();
-      // Same launch, a second one-time handoff -- see nativeLocationRef's
-      // declaration above for why the native app sends this at all.
-      nativeLocationRef.current = adoptNativeLocationFromUrl();
+      // Token and native-location handoff (?token=, ?nlat=/?nlng=) are now
+      // adopted earlier, in the useLayoutEffect right after
+      // nativeLocationRef's declaration -- guaranteed to run before this
+      // effect and before the travel-check effect that reads the ref.
       const emp = await restoreSession();
       if (emp) {
         setEmployee(emp);
