@@ -104,17 +104,43 @@
     filter: blur(10px);
   }
 
-  /* Planets + moons drifting behind the whole app -- purely decorative, an
-     upgrade on the plain starfield/nebula. Fixed + pointer-events:none so
-     they never intercept clicks or scroll with the page. */
+  /* A little solar system living behind the whole app -- purely decorative.
+     Fixed + pointer-events:none so nothing here ever intercepts a click or
+     interferes with scrolling.
+
+     Two motions layer on top of each other on purpose, on two different
+     elements so they never fight over the same `transform`:
+       - Each .parallax wrapper below gets its position moved by JS (script
+         at the bottom of this file) based on scroll position and cursor --
+         data-depth controls how much: near-zero for the sun (it's the
+         center of the system, it should barely drift), higher for
+         "closer" planets. This is the "changes as you scroll around" part.
+       - The .planet element *inside* each wrapper runs its own gentle,
+         always-on CSS drift/rotation independent of scroll -- so the scene
+         still feels alive even sitting still.
+  */
   .cosmos { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  .planet { position: absolute; }
+  .parallax { position: absolute; will-change: transform; }
+  .planet { position: relative; width: 100%; height: 100%; }
   .planet-sphere { width: 100%; height: 100%; border-radius: 50%; position: relative; }
 
-  .planet-saturn {
-    top: -70px; right: -80px; width: 280px; height: 280px;
-    animation: driftPlanet 36s ease-in-out infinite;
+  /* The sun -- the anchor of the scene. Lowest depth of anything here (see
+     data-depth on its wrapper in the HTML) so it stays nearly still while
+     everything else drifts around it, the way a real system's star would. */
+  .px-sun { bottom: -50px; right: 10%; width: 160px; height: 160px; }
+  .sun {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: radial-gradient(circle at 40% 35%, #fff8e2 0%, #ffd782 20%, #ffb347 44%, #e07a1c 70%, #7a3403 100%);
+    box-shadow: 0 0 70px 14px rgba(255, 199, 120, 0.5), 0 0 160px 46px rgba(255, 170, 80, 0.22);
+    animation: sunPulse 5s ease-in-out infinite;
   }
+  @keyframes sunPulse {
+    0%, 100% { filter: brightness(1); }
+    50% { filter: brightness(1.12); }
+  }
+
+  .px-saturn { top: -70px; right: -80px; width: 280px; height: 280px; }
+  .planet-saturn { animation: driftPlanet 36s ease-in-out infinite; }
   .planet-saturn .planet-sphere {
     background: radial-gradient(circle at 32% 26%, #ffe7ba 0%, #f2b46a 22%, #d9823f 48%, #a85a2c 76%, #4a2410 100%);
     box-shadow: -16px 20px 60px rgba(0,0,0,0.55), 0 0 70px rgba(244,193,105,0.16);
@@ -128,10 +154,8 @@
     z-index: -1;
   }
 
-  .planet-teal {
-    bottom: 8%; left: -55px; width: 130px; height: 130px;
-    animation: driftPlanet 27s ease-in-out infinite reverse;
-  }
+  .px-teal { bottom: 8%; left: -55px; width: 130px; height: 130px; }
+  .planet-teal { animation: driftPlanet 27s ease-in-out infinite reverse; }
   .planet-teal .planet-sphere {
     background: radial-gradient(circle at 30% 24%, #c4fff0 0%, #52e3ff 26%, #17b4d9 56%, #0d5e79 82%, #052029 100%);
     box-shadow: -8px 10px 32px rgba(0,0,0,0.5), 0 0 44px rgba(82,227,255,0.2);
@@ -146,22 +170,60 @@
     box-shadow: 0 0 10px rgba(255,255,255,0.25);
   }
 
-  .planet-mars {
-    top: 20%; left: 5%; width: 48px; height: 48px; opacity: 0.75;
-    animation: driftPlanet 42s ease-in-out infinite;
-  }
+  .px-mars { top: 20%; left: 5%; width: 48px; height: 48px; }
+  .planet-mars { opacity: 0.75; animation: driftPlanet 42s ease-in-out infinite; }
   .planet-mars .planet-sphere {
     background: radial-gradient(circle at 32% 28%, #ff9d7a 0%, #db6a49 36%, #8f3a26 72%, #391307 100%);
     box-shadow: 0 0 26px rgba(219,106,73,0.18);
   }
 
-  .planet-violet {
-    top: 62%; right: 6%; width: 34px; height: 34px; opacity: 0.6;
-    animation: driftPlanet 30s ease-in-out infinite reverse;
-  }
+  .px-violet { top: 62%; right: 6%; width: 34px; height: 34px; }
+  .planet-violet { opacity: 0.6; animation: driftPlanet 30s ease-in-out infinite reverse; }
   .planet-violet .planet-sphere {
     background: radial-gradient(circle at 34% 28%, #d7c9ff 0%, #9c8bff 40%, #6a56f0 75%, #26185c 100%);
     box-shadow: 0 0 20px rgba(156,139,255,0.2);
+  }
+
+  /* Pale ice giant, thin tilted ring -- new */
+  .px-neptune { top: 9%; left: -34px; width: 100px; height: 100px; }
+  .planet-neptune { animation: driftPlanet 33s ease-in-out infinite; }
+  .planet-neptune .planet-sphere {
+    background: radial-gradient(circle at 30% 26%, #eafcff 0%, #9fe3f0 24%, #4fb8d6 52%, #276f8c 80%, #0e2c38 100%);
+    box-shadow: -6px 8px 28px rgba(0,0,0,0.5), 0 0 38px rgba(79,184,214,0.22);
+  }
+  .planet-neptune .planet-ring {
+    position: absolute; top: 50%; left: 50%; width: 152%; height: 32%;
+    transform: translate(-50%, -50%) rotate(14deg);
+    border-radius: 50%;
+    border: 4px solid rgba(200, 240, 255, 0.3);
+    z-index: -1;
+  }
+
+  /* Small cratered rocky planetoid -- new, tucked in the mid-right */
+  .px-ember { top: 40%; right: 3%; width: 30px; height: 30px; }
+  .planet-ember { opacity: 0.8; animation: driftPlanet 24s ease-in-out infinite reverse; }
+  .planet-ember .planet-sphere {
+    background: radial-gradient(circle at 30% 25%, #ffd9a0 0%, #e08a3e 32%, #a1501f 64%, #4a1f0a 100%);
+    box-shadow: 0 0 18px rgba(224,138,62,0.18);
+  }
+  .planet-ember .planet-sphere::after {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background:
+      radial-gradient(circle at 65% 60%, rgba(0,0,0,0.28) 0 12%, transparent 13%),
+      radial-gradient(circle at 40% 72%, rgba(0,0,0,0.22) 0 8%, transparent 9%),
+      radial-gradient(circle at 55% 30%, rgba(0,0,0,0.2) 0 6%, transparent 7%);
+  }
+
+  /* Faint distant galaxy smudge for extra depth -- very low opacity, mostly
+     felt rather than seen. */
+  .px-galaxy { top: 4%; left: 36%; width: 340px; height: 140px; }
+  .galaxy {
+    width: 100%; height: 100%; border-radius: 50%;
+    background: conic-gradient(from 200deg at 50% 50%,
+      rgba(156,139,255,0.2), rgba(82,227,255,0.12), transparent 55%, rgba(244,193,105,0.1), transparent 80%);
+    transform: rotate(-24deg);
+    filter: blur(6px);
+    opacity: 0.55;
   }
 
   @keyframes driftPlanet {
@@ -192,6 +254,28 @@
     2% { opacity: 1; }
     16% { opacity: 0; transform: translate(-280px, 170px); }
     100% { opacity: 0; }
+  }
+
+  /* A single comet, slow full diagonal pass every ~26s then invisible until
+     the next lap -- distinct from the quick white shooting stars above. */
+  .comet {
+    position: absolute; top: -6%; left: -6%; width: 8px; height: 8px; border-radius: 50%;
+    background: #eafcff; box-shadow: 0 0 12px 3px rgba(180,230,255,0.9);
+    animation: cometPass 26s linear infinite;
+    opacity: 0;
+  }
+  .comet::after {
+    content: ""; position: absolute; top: 50%; right: 100%; width: 100px; height: 3px;
+    background: linear-gradient(270deg, rgba(180,230,255,0.75), transparent);
+    transform: translateY(-50%);
+    border-radius: 4px;
+  }
+  @keyframes cometPass {
+    0% { opacity: 0; transform: translate(0, 0); }
+    4% { opacity: 1; }
+    40% { opacity: 1; transform: translate(92vw, 62vh); }
+    44% { opacity: 0; transform: translate(92vw, 62vh); }
+    100% { opacity: 0; transform: translate(92vw, 62vh); }
   }
 
   #login-screen, #app { position: relative; z-index: 1; }
@@ -373,19 +457,41 @@
 </head>
 <body>
 
-<div class="cosmos" aria-hidden="true">
-  <div class="planet planet-saturn">
-    <div class="planet-ring"></div>
-    <div class="planet-sphere"></div>
+<div class="cosmos" id="cosmos" aria-hidden="true">
+  <div class="parallax px-galaxy" data-depth="0.02"><div class="galaxy"></div></div>
+  <div class="parallax px-sun" data-depth="0.03"><div class="sun"></div></div>
+
+  <div class="parallax px-saturn" data-depth="0.18">
+    <div class="planet planet-saturn">
+      <div class="planet-ring"></div>
+      <div class="planet-sphere"></div>
+    </div>
   </div>
-  <div class="planet planet-teal">
-    <div class="planet-sphere"></div>
-    <div class="moon-orbit"><div class="moon"></div></div>
+  <div class="parallax px-teal" data-depth="0.28">
+    <div class="planet planet-teal">
+      <div class="planet-sphere"></div>
+      <div class="moon-orbit"><div class="moon"></div></div>
+    </div>
   </div>
-  <div class="planet planet-mars"><div class="planet-sphere"></div></div>
-  <div class="planet planet-violet"><div class="planet-sphere"></div></div>
+  <div class="parallax px-neptune" data-depth="0.15">
+    <div class="planet planet-neptune">
+      <div class="planet-ring"></div>
+      <div class="planet-sphere"></div>
+    </div>
+  </div>
+  <div class="parallax px-mars" data-depth="0.12">
+    <div class="planet planet-mars"><div class="planet-sphere"></div></div>
+  </div>
+  <div class="parallax px-violet" data-depth="0.08">
+    <div class="planet planet-violet"><div class="planet-sphere"></div></div>
+  </div>
+  <div class="parallax px-ember" data-depth="0.07">
+    <div class="planet planet-ember"><div class="planet-sphere"></div></div>
+  </div>
+
   <div class="shooting-star s1"></div>
   <div class="shooting-star s2"></div>
+  <div class="comet"></div>
 </div>
 
 <div id="login-screen">
@@ -641,6 +747,43 @@ if (getToken()) {
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/service-worker.js", { updateViaCache: "none" });
 }
+
+// Solar system parallax -- moves each .parallax layer in the cosmos
+// background based on scroll position and cursor location, per its own
+// data-depth (0 = practically fixed, like the sun; higher = drifts more,
+// reading as "closer"). This is separate from the CSS drift/orbit
+// animations each planet already runs on itself, so the two motions layer
+// naturally instead of fighting over the same transform. Runs regardless of
+// login state, since the login screen sits on top of this same background.
+(function () {
+  const layers = Array.prototype.slice.call(document.querySelectorAll(".parallax"));
+  if (!layers.length) return;
+  let mouseX = 0, mouseY = 0, ticking = false;
+
+  function apply() {
+    const scrollY = window.scrollY || 0;
+    layers.forEach(function (el) {
+      const depth = parseFloat(el.getAttribute("data-depth")) || 0;
+      const dx = mouseX * depth * 40;
+      const dy = (-scrollY * depth) + (mouseY * depth * 40);
+      el.style.transform = "translate3d(" + dx.toFixed(1) + "px, " + dy.toFixed(1) + "px, 0)";
+    });
+    ticking = false;
+  }
+  function requestTick() {
+    if (!ticking) {
+      ticking = true;
+      requestAnimationFrame(apply);
+    }
+  }
+  window.addEventListener("scroll", requestTick, { passive: true });
+  window.addEventListener("mousemove", function (e) {
+    mouseX = (e.clientX / window.innerWidth) - 0.5;
+    mouseY = (e.clientY / window.innerHeight) - 0.5;
+    requestTick();
+  }, { passive: true });
+  apply();
+})();
 </script>
 </body>
 </html>
