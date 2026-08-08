@@ -214,16 +214,71 @@
       radial-gradient(circle at 55% 30%, rgba(0,0,0,0.2) 0 6%, transparent 7%);
   }
 
-  /* Faint distant galaxy smudge for extra depth -- very low opacity, mostly
-     felt rather than seen. */
-  .px-galaxy { top: 4%; left: 36%; width: 340px; height: 140px; }
+  /* A soft Milky-Way-style dust/light band running diagonally across the
+     whole sky -- the angle lives in the gradient itself (not a rotated
+     box), so it always fully covers the oversized wrapper with no gaps at
+     the corners. Depth is almost 0 (see data-depth in the HTML): real
+     background starfields like this barely shift at all, even scrolling
+     or moving the cursor a lot. */
+  .px-milkyway { top: -20%; left: -20%; width: 140vw; height: 140vh; }
+  .milkyway {
+    width: 100%; height: 100%;
+    background: linear-gradient(102deg,
+      transparent 40%,
+      rgba(180, 190, 255, 0.05) 45%,
+      rgba(210, 215, 255, 0.10) 48.5%,
+      rgba(232, 226, 255, 0.13) 50%,
+      rgba(210, 215, 255, 0.10) 51.5%,
+      rgba(180, 190, 255, 0.05) 55%,
+      transparent 60%);
+    filter: blur(2px);
+  }
+
+  /* A second, warmer nebula cloud (real astrophotos usually layer several
+     gas-cloud colors -- cool blue/violet plus a warmer rose/magenta one) to
+     balance the cooler nebula glow already coming from body::before. */
+  .px-nebula2 { bottom: -15%; left: -10%; width: 90vw; height: 60vh; }
+  .nebula-cloud {
+    width: 100%; height: 100%;
+    background:
+      radial-gradient(closest-side, rgba(255, 122, 178, 0.10), transparent 70%),
+      radial-gradient(closest-side, rgba(255, 180, 120, 0.07), transparent 65%);
+    background-position: 20% 70%, 60% 40%;
+    background-repeat: no-repeat;
+    filter: blur(14px);
+  }
+
+  /* A proper spiral galaxy as the scene's centerpiece -- flattened and
+     tilted like a real galaxy seen at an angle, with a bright core and a
+     few soft, blurred arms instead of a plain smudge. Still faint enough
+     to read as background, not a cartoon logo. */
+  .px-galaxy { top: 2%; left: 26%; width: 480px; height: 480px; }
   .galaxy {
-    width: 100%; height: 100%; border-radius: 50%;
-    background: conic-gradient(from 200deg at 50% 50%,
-      rgba(156,139,255,0.2), rgba(82,227,255,0.12), transparent 55%, rgba(244,193,105,0.1), transparent 80%);
-    transform: rotate(-24deg);
-    filter: blur(6px);
-    opacity: 0.55;
+    position: relative; width: 100%; height: 100%;
+    transform: rotate(-20deg) scaleY(0.4);
+    opacity: 0.8;
+  }
+  .galaxy::before {
+    content: ""; position: absolute; inset: 0; border-radius: 50%;
+    background: conic-gradient(from 10deg,
+      rgba(156,139,255,0.34) 0deg,
+      rgba(82,227,255,0.10) 35deg,
+      transparent 75deg,
+      rgba(244,193,105,0.22) 125deg,
+      rgba(82,227,255,0.10) 165deg,
+      transparent 205deg,
+      rgba(156,139,255,0.30) 255deg,
+      transparent 300deg,
+      rgba(244,193,105,0.18) 335deg,
+      rgba(156,139,255,0.34) 360deg);
+    filter: blur(13px);
+  }
+  .galaxy::after {
+    content: ""; position: absolute; top: 50%; left: 50%; width: 22%; height: 22%;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+    background: radial-gradient(circle, #fff8e6 0%, #ffe3ad 32%, rgba(255,211,140,0.35) 62%, transparent 100%);
+    filter: blur(2px);
   }
 
   @keyframes driftPlanet {
@@ -233,87 +288,6 @@
   @keyframes orbitMoon {
     from { transform: rotate(0deg); }
     to { transform: rotate(360deg); }
-  }
-
-  /* Alien scouts on slow patrol loops -- unlike everything else in the
-     cosmos, these re-enable pointer-events on themselves specifically
-     (their parent .cosmos is pointer-events:none) so they're actually
-     clickable, a little Easter egg on top of the scenery. top:0;left:0
-     plus a vw/vh transform below is what lets each patrol loop travel the
-     full width/height of the screen regardless of viewport size. */
-  .ufo { position: absolute; top: 0; left: 0; z-index: 2; pointer-events: auto; cursor: pointer; }
-  .ufo-1 { width: 96px; height: 56px; animation: ufoPatrol1 34s ease-in-out infinite; }
-  .ufo-2 { width: 62px; height: 36px; animation: ufoPatrol2 21s ease-in-out infinite 4s; }
-  .ufo-hover {
-    width: 100%; height: 100%;
-    animation: ufoBob 2.6s ease-in-out infinite;
-    transform-origin: center;
-    position: relative;
-  }
-  .ufo-body { width: 100%; height: 100%; display: block; overflow: visible; }
-  .ufo-light { animation: lightBlink 1.6s ease-in-out infinite; }
-  .ufo-body .l2 { animation-delay: 0.25s; }
-  .ufo-body .l3 { animation-delay: 0.5s; }
-  .ufo-body .l4 { animation-delay: 0.75s; }
-  @keyframes lightBlink { 0%, 100% { opacity: 0.25; } 50% { opacity: 1; } }
-
-  .ufo-beam {
-    position: absolute; left: 50%; top: 66%; width: 34px; height: 44px;
-    transform: translateX(-50%) scaleY(0.3);
-    transform-origin: top center;
-    clip-path: polygon(44% 0%, 56% 0%, 100% 100%, 0% 100%);
-    background: linear-gradient(180deg, rgba(180,255,220,0.7), rgba(180,255,220,0) 90%);
-    opacity: 0;
-    pointer-events: none;
-  }
-  .ufo.zapped .ufo-beam { animation: beamZap 0.9s ease-out; }
-  .ufo.zapped .ufo-hover { animation: ufoShake 0.5s ease-in-out; }
-  @keyframes beamZap {
-    0% { opacity: 0; transform: translateX(-50%) scaleY(0.2); }
-    25% { opacity: 0.9; transform: translateX(-50%) scaleY(1); }
-    100% { opacity: 0; transform: translateX(-50%) scaleY(1.08); }
-  }
-  @keyframes ufoShake {
-    0%, 100% { transform: translateY(0) rotate(0deg); }
-    25% { transform: translateY(-4px) rotate(-6deg); }
-    75% { transform: translateY(3px) rotate(6deg); }
-  }
-  @keyframes ufoBob {
-    0%, 100% { transform: translateY(0); }
-    50% { transform: translateY(-6px); }
-  }
-  @keyframes ufoPatrol1 {
-    0%   { transform: translate(-15vw, 32vh) rotate(-3deg); opacity: 0; }
-    8%   { opacity: 1; }
-    28%  { transform: translate(32vw, 10vh) rotate(2deg); }
-    52%  { transform: translate(74vw, 30vh) rotate(-2deg); }
-    74%  { transform: translate(44vw, 50vh) rotate(3deg); }
-    90%  { opacity: 1; }
-    100% { transform: translate(-15vw, 32vh) rotate(-3deg); opacity: 0; }
-  }
-  @keyframes ufoPatrol2 {
-    0%   { transform: translate(100vw, 68vh) rotate(4deg); opacity: 0; }
-    10%  { opacity: 1; }
-    38%  { transform: translate(58vw, 18vh) rotate(-3deg); }
-    64%  { transform: translate(20vw, 40vh) rotate(4deg); }
-    88%  { opacity: 1; }
-    100% { transform: translate(100vw, 68vh) rotate(4deg); opacity: 0; }
-  }
-
-  /* One-shot floating message spawned by a UFO click -- see the click
-     handler at the bottom of the page script. */
-  .ufo-toast {
-    position: fixed; z-index: 5; pointer-events: none;
-    background: rgba(15,21,38,0.88); color: var(--text);
-    border: 1px solid var(--panel-border); border-radius: 10px;
-    padding: 6px 11px; font-size: 12px; font-family: "JetBrains Mono", monospace;
-    white-space: nowrap;
-    animation: toastFloat 1.3s ease-out forwards;
-  }
-  @keyframes toastFloat {
-    0% { opacity: 0; transform: translate(-50%, -100%) translateY(6px); }
-    15% { opacity: 1; transform: translate(-50%, -100%) translateY(-4px); }
-    100% { opacity: 0; transform: translate(-50%, -100%) translateY(-46px); }
   }
 
   /* Two lone shooting stars on long, staggered timers -- rare enough to
@@ -539,6 +513,8 @@
 <body>
 
 <div class="cosmos" id="cosmos" aria-hidden="true">
+  <div class="parallax px-milkyway" data-depth="0.01"><div class="milkyway"></div></div>
+  <div class="parallax px-nebula2" data-depth="0.015"><div class="nebula-cloud"></div></div>
   <div class="parallax px-galaxy" data-depth="0.02"><div class="galaxy"></div></div>
   <div class="parallax px-sun" data-depth="0.03"><div class="sun"></div></div>
 
@@ -573,64 +549,6 @@
   <div class="shooting-star s1"></div>
   <div class="shooting-star s2"></div>
   <div class="comet"></div>
-
-  <div class="ufo ufo-1" title="???">
-    <div class="ufo-hover">
-      <svg class="ufo-body" viewBox="0 0 120 70" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="saucerGrad1" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#e4eaf7" />
-            <stop offset="55%" stop-color="#9aa6c4" />
-            <stop offset="100%" stop-color="#4d5578" />
-          </linearGradient>
-          <radialGradient id="domeGrad1" cx="50%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#eafcff" stop-opacity="0.95" />
-            <stop offset="55%" stop-color="#8be9ff" stop-opacity="0.55" />
-            <stop offset="100%" stop-color="#2fb6d9" stop-opacity="0.2" />
-          </radialGradient>
-        </defs>
-        <ellipse cx="60" cy="46" rx="56" ry="15" fill="url(#saucerGrad1)" />
-        <ellipse cx="60" cy="40" rx="30" ry="22" fill="url(#domeGrad1)" />
-        <ellipse cx="60" cy="43" rx="11" ry="13" fill="#8cff9e" opacity="0.92" />
-        <ellipse cx="55" cy="41" rx="3.1" ry="4.3" fill="#111a2b" />
-        <ellipse cx="65" cy="41" rx="3.1" ry="4.3" fill="#111a2b" />
-        <circle class="ufo-light l1" cx="18" cy="47" r="3" fill="#52e3ff" />
-        <circle class="ufo-light l2" cx="44" cy="53" r="3" fill="#ffd782" />
-        <circle class="ufo-light l3" cx="76" cy="53" r="3" fill="#ff8ac1" />
-        <circle class="ufo-light l4" cx="102" cy="47" r="3" fill="#9c8bff" />
-      </svg>
-      <div class="ufo-beam"></div>
-    </div>
-  </div>
-
-  <div class="ufo ufo-2" title="???">
-    <div class="ufo-hover">
-      <svg class="ufo-body" viewBox="0 0 120 70" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <linearGradient id="saucerGrad2" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%" stop-color="#f7e9e4" />
-            <stop offset="55%" stop-color="#c4a69a" />
-            <stop offset="100%" stop-color="#78554d" />
-          </linearGradient>
-          <radialGradient id="domeGrad2" cx="50%" cy="30%" r="70%">
-            <stop offset="0%" stop-color="#fff3ea" stop-opacity="0.95" />
-            <stop offset="55%" stop-color="#ffb98b" stop-opacity="0.55" />
-            <stop offset="100%" stop-color="#d97a3f" stop-opacity="0.2" />
-          </radialGradient>
-        </defs>
-        <ellipse cx="60" cy="46" rx="56" ry="15" fill="url(#saucerGrad2)" />
-        <ellipse cx="60" cy="40" rx="30" ry="22" fill="url(#domeGrad2)" />
-        <ellipse cx="60" cy="43" rx="11" ry="13" fill="#d7c9ff" opacity="0.92" />
-        <ellipse cx="55" cy="41" rx="3.1" ry="4.3" fill="#111a2b" />
-        <ellipse cx="65" cy="41" rx="3.1" ry="4.3" fill="#111a2b" />
-        <circle class="ufo-light l1" cx="18" cy="47" r="3" fill="#ffd782" />
-        <circle class="ufo-light l2" cx="44" cy="53" r="3" fill="#52e3ff" />
-        <circle class="ufo-light l3" cx="76" cy="53" r="3" fill="#9c8bff" />
-        <circle class="ufo-light l4" cx="102" cy="47" r="3" fill="#ff8ac1" />
-      </svg>
-      <div class="ufo-beam"></div>
-    </div>
-  </div>
 </div>
 
 <div id="login-screen">
@@ -922,55 +840,6 @@ if ("serviceWorker" in navigator) {
     requestTick();
   }, { passive: true });
   apply();
-})();
-
-// Clickable alien scouts -- each .ufo re-enabled pointer-events on itself in
-// CSS specifically for this. A click "zaps" it (brief beam + shake, see the
-// .zapped CSS) and spawns a little floating message, with an encounter
-// counter kept in localStorage purely for fun -- nothing sent anywhere,
-// nothing to do with the actual app data.
-(function () {
-  const ufos = document.querySelectorAll(".ufo");
-  if (!ufos.length) return;
-  const ENCOUNTER_KEY = "platform-ufo-encounters";
-  const lines = [
-    "Transmission received.",
-    "Scan complete: 1 admin detected.",
-    "“Nice dashboard, human.”",
-    "Beaming up... just kidding.",
-    "Encounter logged.",
-    "Coordinates noted.",
-    "They come in peace. Probably.",
-  ];
-
-  function spawnToast(x, y, text) {
-    const el = document.createElement("div");
-    el.className = "ufo-toast";
-    el.textContent = text;
-    el.style.left = x + "px";
-    el.style.top = y + "px";
-    document.body.appendChild(el);
-    el.addEventListener("animationend", function () { el.remove(); });
-  }
-
-  ufos.forEach(function (ufo) {
-    ufo.addEventListener("click", function (e) {
-      let count = 0;
-      try {
-        count = (parseInt(localStorage.getItem(ENCOUNTER_KEY) || "0", 10) || 0) + 1;
-        localStorage.setItem(ENCOUNTER_KEY, String(count));
-      } catch (err) {
-        // Private browsing / storage disabled -- the zap + toast still work,
-        // there's just no running count.
-      }
-      ufo.classList.add("zapped");
-      setTimeout(function () { ufo.classList.remove("zapped"); }, 900);
-      const line = count && count % 5 === 0
-        ? "That's " + count + " sightings now."
-        : lines[Math.floor(Math.random() * lines.length)];
-      spawnToast(e.clientX, e.clientY, "👽 " + line);
-    });
-  });
 })();
 </script>
 </body>
