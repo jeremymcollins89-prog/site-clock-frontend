@@ -1134,6 +1134,9 @@
     </div>
     <div id="edit-emp-error" class="error"></div>
     <div id="edit-emp-success" class="success-msg"></div>
+    <label>Full name</label>
+    <input id="edit-emp-name-input" placeholder="First and last name" style="margin-bottom:16px;" />
+    <p style="font-size:11.5px; color:var(--muted); margin:-12px 0 16px;">Update this any time -- legal name change, marriage, divorce, spelling fix, etc. Nothing else about their account changes.</p>
     <label>Email</label>
     <input id="edit-emp-email" type="email" />
     <label>New PIN (leave blank to keep current)</label>
@@ -2604,6 +2607,7 @@ function openEditEmployeeSheet(id) {
   if (!e) return;
   editingEmployeeId = id;
   document.getElementById("edit-emp-name").textContent = e.name || "";
+  document.getElementById("edit-emp-name-input").value = e.name || "";
   document.getElementById("edit-emp-email-display").textContent = e.email || "";
   const badge = document.getElementById("edit-emp-status-badge");
   badge.textContent = e.active ? "Active" : "Inactive";
@@ -2628,6 +2632,7 @@ function closeEditEmployeeSheet() {
   editingEmployeeId = null;
 }
 async function submitEditEmployee() {
+  const name = document.getElementById("edit-emp-name-input").value.trim();
   const email = document.getElementById("edit-emp-email").value.trim();
   const pin = document.getElementById("edit-emp-pin").value.trim();
   const hourlyRateRaw = document.getElementById("edit-emp-hourly-rate").value.trim();
@@ -2635,6 +2640,11 @@ async function submitEditEmployee() {
   const successEl = document.getElementById("edit-emp-success");
   errEl.style.display = "none";
   successEl.style.display = "none";
+  if (!name) {
+    errEl.textContent = "Name is required.";
+    errEl.style.display = "block";
+    return;
+  }
   if (!email) {
     errEl.textContent = "Email is required.";
     errEl.style.display = "block";
@@ -2646,6 +2656,7 @@ async function submitEditEmployee() {
     return;
   }
   const patch = {
+    name: name,
     email: email,
     hourly_rate: hourlyRateRaw ? Number(hourlyRateRaw) : null,
     break_minutes: Number(document.getElementById("edit-emp-break-minutes").value),
@@ -2676,6 +2687,7 @@ async function submitEditEmployee() {
     // otherwise it keeps showing the pre-edit phone/email/address until the
     // whole page is reloaded, since it was rendered before this save.
     if (currentEmployeeDetail && currentEmployeeDetail.id === editingEmployeeId) {
+      currentEmployeeDetail.name = updated.name;
       currentEmployeeDetail.email = updated.email;
       currentEmployeeDetail.phone = updated.phone;
       currentEmployeeDetail.street = updated.street;
@@ -2898,6 +2910,7 @@ async function renderEmployeeDetail(start, end) {
       '<span id="emp-contact-toggle-label" style="color:var(--muted); font-size:11px;">Tap to view &#9662;</span>' +
     '</div>' +
     '<div id="emp-contact-details" style="display:none; margin-top:10px;" onclick="event.stopPropagation();">' +
+      '<div style="font-size:13px; margin-bottom:6px;"><strong>' + escapeHtml(ed.name || "Name not set") + '</strong></div>' +
       (ed.phone
         ? '<div style="font-size:13px; margin-bottom:6px;"><a class="link" href="' + escapeHtml(telUrl(ed.phone)) + '">' + escapeHtml(ed.phone) + '</a></div>'
         : '<div style="font-size:13px; margin-bottom:6px; color:var(--muted);">Phone: not set</div>') +
