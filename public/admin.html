@@ -258,6 +258,77 @@
     main.content { margin-left: 232px; padding: 28px 32px; max-width: 1100px; margin-right: auto; }
   }
 
+  /* ---------- Secret easter egg: The Organ Trail ---------- */
+  /* A hidden retro-terminal mini-game, tucked behind clicking the sidebar
+     logo 5 times in a row within 2 seconds -- see handleLogoSecretClick()
+     and the trail* functions near the bottom of the script. Deliberately
+     styled nothing like the rest of the app (green phosphor CRT terminal)
+     so finding it feels like a genuine surprise, not just another screen. */
+  .trail-overlay {
+    display: none; position: fixed; inset: 0; z-index: 99999;
+    background: #04140a; font-family: 'Courier New', Courier, monospace;
+    align-items: center; justify-content: center; padding: 20px;
+  }
+  .trail-overlay.visible { display: flex; }
+  .trail-overlay::before {
+    content: ""; position: absolute; inset: 0; pointer-events: none; z-index: 2;
+    background: repeating-linear-gradient(180deg, rgba(0,0,0,0.15) 0px, rgba(0,0,0,0.15) 1px, transparent 2px, transparent 3px);
+  }
+  .trail-crt {
+    position: relative; width: 100%; max-width: 620px; max-height: 92vh; overflow-y: auto;
+    background: #04140a; border: 3px solid #2b6b3e; border-radius: 18px;
+    box-shadow: 0 0 40px rgba(74,255,110,0.25), inset 0 0 60px rgba(0,0,0,0.6);
+    padding: 22px 22px 18px; color: #6dffa0;
+  }
+  .trail-crt * { color: #6dffa0; }
+  .trail-crt h2, .trail-crt h3 { text-shadow: 0 0 8px rgba(109,255,160,0.65); margin: 0 0 10px; letter-spacing: 0.03em; }
+  .trail-crt h2 { font-size: 20px; text-transform: uppercase; }
+  .trail-crt h3 { font-size: 14px; text-transform: uppercase; opacity: 0.9; }
+  .trail-crt p { font-size: 13.5px; line-height: 1.6; margin: 0 0 10px; }
+  .trail-close {
+    position: absolute; top: 10px; right: 14px; z-index: 3;
+    background: none; border: 1.5px solid #2b6b3e; color: #6dffa0 !important;
+    border-radius: 8px; padding: 3px 9px; font-family: inherit; font-size: 13px; cursor: pointer;
+  }
+  .trail-close:hover { background: rgba(109,255,160,0.1); }
+  .trail-stats {
+    display: grid; grid-template-columns: repeat(2, 1fr); gap: 4px 14px;
+    font-size: 12px; border: 1px dashed #2b6b3e; border-radius: 10px; padding: 10px 12px; margin-bottom: 12px;
+  }
+  .trail-party { font-size: 12.5px; margin-bottom: 12px; line-height: 1.7; }
+  .trail-party .dead { opacity: 0.45; text-decoration: line-through; }
+  .trail-btn-row { display: flex; flex-direction: column; gap: 8px; margin-top: 14px; }
+  .trail-btn {
+    display: block; width: 100%; text-align: left; background: rgba(109,255,160,0.06) !important;
+    border: 1.5px solid #2b6b3e; border-radius: 10px; padding: 10px 14px;
+    font-family: inherit; font-size: 14px; cursor: pointer; color: #6dffa0 !important;
+  }
+  .trail-btn:hover { background: rgba(109,255,160,0.18) !important; border-color: #6dffa0; }
+  .trail-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+  .trail-log { font-size: 12px; opacity: 0.85; border-top: 1px dashed #2b6b3e; margin-top: 12px; padding-top: 10px; }
+  .trail-log div { margin-bottom: 4px; }
+  .trail-shop-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 10px;
+    font-size: 13px; padding: 6px 0; border-bottom: 1px dashed rgba(43,107,62,0.6);
+  }
+  .trail-stepper { display: flex; align-items: center; gap: 8px; }
+  .trail-stepper button {
+    width: 26px; height: 26px; border-radius: 6px; border: 1.5px solid #2b6b3e; background: none !important;
+    color: #6dffa0 !important; font-family: inherit; font-size: 15px; cursor: pointer; line-height: 1;
+  }
+  .trail-stepper span { min-width: 34px; text-align: center; font-size: 13px; }
+  .trail-field {
+    position: relative; height: 150px; border: 1px dashed #2b6b3e; border-radius: 10px;
+    margin: 10px 0; overflow: hidden; background: rgba(109,255,160,0.03);
+  }
+  .trail-target {
+    position: absolute; background: none; border: none; font-size: 26px; cursor: pointer;
+    line-height: 1; padding: 4px; filter: drop-shadow(0 0 4px rgba(109,255,160,0.5));
+  }
+  .trail-ascii { text-align: center; font-size: 26px; margin: 4px 0 12px; letter-spacing: 4px; }
+  @keyframes trailBlink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+  .trail-cursor { display: inline-block; width: 8px; height: 14px; background: #6dffa0; animation: trailBlink 1s step-end infinite; vertical-align: middle; margin-left: 2px; }
+
   /* ---------- Full-screen sheets ---------- */
   .sheet {
     display: none; position: fixed; inset: 0; z-index: 100;
@@ -517,7 +588,7 @@
 
 <div id="app">
   <div class="sidebar">
-    <div class="sidebar-header">
+    <div class="sidebar-header" onclick="handleLogoSecretClick()" style="cursor:default;">
       <img class="sidebar-mark" src="/icons/admin-icon-192.png" alt="" />
       <img id="header-logo" src="" style="display:none;" />
       <h1>Coll Admin</h1>
@@ -1839,6 +1910,16 @@
       <option value="">— general expense, no job —</option>
     </select>
     <button class="btn-primary" onclick="submitExpense()">Save expense</button>
+  </div>
+</div>
+
+<!-- Secret easter egg: The Organ Trail -- see handleLogoSecretClick() and
+     the trail* functions in the script below. Sits outside #app so it works
+     no matter which view is currently active. -->
+<div class="trail-overlay" id="trail-overlay">
+  <div class="trail-crt">
+    <button class="trail-close" onclick="trailClose()">&times; ESC</button>
+    <div id="trail-screen"></div>
   </div>
 </div>
 
@@ -9158,6 +9239,448 @@ function adoptTokenFromUrl() {
   const newUrl = window.location.pathname + (qs ? "?" + qs : "") + window.location.hash;
   window.history.replaceState({}, "", newUrl);
   return true;
+}
+
+// ---------- Secret easter egg: The Organ Trail ----------
+// A hidden, fully self-contained mini-game -- no server calls, no saved
+// state beyond the current tab. Opened by clicking the sidebar logo/title
+// 5 times within 2 seconds (see handleLogoSecretClick, wired to the
+// .sidebar-header's onclick in the markup above). Everything below is
+// namespaced with a "trail" prefix and only ever touches its own overlay
+// (#trail-overlay / #trail-screen), so it can't collide with the real app.
+
+let logoClickCount = 0;
+let logoClickResetTimer = null;
+function handleLogoSecretClick() {
+  logoClickCount++;
+  if (logoClickResetTimer) clearTimeout(logoClickResetTimer);
+  logoClickResetTimer = setTimeout(function() { logoClickCount = 0; }, 2000);
+  if (logoClickCount >= 5) {
+    logoClickCount = 0;
+    clearTimeout(logoClickResetTimer);
+    trailOpen();
+  }
+}
+
+const TRAIL_PROFESSIONS = [
+  { key: "banker", name: "Banker", money: 1600, desc: "The most cash to start -- the trail doesn't care how you made it." },
+  { key: "carpenter", name: "Carpenter", money: 1000, desc: "A steady, balanced start." },
+  { key: "farmer", name: "Farmer", money: 500, desc: "The least cash, but you know how to make it stretch." },
+];
+const TRAIL_PARTY_NAMES = ["You", "Riley", "Casey", "Morgan"];
+const TRAIL_RIVERS = [
+  { atMiles: 400, name: "Kansas River" },
+  { atMiles: 850, name: "Platte River" },
+  { atMiles: 1300, name: "Snake River" },
+  { atMiles: 1750, name: "Columbia River" },
+];
+const TRAIL_TOTAL_MILES = 2000;
+const TRAIL_DEATH_CAUSES = [
+  "dysentery", "a rattlesnake bite", "a fever that never broke",
+  "sheer exhaustion", "a bad fall from the wagon", "cholera", "a broken heart for the office they left behind",
+];
+const TRAIL_PACES = {
+  slow: { label: "Slow and steady", miles: [40, 70], food: 3, eventChance: 0.25 },
+  steady: { label: "Steady", miles: [70, 110], food: 4, eventChance: 0.35 },
+  grueling: { label: "Grueling", miles: [100, 150], food: 6, eventChance: 0.5 },
+};
+
+let trail = null; // null until trailNewGame() runs
+let trailHunt = null; // hunting mini-game sub-state, see trailStartHunt()
+
+function trailOpen() {
+  document.getElementById("trail-overlay").classList.add("visible");
+  if (!trail) trailNewGame();
+  trailRender();
+}
+function trailClose() {
+  document.getElementById("trail-overlay").classList.remove("visible");
+  if (trailHunt && trailHunt.timerId) clearTimeout(trailHunt.timerId);
+}
+function trailRandInt(min, max) { return Math.floor(Math.random() * (max - min + 1)) + min; }
+
+function trailNewGame() {
+  trail = {
+    screen: "intro",
+    profession: null,
+    money: 0,
+    oxenPairs: 0,
+    food: 0,
+    ammo: 0,
+    spareParts: 0,
+    clothes: 0,
+    miles: 0,
+    week: 1,
+    pace: "steady",
+    party: TRAIL_PARTY_NAMES.map(function(name) { return { name: name, health: 100, alive: true }; }),
+    riversCrossed: [],
+    log: [],
+    result: null,
+  };
+}
+
+function trailLog(msg) {
+  trail.log.unshift(msg);
+  trail.log = trail.log.slice(0, 4);
+}
+
+function trailLivingParty() { return trail.party.filter(function(p) { return p.alive; }); }
+
+function trailRender() {
+  const el = document.getElementById("trail-screen");
+  if (!trail) { el.innerHTML = ""; return; }
+  if (trail.screen === "intro") el.innerHTML = trailRenderIntro();
+  else if (trail.screen === "profession") el.innerHTML = trailRenderProfession();
+  else if (trail.screen === "shop") el.innerHTML = trailRenderShop();
+  else if (trail.screen === "travel") el.innerHTML = trailRenderTravel();
+  else if (trail.screen === "river") el.innerHTML = trailRenderRiver();
+  else if (trail.screen === "hunt") el.innerHTML = trailRenderHunt();
+  else if (trail.screen === "end") el.innerHTML = trailRenderEnd();
+}
+
+function trailRenderIntro() {
+  return (
+    '<div class="trail-ascii">&#127749; &#128121; &#128137;</div>' +
+    "<h2>The Organ Trail</h2>" +
+    "<p>You've stumbled onto a secret. Somewhere out west, payroll still needs doing -- but first, a 2,000 mile wagon crossing.</p>" +
+    "<p>Manage your food, your party's health, and your patience for river crossings. Good luck.<span class=\"trail-cursor\"></span></p>" +
+    '<div class="trail-btn-row">' +
+      '<button class="trail-btn" onclick="trail.screen=\'profession\'; trailRender();">&gt; Begin the journey</button>' +
+    "</div>"
+  );
+}
+
+function trailRenderProfession() {
+  return (
+    "<h3>Choose your profession</h3>" +
+    '<p>This decides your starting money.</p>' +
+    '<div class="trail-btn-row">' +
+      TRAIL_PROFESSIONS.map(function(p) {
+        return '<button class="trail-btn" onclick="trailChooseProfession(\'' + p.key + '\')">' +
+          "&gt; " + p.name + " -- $" + p.money + "<br><span style=\"font-size:11.5px; opacity:0.75;\">" + p.desc + "</span></button>";
+      }).join("") +
+    "</div>"
+  );
+}
+function trailChooseProfession(key) {
+  const p = TRAIL_PROFESSIONS.find(function(x) { return x.key === key; });
+  trail.profession = p.name;
+  trail.money = p.money;
+  trail.oxenPairs = 1;
+  trail.food = 100;
+  trail.ammo = 20;
+  trail.spareParts = 1;
+  trail.clothes = 2;
+  trail.screen = "shop";
+  trailRender();
+}
+
+const TRAIL_SHOP_ITEMS = [
+  { key: "oxenPairs", label: "Oxen (per pair)", cost: 40, min: 1 },
+  { key: "food", label: "Food (lbs)", cost: 0.2, step: 10, min: 0 },
+  { key: "ammo", label: "Ammo (per box of 20)", cost: 0.1, min: 0 },
+  { key: "spareParts", label: "Spare wagon parts", cost: 10, min: 0 },
+  { key: "clothes", label: "Sets of clothes", cost: 10, min: 0 },
+];
+function trailShopUnitLabel(item) {
+  if (item.key === "ammo") return trail.ammo / 20 + " box(es)";
+  if (item.key === "food") return trail.food + " lbs";
+  return String(trail[item.key]);
+}
+function trailRenderShop() {
+  return (
+    "<h3>Outfit your wagon</h3>" +
+    '<p>Money left: <strong>$' + trail.money.toFixed(2) + "</strong></p>" +
+    TRAIL_SHOP_ITEMS.map(function(item) {
+      const step = item.key === "ammo" ? 20 : item.step || 1;
+      return '<div class="trail-shop-row"><span>' + item.label + "</span>" +
+        '<div class="trail-stepper">' +
+          '<button onclick="trailAdjustShop(\'' + item.key + '\', -' + step + ')">-</button>' +
+          "<span>" + trailShopUnitLabel(item) + "</span>" +
+          '<button onclick="trailAdjustShop(\'' + item.key + '\', ' + step + ')">+</button>' +
+        "</div></div>";
+    }).join("") +
+    '<div class="trail-btn-row">' +
+      '<button class="trail-btn" ' + (trail.oxenPairs < 1 ? "disabled" : "") + ' onclick="trailDepart()">&gt; Depart!</button>' +
+    "</div>" +
+    (trail.oxenPairs < 1 ? '<p style="font-size:11.5px; opacity:0.75;">You need at least one pair of oxen to leave.</p>' : "")
+  );
+}
+function trailAdjustShop(key, delta) {
+  const cost = TRAIL_SHOP_ITEMS.find(function(i) { return i.key === key; }).cost;
+  const totalDelta = delta * cost;
+  if (delta > 0 && trail.money - totalDelta < 0) return; // can't afford it
+  const next = trail[key] + delta;
+  if (next < 0) return;
+  trail[key] = next;
+  trail.money = Math.round((trail.money - totalDelta) * 100) / 100;
+  trailRender();
+}
+function trailDepart() {
+  trail.screen = "travel";
+  trailLog("You set out on the trail with " + trailLivingParty().length + " in your party.");
+  trailRender();
+}
+
+function trailRenderTravel() {
+  const p = trail.pace;
+  const living = trailLivingParty();
+  return (
+    '<div class="trail-stats">' +
+      "<span>Week: " + trail.week + "</span><span>Miles: " + Math.round(trail.miles) + " / " + TRAIL_TOTAL_MILES + "</span>" +
+      "<span>Food: " + Math.round(trail.food) + " lbs</span><span>Ammo: " + trail.ammo + "</span>" +
+      "<span>Money: $" + trail.money.toFixed(2) + "</span><span>Spare parts: " + trail.spareParts + "</span>" +
+    "</div>" +
+    '<div class="trail-party">' +
+      trail.party.map(function(person) {
+        return '<div class="' + (person.alive ? "" : "dead") + '">' + person.name + " -- " + (person.alive ? Math.max(0, Math.round(person.health)) + "% health" : "passed away") + "</div>";
+      }).join("") +
+    "</div>" +
+    '<div class="trail-log">' + trail.log.map(function(m) { return "<div>&gt; " + m + "</div>"; }).join("") + "</div>" +
+    "<h3 style=\"margin-top:12px;\">Pace: " + TRAIL_PACES[p].label + "</h3>" +
+    '<div class="trail-btn-row">' +
+      Object.keys(TRAIL_PACES).map(function(key) {
+        return '<button class="trail-btn" onclick="trail.pace=\'' + key + '\'; trailRender();">' +
+          (trail.pace === key ? "&#10003; " : "&gt; ") + TRAIL_PACES[key].label + "</button>";
+      }).join("") +
+      '<button class="trail-btn" onclick="trailContinue()">&gt; Keep going</button>' +
+      '<button class="trail-btn" ' + (trail.ammo < 1 ? "disabled" : "") + ' onclick="trailStartHunt()">&gt; Hunt for food (uses this week)</button>' +
+    "</div>"
+  );
+}
+
+function trailApplyDamage(person, amount) {
+  person.health = Math.max(0, person.health - amount);
+  if (person.health <= 0 && person.alive) {
+    person.alive = false;
+    const cause = TRAIL_DEATH_CAUSES[trailRandInt(0, TRAIL_DEATH_CAUSES.length - 1)];
+    trailLog(person.name + " has died of " + cause + ".");
+  }
+}
+
+function trailRandomEvent() {
+  const living = trailLivingParty();
+  if (living.length === 0) return;
+  const roll = Math.random();
+  if (roll < 0.14 && trail.spareParts > 0) {
+    trail.spareParts--;
+    trailLog("A wheel cracks on rocky ground -- you use a spare part to fix it.");
+  } else if (roll < 0.14) {
+    trail.miles = Math.max(0, trail.miles - trailRandInt(10, 25));
+    trailLog("A wheel cracks and you have no spare part -- you lose time backtracking.");
+  } else if (roll < 0.28) {
+    const person = living[trailRandInt(0, living.length - 1)];
+    const severity = trail.clothes > 0 ? trailRandInt(8, 16) : trailRandInt(15, 30);
+    trailApplyDamage(person, severity);
+    trailLog(person.name + " falls ill" + (trail.clothes > 0 ? " (warm clothes helped some)" : "") + ".");
+  } else if (roll < 0.42) {
+    const gain = trailRandInt(10, 30);
+    trail.food += gain;
+    trailLog("You find a patch of wild berries (+" + gain + " lbs food).");
+  } else if (roll < 0.54) {
+    const lost = Math.min(trail.food, trailRandInt(10, 30));
+    trail.food -= lost;
+    trailLog("Thieves raid your camp overnight (-" + lost + " lbs food).");
+  } else if (roll < 0.66) {
+    trail.miles = Math.max(0, trail.miles - trailRandInt(8, 20));
+    trailLog("Heavy rain turns the trail to mud, slowing you down.");
+  } else if (roll < 0.75) {
+    living.forEach(function(person) { person.health = Math.min(100, person.health + 10); });
+    trailLog("A fresh spring -- everyone feels a bit better.");
+  } else if (roll < 0.9) {
+    trailLog("Clear skies and an easy stretch of trail. Nothing to report.");
+  } else {
+    trailLog("You spot a heap of game grazing nearby -- \"Hunt for food\" is there if you want it.");
+  }
+  return null;
+}
+
+function trailContinue() {
+  const pace = TRAIL_PACES[trail.pace];
+  const living = trailLivingParty();
+  if (living.length === 0) return;
+
+  trail.food -= pace.food * living.length;
+  if (trail.food < 0) {
+    trail.food = 0;
+    living.forEach(function(person) { trailApplyDamage(person, trailRandInt(15, 25)); });
+    trailLog("You run out of food -- the party goes hungry.");
+  }
+
+  if (trailLivingParty().length === 0) {
+    trail.screen = "end";
+    trail.result = "lose";
+    trailRender();
+    return;
+  }
+
+  trail.miles += trailRandInt(pace.miles[0], pace.miles[1]);
+  trail.week++;
+
+  if (Math.random() < pace.eventChance) trailRandomEvent();
+
+  if (trailLivingParty().length === 0) {
+    trail.screen = "end";
+    trail.result = "lose";
+    trailRender();
+    return;
+  }
+
+  const nextRiver = TRAIL_RIVERS.find(function(r) { return trail.miles >= r.atMiles && trail.riversCrossed.indexOf(r.name) === -1; });
+  if (nextRiver) {
+    trail.riversCrossed.push(nextRiver.name);
+    trail.pendingRiver = { name: nextRiver.name, depth: ["shallow", "medium", "deep"][trailRandInt(0, 2)] };
+    trail.screen = "river";
+  } else if (trail.miles >= TRAIL_TOTAL_MILES) {
+    trail.screen = "end";
+    trail.result = "win";
+  }
+  trailRender();
+}
+
+function trailRenderRiver() {
+  const r = trail.pendingRiver;
+  return (
+    "<h3>The " + r.name + "</h3>" +
+    "<p>The water looks <strong>" + r.depth + "</strong>. How do you want to cross?</p>" +
+    '<div class="trail-btn-row">' +
+      '<button class="trail-btn" onclick="trailRiverChoice(\'ford\')">&gt; Ford the river</button>' +
+      '<button class="trail-btn" onclick="trailRiverChoice(\'float\')">&gt; Caulk the wagon and float across</button>' +
+      '<button class="trail-btn" ' + (trail.money < 20 ? "disabled" : "") + ' onclick="trailRiverChoice(\'ferry\')">&gt; Pay for a ferry ($20)</button>' +
+      '<button class="trail-btn" onclick="trailRiverChoice(\'wait\')">&gt; Make camp and wait a week</button>' +
+    "</div>"
+  );
+}
+function trailRiverChoice(choice) {
+  const r = trail.pendingRiver;
+  const living = trailLivingParty();
+  const riskByDepth = { shallow: 0.1, medium: 0.3, deep: 0.55 };
+  if (choice === "ferry") {
+    trail.money -= 20;
+    trailLog("You pay for the ferry across the " + r.name + " -- safe and dry.");
+  } else if (choice === "wait") {
+    trail.week++;
+    trail.food -= TRAIL_PACES[trail.pace].food * living.length;
+    trail.pendingRiver.depth = ["shallow", "medium"][trailRandInt(0, 1)];
+    trailLog("You make camp and wait for the water to calm.");
+    trail.screen = "river";
+    trailRender();
+    return;
+  } else {
+    const risk = riskByDepth[r.depth] * (choice === "float" ? 0.6 : 1);
+    if (Math.random() < risk) {
+      const lostFood = Math.min(trail.food, trailRandInt(15, 40));
+      trail.food -= lostFood;
+      if (Math.random() < 0.3 && living.length > 0) {
+        const person = living[trailRandInt(0, living.length - 1)];
+        trailApplyDamage(person, trailRandInt(20, 40));
+        trailLog("The crossing goes badly -- " + person.name + " is swept under and hurt (-" + lostFood + " lbs food too).");
+      } else {
+        trailLog("The crossing goes badly -- you lose " + lostFood + " lbs of food overboard.");
+      }
+    } else {
+      trailLog("You make it across the " + r.name + " safely.");
+    }
+  }
+  trail.pendingRiver = null;
+  if (trailLivingParty().length === 0) {
+    trail.screen = "end";
+    trail.result = "lose";
+  } else {
+    trail.screen = "travel";
+  }
+  trailRender();
+}
+
+// ---------- Hunting mini-game ----------
+function trailStartHunt() {
+  trailHunt = { round: 0, hits: 0, totalRounds: 6, timerId: null, active: false };
+  trail.screen = "hunt";
+  trailRender();
+  trailHuntNextRound();
+}
+function trailRenderHunt() {
+  return (
+    "<h3>Hunting</h3>" +
+    "<p>Click the game before it runs off. Hits so far: <strong>" + (trailHunt ? trailHunt.hits : 0) + "</strong> / " + (trailHunt ? trailHunt.totalRounds : 0) + "</p>" +
+    '<div class="trail-field" id="trail-hunt-field"></div>' +
+    '<div class="trail-btn-row"><button class="trail-btn" onclick="trailEndHunt()">&gt; Stop hunting early</button></div>'
+  );
+}
+function trailHuntNextRound() {
+  if (!trailHunt || trailHunt.round >= trailHunt.totalRounds) {
+    trailEndHunt();
+    return;
+  }
+  trailHunt.round++;
+  const field = document.getElementById("trail-hunt-field");
+  if (!field) return;
+  field.innerHTML = "";
+  const emoji = ["🦌", "🦌", "🐇"][trailRandInt(0, 2)]; // bison/bison/rabbit
+  const btn = document.createElement("button");
+  btn.className = "trail-target";
+  btn.textContent = emoji;
+  btn.style.left = trailRandInt(5, 85) + "%";
+  btn.style.top = trailRandInt(5, 75) + "%";
+  trailHunt.active = true;
+  btn.onclick = function() {
+    if (!trailHunt || !trailHunt.active) return;
+    trailHunt.active = false;
+    trailHunt.hits++;
+    if (trail.ammo > 0) trail.ammo--;
+    clearTimeout(trailHunt.timerId);
+    trailRender(); // refreshes the "hits so far" counter and clears the field
+    trailHunt.timerId = setTimeout(trailHuntNextRound, 350);
+  };
+  field.appendChild(btn);
+  trailHunt.timerId = setTimeout(function() {
+    if (!trailHunt || !trailHunt.active) return;
+    trailHunt.active = false;
+    field.innerHTML = "";
+    trailHuntNextRound();
+  }, 1000);
+}
+function trailEndHunt() {
+  if (trailHunt && trailHunt.timerId) clearTimeout(trailHunt.timerId);
+  const hits = trailHunt ? trailHunt.hits : 0;
+  const gained = hits * trailRandInt(15, 25);
+  trail.food += gained;
+  trailLog("The hunt brings in " + gained + " lbs of food (" + hits + " hit" + (hits === 1 ? "" : "s") + ").");
+  trailHunt = null;
+  // Hunting uses the week, but at reduced pace (you were busy hunting, not walking).
+  const pace = TRAIL_PACES[trail.pace];
+  trail.miles += trailRandInt(Math.round(pace.miles[0] / 2), Math.round(pace.miles[1] / 2));
+  trail.week++;
+  if (trail.miles >= TRAIL_TOTAL_MILES) {
+    trail.screen = "end";
+    trail.result = "win";
+  } else {
+    trail.screen = "travel";
+  }
+  trailRender();
+}
+
+function trailRenderEnd() {
+  if (trail.result === "win") {
+    return (
+      '<div class="trail-ascii">&#127942;</div>' +
+      "<h2>You made it!</h2>" +
+      "<p>After " + trail.week + " weeks, your party reached the end of the trail with " + trailLivingParty().length + " of " + trail.party.length + " people, $" + trail.money.toFixed(2) + " left, and " + Math.round(trail.food) + " lbs of food to spare.</p>" +
+      '<div class="trail-btn-row">' +
+        '<button class="trail-btn" onclick="trailNewGame(); trailRender();">&gt; Play again</button>' +
+        '<button class="trail-btn" onclick="trailClose()">&gt; Back to work</button>' +
+      "</div>"
+    );
+  }
+  return (
+    '<div class="trail-ascii">&#128128;</div>' +
+    "<h2>The trail wins this time</h2>" +
+    "<p>Your party didn't make it, " + Math.round(trail.miles) + " miles in, after " + trail.week + " weeks.</p>" +
+    '<div class="trail-btn-row">' +
+      '<button class="trail-btn" onclick="trailNewGame(); trailRender();">&gt; Try again</button>' +
+      '<button class="trail-btn" onclick="trailClose()">&gt; Back to work</button>' +
+    "</div>"
+  );
 }
 
 adoptTokenFromUrl();
