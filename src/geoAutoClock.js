@@ -149,9 +149,6 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
   }
 
   function handlePositionError(err) {
-    if (err.code === err.PERMISSION_DENIED) {
-      setPermission("denied");
-    }
     const msg = err.message || "Location error";
     // Chrome's Trusted Web Activity wrapper intermittently fails to hand
     // navigator.geolocation off to the native location service ("no twa
@@ -163,6 +160,33 @@ function useGeoAutoClock({ status, locationMode, autoClockIn, autoClockOut, shop
     // cause needless worry over something that isn't actionable.
     if (/no\s*twa\s*found/i.test(msg)) {
       return;
+    }
+    if (err.code === err.PERMISSION_DENIED) {
+      // getCurrentPosition/watchPosition's own PERMISSION_DENIED code is
+      // unreliable inside this app's Trusted Web Activity wrapper -- it can
+      // fire (with a generic "User denied Geolocation" message, distinct
+      // from the "no twa found" quirk above) even when the site's actual
+      // permission, per the standalone Permissions API, is still "prompt"
+      // (never actually asked) or even already "granted". Cross-check
+      // against navigator.permissions.query before flipping the red
+      // "location access is off" banner on -- only a state the browser
+      // itself confirms as "denied" should trigger it; trusting the raw
+      // error code alone produces false alarms for employees who never
+      // actually turned location off.
+      if (navigator.permissions && navigator.permissions.query) {
+        navigator.permissions
+          .query({ name: "geolocation" })
+          .then((status) => {
+            if (status.state === "denied") setPermission("denied");
+          })
+          .catch(() => {
+            // Permissions API itself unavailable -- fall back to trusting
+            // the geolocation error code directly, same as before.
+            setPermission("denied");
+          });
+      } else {
+        setPermission("denied");
+      }
     }
     setGeoError(msg);
   }

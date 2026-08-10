@@ -4125,24 +4125,37 @@ const [emailInput, setEmailInput] = useState("");
           return;
         }
         if (code === 1) {
-          setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+          // getCurrentPosition's own PERMISSION_DENIED code is unreliable
+          // inside this app's Trusted Web Activity wrapper -- it can fire
+          // with a generic "User denied Geolocation" message even when the
+          // site's actual permission, per the standalone Permissions API,
+          // is still "prompt" (never actually asked) or already "granted".
+          // Cross-check before showing the scarier "permission is off"
+          // wording, so this doesn't contradict itself on screen (the old
+          // version showed that message AND a "[permission: prompt]" tag
+          // side by side, which is exactly the confusing, wrong-looking
+          // combination this avoids).
+          if (navigator.permissions && navigator.permissions.query) {
+            navigator.permissions
+              .query({ name: "geolocation" })
+              .then((status) => {
+                if (cancelled) return;
+                if (status.state === "denied") {
+                  setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+                } else {
+                  setLocationCheckNote("Couldn't auto-detect your location right now -- tap Traveling above if you're away from the shop.");
+                }
+              })
+              .catch(() => {
+                if (!cancelled) setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+              });
+          } else {
+            setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+          }
         } else if (code === 3) {
           setLocationCheckNote(`Location check timed out -- try again in a moment${raw}.`);
         } else {
           setLocationCheckNote(`Couldn't get your current location [code ${code}]${raw}.`);
-        }
-        // Cross-check against the Permissions API, independent of whether a
-        // GPS fix actually succeeded -- this tells us whether the browser
-        // engine itself believes it has location permission for this page at
-        // all, which is a different question from "GPS found a fix."
-        if (navigator.permissions && navigator.permissions.query) {
-          navigator.permissions
-            .query({ name: "geolocation" })
-            .then((status) => {
-              if (cancelled) return;
-              setLocationCheckNote((prev) => `${prev} [permission: ${status.state}]`);
-            })
-            .catch(() => {});
         }
       },
       // enableHighAccuracy forces a real GPS fix instead of network-based
