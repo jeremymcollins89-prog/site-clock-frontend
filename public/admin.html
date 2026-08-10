@@ -190,19 +190,32 @@
   /* ---------- App shell ---------- */
   #app { display: none; height: 100%; }
   #app.visible { display: block; }
-  .top-bar {
-    position: fixed; top: 0; left: 0; right: 0; height: 54px; z-index: 40;
+  .sidebar {
+    position: fixed; top: 0; left: 0; bottom: 0; z-index: 40;
+    width: 64px;
     background: linear-gradient(165deg, #2b322e 0%, var(--charcoal) 65%); color: var(--paper);
-    display: flex; align-items: center; justify-content: space-between; padding: 0 16px;
+    display: flex; flex-direction: column;
+    padding-top: env(safe-area-inset-top);
+    overflow-y: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
   }
-  .top-bar h1 { font-size: 17px; margin: 0; font-weight: 700; }
-  .top-bar button {
-    background: rgba(244,242,237,0.12); border: none; color: var(--paper);
-    border-radius: 10px; padding: 7px 12px; font-size: 12px; font-weight: 600;
+  .sidebar::-webkit-scrollbar { display: none; }
+  .sidebar-header {
+    display: flex; align-items: center; gap: 8px; justify-content: center;
+    padding: 14px 8px; flex-shrink: 0;
+  }
+  .sidebar-mark { width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0; display: block; }
+  .sidebar-header img#header-logo { max-height: 26px; max-width: 100px; border-radius: 5px; background: var(--surface); padding: 2px; object-fit: contain; }
+  .sidebar-header h1 { display: none; font-size: 15px; margin: 0; font-weight: 700; white-space: nowrap; }
+  .sidebar-nav {
+    flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px;
+  }
+  .sidebar-footer {
+    padding: 8px; flex-shrink: 0; border-top: 1px solid rgba(244,242,237,0.1);
+    padding-bottom: calc(8px + env(safe-area-inset-bottom));
   }
   main.content {
-    padding: 68px 14px 78px;
-    max-width: 560px; margin: 0 auto;
+    margin-left: 64px;
+    padding: 20px 16px calc(20px + env(safe-area-inset-bottom));
     min-height: 100vh;
   }
   .view { display: none; }
@@ -212,29 +225,37 @@
   }
   .view-header h2 { font-size: 18px; margin: 0; }
 
-  .bottom-nav {
-    position: fixed; bottom: 0; left: 0; right: 0; z-index: 40;
-    background: var(--surface); border-top: 1px solid var(--line);
-    display: flex; padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
-    overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none;
-  }
-  .bottom-nav::-webkit-scrollbar { display: none; }
   .nav-btn {
     position: relative;
-    flex: 0 0 auto; min-width: 68px; background: transparent; border: none; padding: 6px 8px;
-    display: flex; flex-direction: column; align-items: center; gap: 3px;
-    color: var(--muted); font-size: 10.5px; font-weight: 600; white-space: nowrap;
+    display: flex; align-items: center; justify-content: center; gap: 10px;
+    background: transparent; border: none; border-radius: 10px;
+    padding: 10px; color: rgba(244,242,237,0.65); font-size: 13px; font-weight: 600;
+    white-space: nowrap; width: 100%; text-align: left;
   }
-  .nav-btn .dot { width: 20px; height: 20px; border-radius: 50%; background: var(--line); }
-  .nav-btn.active { color: var(--rust); }
-  .nav-btn.active .dot {
-    background: linear-gradient(135deg, #E4794F, var(--rust));
-    box-shadow: 0 3px 8px rgba(211,90,52,0.45);
+  .nav-btn .nav-icon { display: flex; flex-shrink: 0; }
+  .nav-btn .nav-icon svg { width: 20px; height: 20px; }
+  .nav-btn .nav-label { display: none; }
+  .nav-btn:hover { background: rgba(244,242,237,0.08); color: var(--paper); }
+  .nav-btn.active {
+    background: linear-gradient(135deg, #E4794F, var(--rust)); color: #fff;
+    box-shadow: 0 3px 10px rgba(211,90,52,0.35);
   }
   .nav-badge {
-    position: absolute; top: 2px; right: 16px;
+    position: absolute; top: 4px; right: 4px;
     background: var(--rust); color: #fff; font-size: 9px; font-weight: 800;
     border-radius: 20px; padding: 1px 5px; min-width: 14px; text-align: center; line-height: 1.3;
+  }
+  .nav-btn.active .nav-badge { background: rgba(255,255,255,0.9); color: var(--rust); }
+
+  @media (min-width: 900px) {
+    .sidebar { width: 232px; }
+    .sidebar-header { justify-content: flex-start; padding: 20px 18px; }
+    .sidebar-mark { display: none; }
+    .sidebar-header h1 { display: block; }
+    .nav-btn { justify-content: flex-start; padding: 10px 12px; }
+    .nav-btn .nav-label { display: inline; }
+    .nav-badge { position: static; margin-left: auto; }
+    main.content { margin-left: 232px; padding: 28px 32px; max-width: 1100px; margin-right: auto; }
   }
 
   /* ---------- Full-screen sheets ---------- */
@@ -489,12 +510,58 @@
 </div>
 
 <div id="app">
-  <div class="top-bar">
-    <div style="display:flex; align-items:center; gap:8px;">
-      <img id="header-logo" src="" style="display:none; max-height:26px; max-width:100px; border-radius:5px; background:var(--surface); padding:2px; object-fit:contain;" />
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <img class="sidebar-mark" src="/icons/admin-icon-192.png" alt="" />
+      <img id="header-logo" src="" style="display:none;" />
       <h1>Coll Admin</h1>
     </div>
-    <button onclick="doLogout()">Log out</button>
+    <nav class="sidebar-nav">
+      <button class="nav-btn active" data-view="overview" onclick="showView('overview')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="3" width="7.5" height="7.5" rx="1.5"/><rect x="3" y="13.5" width="7.5" height="7.5" rx="1.5"/><rect x="13.5" y="13.5" width="7.5" height="7.5" rx="1.5"/></svg></span>
+        <span class="nav-label">Overview</span>
+      </button>
+      <button class="nav-btn" data-view="employees" onclick="showView('employees')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="8.5" cy="7.5" r="3"/><path d="M2.5 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="7" r="2.6"/><path d="M15.3 12.9c2.9.5 5 3 5 6.1"/></svg></span>
+        <span class="nav-label">Employees</span>
+      </button>
+      <button class="nav-btn" data-view="schedule" onclick="showView('schedule')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2.5"/><path d="M3 9.5h18"/><path d="M8 3v4"/><path d="M16 3v4"/></svg></span>
+        <span class="nav-label">Schedule</span>
+      </button>
+      <button class="nav-btn" data-view="customers" onclick="showView('customers')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V8l8-4.5L20 8v13"/><path d="M9.5 21v-6.5h5V21"/><path d="M4 21h16"/></svg></span>
+        <span class="nav-label">Customers</span>
+      </button>
+      <button class="nav-btn" data-view="invoices" onclick="showView('invoices')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v18"/><path d="M16.5 7.3c0-1.7-1.7-2.9-4-2.9s-4.5 1.2-4.5 3.1c0 3.5 8.5 1.6 8.5 5.4 0 1.9-2 3.1-4.5 3.1s-4.5-1.2-4.5-3.1"/></svg></span>
+        <span class="nav-label">Billing</span>
+      </button>
+      <button class="nav-btn" data-view="inventory" onclick="showView('inventory')">
+        <span class="nav-badge" id="pull-sheets-nav-badge" style="display:none;"></span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 7.5l-9-5-9 5 9 5 9-5z"/><path d="M3 7.5v9l9 5 9-5v-9"/><path d="M12 12.5V21"/></svg></span>
+        <span class="nav-label">Inventory</span>
+      </button>
+      <button class="nav-btn" data-view="reports" onclick="showView('reports')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21V10.5"/><path d="M12 21V4"/><path d="M20 21v-7.5"/><path d="M2.5 21h19"/></svg></span>
+        <span class="nav-label">Reports</span>
+      </button>
+      <button class="nav-btn" data-view="chat" onclick="showView('chat')">
+        <span class="nav-badge" id="chat-nav-badge" style="display:none;"></span>
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 4.5h17v12h-9.5l-4.5 4v-4h-3v-12z"/></svg></span>
+        <span class="nav-label">Chat</span>
+      </button>
+      <button class="nav-btn" data-view="settings" onclick="showView('settings')">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6.5h9M17.5 6.5h2"/><circle cx="14" cy="6.5" r="2"/><path d="M4 12h3M11 12h9"/><circle cx="8" cy="12" r="2"/><path d="M4 17.5h9M17.5 17.5h2"/><circle cx="14" cy="17.5" r="2"/></svg></span>
+        <span class="nav-label">Settings</span>
+      </button>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-btn" onclick="doLogout()">
+        <span class="nav-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5.5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2H9"/><path d="M16 16.5l4.5-4.5-4.5-4.5"/><path d="M20.5 12h-12"/></svg></span>
+        <span class="nav-label">Log out</span>
+      </button>
+    </div>
   </div>
 
   <main class="content" ontouchstart="handleTabSwipeStart(event)" ontouchend="handleTabSwipeEnd(event)">
@@ -1068,18 +1135,6 @@
     </section>
 
   </main>
-
-  <div class="bottom-nav">
-    <button class="nav-btn active" data-view="overview" onclick="showView('overview')"><span class="dot"></span>Overview</button>
-    <button class="nav-btn" data-view="employees" onclick="showView('employees')"><span class="dot"></span>Employees</button>
-    <button class="nav-btn" data-view="schedule" onclick="showView('schedule')"><span class="dot"></span>Schedule</button>
-    <button class="nav-btn" data-view="customers" onclick="showView('customers')"><span class="dot"></span>Customers</button>
-    <button class="nav-btn" data-view="invoices" onclick="showView('invoices')"><span class="dot"></span>Billing</button>
-    <button class="nav-btn" data-view="inventory" onclick="showView('inventory')"><span class="nav-badge" id="pull-sheets-nav-badge" style="display:none;"></span><span class="dot"></span>Inventory</button>
-    <button class="nav-btn" data-view="reports" onclick="showView('reports')"><span class="dot"></span>Reports</button>
-    <button class="nav-btn" data-view="chat" onclick="showView('chat')"><span class="nav-badge" id="chat-nav-badge" style="display:none;"></span><span class="dot"></span>Chat</button>
-    <button class="nav-btn" data-view="settings" onclick="showView('settings')"><span class="dot"></span>Settings</button>
-  </div>
 </div>
 
 <!-- ---------- Full-screen sheets ---------- -->
@@ -2300,15 +2355,9 @@ if ("serviceWorker" in navigator) {
 }
 
 function showView(name) {
-  document.querySelectorAll(".nav-btn").forEach(function(b) { b.classList.toggle("active", b.dataset.view === name); });
+  document.querySelectorAll(".nav-btn[data-view]").forEach(function(b) { b.classList.toggle("active", b.dataset.view === name); });
   document.querySelectorAll(".view").forEach(function(v) { v.classList.toggle("active", v.id === "view-" + name); });
   window.scrollTo(0, 0);
-  // The bottom nav now scrolls horizontally (see .bottom-nav) instead of
-  // squeezing every tab to fit -- keep whichever tab is active scrolled
-  // into view so switching tabs (e.g. via swipe, or a notification tap)
-  // never leaves the active one hidden off-screen.
-  const activeNavBtn = document.querySelector('.nav-btn[data-view="' + name + '"]');
-  if (activeNavBtn) activeNavBtn.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
   if (name === "settings") refreshStripeConnectCard();
   if (name === "inventory") { loadInventory(); loadPullSheets(); }
 }
