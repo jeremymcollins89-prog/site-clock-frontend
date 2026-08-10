@@ -287,6 +287,21 @@ async function sendTeamMessage(threadId, body) {
   return apiFetch(`/api/team-chat/threads/${threadId}/messages`, { method: "POST", body: { body } });
 }
 
+// Typing indicator -- see ChatView/TeamChatView in App.jsx for the throttled
+// ping-while-typing + poll-while-open logic that calls these.
+async function pingChatTyping() {
+  return apiFetch("/api/chat/typing", { method: "POST" });
+}
+async function getChatTypingStatus() {
+  return apiFetch("/api/chat/typing");
+}
+async function pingTeamTyping(threadId) {
+  return apiFetch(`/api/team-chat/threads/${threadId}/typing`, { method: "POST" });
+}
+async function getTeamTypingStatus(threadId) {
+  return apiFetch(`/api/team-chat/threads/${threadId}/typing`);
+}
+
 async function getVapidPublicKey() {
   return apiFetch("/api/push/vapid-public-key");
 }
@@ -362,6 +377,10 @@ export {
   createTeamThread,
   getTeamMessages,
   sendTeamMessage,
+  pingChatTyping,
+  getChatTypingStatus,
+  pingTeamTyping,
+  getTeamTypingStatus,
   getVapidPublicKey,
   subscribePush,
   unsubscribePush,

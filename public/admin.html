@@ -305,6 +305,24 @@
   }
   .chat-empty-state p { font-size: 12px; max-width: 220px; margin: 0; }
 
+  /* Typing indicator -- same position/shape as an incoming chat-bubble-employee
+     bubble (so nothing visually jumps when it's replaced by a real message a
+     moment later), just three bouncing dots instead of text. */
+  @keyframes typingDotBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-3px); opacity: 1; }
+  }
+  .chat-typing-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: var(--muted);
+    animation: typingDotBounce 1.1s ease-in-out infinite;
+  }
+  .chat-typing-dot:nth-child(2) { animation-delay: 0.15s; }
+  .chat-typing-dot:nth-child(3) { animation-delay: 0.3s; }
+  .chat-typing-bubble {
+    background: var(--surface); border: 1px solid var(--line); border-radius: 16px; border-bottom-left-radius: 4px;
+    padding: 12px 14px; display: flex; align-items: center; gap: 4px; width: fit-content;
+  }
+
   .chat-composer {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 101;
     background: var(--bg); border-top: 1.5px solid var(--line);
@@ -1081,9 +1099,10 @@
   </div>
   <div class="sheet-body">
     <div id="chat-thread-messages" class="chat-messages"></div>
+    <div id="chat-thread-typing-indicator"></div>
   </div>
   <div class="chat-composer" id="chat-thread-composer">
-    <input id="chat-message-input" placeholder="Message the office..." onkeydown="if(event.key==='Enter')sendChatMessage()" />
+    <input id="chat-message-input" placeholder="Message the office..." onkeydown="if(event.key==='Enter')sendChatMessage()" oninput="onChatComposerInput()" />
     <button class="chat-send-btn" onclick="sendChatMessage()" aria-label="Send">&#10148;</button>
   </div>
 </div>
@@ -1095,9 +1114,10 @@
   </div>
   <div class="sheet-body">
     <div id="team-chat-thread-messages" class="chat-messages"></div>
+    <div id="team-chat-thread-typing-indicator"></div>
   </div>
   <div class="chat-composer" id="team-chat-thread-composer">
-    <input id="team-chat-message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendTeamChatMessage()" />
+    <input id="team-chat-message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendTeamChatMessage()" oninput="onTeamChatComposerInput()" />
     <button class="chat-send-btn" onclick="sendTeamChatMessage()" aria-label="Send">&#10148;</button>
   </div>
 </div>
@@ -1999,6 +2019,8 @@ const admin = {
   getChatMessages: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}/messages`),
   sendChatMessage: (employeeId, body) =>
     apiFetch(`/api/admin/chat/${employeeId}/messages`, { method: "POST", body: { body } }),
+  pingChatTyping: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}/typing`, { method: "POST" }),
+  getChatTypingStatus: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}/typing`),
 
   listTeamChatThreads: () => apiFetch("/api/admin/team-chat/threads"),
   getTeamChatUnreadCount: () => apiFetch("/api/admin/team-chat/unread-count"),
@@ -2007,6 +2029,8 @@ const admin = {
   getTeamChatMessages: (threadId) => apiFetch(`/api/admin/team-chat/threads/${threadId}/messages`),
   sendTeamChatMessage: (threadId, body) =>
     apiFetch(`/api/admin/team-chat/threads/${threadId}/messages`, { method: "POST", body: { body } }),
+  pingTeamChatTyping: (threadId) => apiFetch(`/api/admin/team-chat/threads/${threadId}/typing`, { method: "POST" }),
+  getTeamChatTypingStatus: (threadId) => apiFetch(`/api/admin/team-chat/threads/${threadId}/typing`),
 
   getVapidPublicKey: () => apiFetch("/api/push/vapid-public-key"),
   subscribeAdminPush: (subscription) => apiFetch("/api/admin/push/subscribe", { method: "POST", body: subscription }),
@@ -8593,6 +8617,21 @@ function chatRowHtml(m, opts) {
     '</div>';
 }
 
+// Renders one "someone is typing" row -- same avatar-slot + bubble-wrap
+// shape as chatRowHtml so it doesn't visually jump when it's replaced by a
+// real message a moment later, just with bouncing dots instead of text.
+function typingRowHtml(avatarName, opts) {
+  opts = opts || {};
+  return '<div class="chat-row">' +
+    '<div class="chat-avatar-slot">' + avatarHtml(avatarName, { office: !!opts.office, small: true }) + '</div>' +
+    '<div class="chat-bubble-wrap">' +
+      '<div class="chat-typing-bubble">' +
+        '<span class="chat-typing-dot"></span><span class="chat-typing-dot"></span><span class="chat-typing-dot"></span>' +
+      '</div>' +
+    '</div>' +
+  '</div>';
+}
+
 async function loadChatThreads() {
   try {
     chatThreads = await admin.listChatThreads();
@@ -8648,6 +8687,7 @@ async function openChatThreadSheet(employeeId) {
   document.getElementById("chat-thread-messages").innerHTML = grouped.map(function(m) {
     return chatRowHtml(m, { mine: m.sender === "admin", avatarName: thread ? thread.name : "Employee", isOffice: false });
   }).join("") || chatEmptyStateHtml("No messages yet -- send a note any time, on or off the clock.");
+  document.getElementById("chat-thread-typing-indicator").innerHTML = "";
 
   document.getElementById("chat-thread-sheet").classList.add("visible");
   if (thread) thread.unread_count = 0;
@@ -8657,11 +8697,60 @@ async function openChatThreadSheet(employeeId) {
     const box = document.getElementById("chat-thread-messages");
     box.scrollTop = box.scrollHeight;
   }, 0);
+
+  startChatTypingPoll(employeeId);
+}
+
+// Typing indicator (Direct channel) -- polls every ~2.5s, only while this
+// sheet is actually open, separately from the message content itself so a
+// tick never resets scroll position the way re-rendering the whole message
+// list would.
+let chatTypingPollInterval = null;
+let lastChatTypingPingAt = 0;
+function startChatTypingPoll(employeeId) {
+  stopChatTypingPoll();
+  async function poll() {
+    let typing = false;
+    try {
+      const result = await admin.getChatTypingStatus(employeeId);
+      typing = !!result.typing;
+    } catch (err) {
+      return; // non-fatal -- just skip this tick
+    }
+    const el = document.getElementById("chat-thread-typing-indicator");
+    const wasEmpty = !el.innerHTML;
+    el.innerHTML = typing ? typingRowHtml(document.getElementById("chat-thread-sheet-title").textContent) : "";
+    if (typing && wasEmpty) {
+      const box = document.getElementById("chat-thread-messages");
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+  poll();
+  chatTypingPollInterval = setInterval(poll, 2500);
+}
+function stopChatTypingPoll() {
+  if (chatTypingPollInterval) {
+    clearInterval(chatTypingPollInterval);
+    chatTypingPollInterval = null;
+  }
+}
+
+// Pings "I'm typing" at most once every ~2s while there's text in the box --
+// the backend TTLs each ping for 6s, so pinging more often is wasted.
+function onChatComposerInput() {
+  if (!openChatEmployeeId) return;
+  const value = document.getElementById("chat-message-input").value;
+  const now = Date.now();
+  if (value.trim() && now - lastChatTypingPingAt > 2000) {
+    lastChatTypingPingAt = now;
+    admin.pingChatTyping(openChatEmployeeId).catch(function() {});
+  }
 }
 
 function closeChatThreadSheet() {
   document.getElementById("chat-thread-sheet").classList.remove("visible");
   openChatEmployeeId = null;
+  stopChatTypingPoll();
 }
 
 async function sendChatMessage() {
@@ -8756,6 +8845,7 @@ async function openTeamChatThreadSheet(threadId) {
   document.getElementById("team-chat-thread-messages").innerHTML = grouped.map(function(m) {
     return chatRowHtml(m, { mine: m.sender_is_admin, avatarName: m.sender_name, isOffice: false });
   }).join("") || chatEmptyStateHtml("No messages yet -- say hi any time, to anyone.");
+  document.getElementById("team-chat-thread-typing-indicator").innerHTML = "";
 
   document.getElementById("team-chat-thread-sheet").classList.add("visible");
   if (thread) thread.unread_count = 0;
@@ -8765,11 +8855,59 @@ async function openTeamChatThreadSheet(threadId) {
     const box = document.getElementById("team-chat-thread-messages");
     box.scrollTop = box.scrollHeight;
   }, 0);
+
+  startTeamChatTypingPoll(threadId);
+}
+
+// Typing indicator (Team channel) -- same polling approach as the Direct
+// channel's startChatTypingPoll, but a group thread can have more than one
+// person typing at once, so this renders one row per name instead of a
+// single boolean.
+let teamChatTypingPollInterval = null;
+let lastTeamChatTypingPingAt = 0;
+function startTeamChatTypingPoll(threadId) {
+  stopTeamChatTypingPoll();
+  async function poll() {
+    let names = [];
+    try {
+      const result = await admin.getTeamChatTypingStatus(threadId);
+      names = result.typingNames || [];
+    } catch (err) {
+      return; // non-fatal -- just skip this tick
+    }
+    const el = document.getElementById("team-chat-thread-typing-indicator");
+    const wasEmpty = !el.innerHTML;
+    el.innerHTML = names.map(function(name) { return typingRowHtml(name); }).join("");
+    if (names.length > 0 && wasEmpty) {
+      const box = document.getElementById("team-chat-thread-messages");
+      box.scrollTop = box.scrollHeight;
+    }
+  }
+  poll();
+  teamChatTypingPollInterval = setInterval(poll, 2500);
+}
+function stopTeamChatTypingPoll() {
+  if (teamChatTypingPollInterval) {
+    clearInterval(teamChatTypingPollInterval);
+    teamChatTypingPollInterval = null;
+  }
+}
+
+// Pings "I'm typing" at most once every ~2s while there's text in the box.
+function onTeamChatComposerInput() {
+  if (!openTeamChatThreadId) return;
+  const value = document.getElementById("team-chat-message-input").value;
+  const now = Date.now();
+  if (value.trim() && now - lastTeamChatTypingPingAt > 2000) {
+    lastTeamChatTypingPingAt = now;
+    admin.pingTeamChatTyping(openTeamChatThreadId).catch(function() {});
+  }
 }
 
 function closeTeamChatThreadSheet() {
   document.getElementById("team-chat-thread-sheet").classList.remove("visible");
   openTeamChatThreadId = null;
+  stopTeamChatTypingPoll();
 }
 
 async function sendTeamChatMessage() {

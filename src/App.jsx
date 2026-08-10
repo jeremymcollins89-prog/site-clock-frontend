@@ -46,6 +46,10 @@ import {
   createTeamThread,
   getTeamMessages,
   sendTeamMessage,
+  pingChatTyping,
+  getChatTypingStatus,
+  pingTeamTyping,
+  getTeamTypingStatus,
   getVapidPublicKey,
   subscribePush,
   getMyPullSheets,
@@ -160,7 +164,17 @@ const THEME_VARS = `
     --rust-deep: #C25730;
   }
 `;
-const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');` + THEME_VARS;
+// Typing-indicator dots (ChatBubble's typing state, see TypingBubble below)
+// -- three dots bouncing on a staggered delay, CSS keyframes since inline
+// React styles can't declare @keyframes themselves.
+const TYPING_DOTS_CSS = `
+  @keyframes typingDotBounce {
+    0%, 60%, 100% { transform: translateY(0); opacity: 0.5; }
+    30% { transform: translateY(-3px); opacity: 1; }
+  }
+  .typing-dot { animation: typingDotBounce 1.1s ease-in-out infinite; }
+`;
+const FONT_IMPORT = `@import url('https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap');` + THEME_VARS + TYPING_DOTS_CSS;
 
 // Fixed (unthemed) -- "chrome" backgrounds/fixed-warm-gradient text that
 // stay the same dark/light regardless of Day or Night mode.
@@ -3377,6 +3391,33 @@ function ChatBubble({ mine, first, last, avatarName, isOffice, body, createdAt }
   );
 }
 
+// The other party's "..." bubble -- same shape/position as an incoming
+// ChatBubble (so it doesn't visually jump when it's replaced by their real
+// message a moment later), just with three bouncing dots instead of text.
+// avatarName is only shown for Team chat (multiple possible senders); the
+// Direct/office channel passes isOffice with no name label needed.
+function TypingBubble({ avatarName, isOffice }) {
+  return (
+    <div className="flex items-end gap-2" style={{ alignSelf: "flex-start" }}>
+      <div style={{ width: 26, flexShrink: 0 }}>
+        <Avatar name={avatarName} isOffice={isOffice} size={26} />
+      </div>
+      <div
+        style={{ background: SURFACE, border: `1px solid ${LINE}`, borderRadius: 16, borderBottomLeftRadius: 4 }}
+        className="px-3.5 py-3 flex items-center gap-1"
+      >
+        {[0, 1, 2].map((i) => (
+          <span
+            key={i}
+            className="typing-dot"
+            style={{ width: 6, height: 6, borderRadius: "50%", background: MUTED, animationDelay: `${i * 0.15}s` }}
+          />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
   return (
     <div className="flex gap-2 mt-auto pt-3 items-end">
@@ -3423,11 +3464,48 @@ function ChatEmptyState({ text }) {
 function ChatView({ messages, loading, onSend }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [otherTyping, setOtherTyping] = useState(false);
   const bottomRef = useRef(null);
+  const lastTypingPingRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages]);
+  }, [messages, otherTyping]);
+
+  // Polls "is the office typing right now" every ~2.5s, only while this
+  // thread is actually open -- a typing indicator needs to feel near-
+  // instant, not just eventually-consistent like the app's normal 15s
+  // unread-count polling, but there's no reason to pay that cost for a
+  // thread nobody's currently looking at.
+  useEffect(() => {
+    let cancelled = false;
+    async function poll() {
+      try {
+        const { typing } = await getChatTypingStatus();
+        if (!cancelled) setOtherTyping(!!typing);
+      } catch {
+        // non-fatal -- just skip this tick
+      }
+    }
+    poll();
+    const interval = setInterval(poll, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, []);
+
+  // Pings "I'm typing" at most once every ~2s while there's text in the
+  // box, rather than on every keystroke -- the backend TTLs each ping for
+  // 6s anyway, so pinging more often than that would just be wasted requests.
+  function handleDraftChange(value) {
+    setDraft(value);
+    const now = Date.now();
+    if (value.trim() && now - lastTypingPingRef.current > 2000) {
+      lastTypingPingRef.current = now;
+      pingChatTyping().catch(() => {});
+    }
+  }
 
   async function handleSend() {
     const text = draft.trim();
@@ -3449,7 +3527,7 @@ function ChatView({ messages, loading, onSend }) {
     <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
       {loading ? (
         <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
-      ) : messages.length === 0 ? (
+      ) : messages.length === 0 && !otherTyping ? (
         <ChatEmptyState text="No messages yet -- send a note to the office any time, on or off the clock." />
       ) : (
         <div className="flex flex-col gap-1 mb-4">
@@ -3469,11 +3547,16 @@ function ChatView({ messages, loading, onSend }) {
               </div>
             </div>
           ))}
+          {otherTyping && (
+            <div style={{ marginTop: 8 }}>
+              <TypingBubble avatarName="Office" isOffice />
+            </div>
+          )}
           <div ref={bottomRef} />
         </div>
       )}
 
-      <ChatComposer draft={draft} onDraftChange={setDraft} onSend={handleSend} sending={sending} placeholder="Message the office..." />
+      <ChatComposer draft={draft} onDraftChange={handleDraftChange} onSend={handleSend} sending={sending} placeholder="Message the office..." />
     </div>
   );
 }
@@ -3505,11 +3588,50 @@ function TeamChatView({
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [coworkerSearch, setCoworkerSearch] = useState("");
+  const [typingNames, setTypingNames] = useState([]);
   const bottomRef = useRef(null);
+  const lastTypingPingRef = useRef(0);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ block: "end" });
-  }, [messages]);
+  }, [messages, typingNames]);
+
+  // Polls "who else is typing" every ~2.5s, only while a thread is actually
+  // open -- resets to nobody-typing whenever the open thread changes (or
+  // closes), so a stale indicator from the last thread never bleeds into
+  // the next one.
+  useEffect(() => {
+    if (!activeThreadId) {
+      setTypingNames([]);
+      return;
+    }
+    let cancelled = false;
+    async function poll() {
+      try {
+        const { typingNames: names } = await getTeamTypingStatus(activeThreadId);
+        if (!cancelled) setTypingNames(names || []);
+      } catch {
+        // non-fatal -- just skip this tick
+      }
+    }
+    poll();
+    const interval = setInterval(poll, 2500);
+    return () => {
+      cancelled = true;
+      clearInterval(interval);
+    };
+  }, [activeThreadId]);
+
+  // Pings "I'm typing" at most once every ~2s while there's text in the
+  // box -- mirrors ChatView's same throttling against the backend's 6s TTL.
+  function handleDraftChange(value) {
+    setDraft(value);
+    const now = Date.now();
+    if (value.trim() && activeThreadId && now - lastTypingPingRef.current > 2000) {
+      lastTypingPingRef.current = now;
+      pingTeamTyping(activeThreadId).catch(() => {});
+    }
+  }
 
   async function handleSend() {
     const text = draft.trim();
@@ -3628,7 +3750,7 @@ function TeamChatView({
 
         {messagesLoading ? (
           <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
-        ) : messages.length === 0 ? (
+        ) : messages.length === 0 && typingNames.length === 0 ? (
           <ChatEmptyState text="No messages yet -- say hi any time, on or off the clock." />
         ) : (
           <div className="flex flex-col gap-1 mb-4">
@@ -3651,11 +3773,16 @@ function TeamChatView({
                 </div>
               );
             })}
+            {typingNames.map((name) => (
+              <div key={`typing-${name}`} style={{ marginTop: 8 }}>
+                <TypingBubble avatarName={name} isOffice={name === "Admin"} />
+              </div>
+            ))}
             <div ref={bottomRef} />
           </div>
         )}
 
-        <ChatComposer draft={draft} onDraftChange={setDraft} onSend={handleSend} sending={sending} placeholder="Type a message..." />
+        <ChatComposer draft={draft} onDraftChange={handleDraftChange} onSend={handleSend} sending={sending} placeholder="Type a message..." />
       </div>
     );
   }
