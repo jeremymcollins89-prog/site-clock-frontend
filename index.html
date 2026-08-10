@@ -36,6 +36,75 @@
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Getting a fresh deploy to actually reach an employee's phone has two
+      // separate gaps, and both need closing:
+      //
+      // 1. The service worker itself already updates and takes over
+      //    automatically (skipWaiting + clients.claim in service-worker.js),
+      //    but registration.update() only checks the service-worker.js file
+      //    for changes. Most deploys never touch that file -- only the
+      //    React app's bundle changes (new content-hashed filename) -- so
+      //    this alone won't catch a routine update.
+      // 2. An already-open tab/installed app instance (very normal for a
+      //    time clock someone opens several times a day and otherwise just
+      //    backgrounds) keeps running whatever JS is already loaded in
+      //    memory. Nothing about the service worker updating in the
+      //    background forces THAT already-running page to reload -- only an
+      //    actual navigation does, and a backgrounded-then-resumed PWA/TWA
+      //    doesn't always trigger one.
+      //
+      // checkForAppUpdate() below closes gap 2 directly: it re-fetches
+      // index.html (bypassing the cache) and compares the hashed bundle
+      // filename it references against the one actually running on this
+      // page right now. If they differ, a new version has been deployed
+      // since this page loaded, so it reloads. Runs whenever the app comes
+      // back to the foreground -- the most natural, lowest-risk moment,
+      // since the person just switched back to the app and hasn't started
+      // typing anything yet.
+      let reloadedForUpdate = false;
+      function reloadOnce() {
+        if (reloadedForUpdate) return;
+        reloadedForUpdate = true;
+        window.location.reload();
+      }
+      // Attribute order in a built <script type="module" ...> tag isn't
+      // guaranteed (src before type is just as valid HTML as the reverse),
+      // so this checks each <script> tag for type="module" and pulls its
+      // src separately, rather than assuming one fixed attribute order.
+      function extractModuleScriptSrc(html) {
+        const scriptTags = html.match(/<script\b[^>]*>/gi) || [];
+        for (const tag of scriptTags) {
+          if (/type="module"/i.test(tag)) {
+            const srcMatch = tag.match(/src="([^"]+)"/i);
+            if (srcMatch) return srcMatch[1];
+          }
+        }
+        return null;
+      }
+      async function checkForAppUpdate() {
+        try {
+          const res = await fetch("/index.html", { cache: "no-store" });
+          if (!res.ok) return;
+          const html = await res.text();
+          const latestSrc = extractModuleScriptSrc(html);
+          const currentScript = document.querySelector('script[type="module"]');
+          const currentSrc = currentScript && currentScript.getAttribute("src");
+          // Only meaningful once both sides are actual hashed build output
+          // (in dev, both sides are the same unhashed /src/main.jsx and
+          // this correctly finds no difference).
+          if (latestSrc && currentSrc && latestSrc !== currentSrc) {
+            reloadOnce();
+          }
+        } catch (e) {
+          // Offline or the fetch failed -- just skip this check, there's
+          // nothing actionable here and it'll try again next time the app
+          // is foregrounded.
+        }
+      }
+      document.addEventListener("visibilitychange", () => {
+        if (document.visibilityState === "visible") checkForAppUpdate();
+      });
+
       if ("serviceWorker" in navigator) {
         window.addEventListener("load", () => {
           // updateViaCache: "none" stops the browser from ever applying its
@@ -45,7 +114,18 @@
           // device for a long time before the browser notices it changed.
           navigator.serviceWorker
             .register("/service-worker.js", { updateViaCache: "none" })
-            .then((registration) => registration.update())
+            .then((registration) => {
+              document.addEventListener("visibilitychange", () => {
+                if (document.visibilityState === "visible") {
+                  registration.update().catch(() => {});
+                }
+              });
+              // Belt-and-suspenders: if the service worker file itself ever
+              // does change and a new one takes control, reload for that
+              // too (same guard as checkForAppUpdate, so only one reload
+              // ever happens no matter which check catches it first).
+              navigator.serviceWorker.addEventListener("controllerchange", reloadOnce);
+            })
             .catch(console.error);
         });
       }
