@@ -3418,16 +3418,45 @@ function TypingBubble({ avatarName, isOffice }) {
   );
 }
 
+// Textarea instead of a single-line input so a long message wraps and stays
+// fully visible while typing (like a normal text message) instead of
+// scrolling sideways as one long line. Auto-grows with content up to
+// MAX_COMPOSER_HEIGHT, then scrolls internally rather than growing forever.
+// Enter still sends (matching the old input's behavior); Shift+Enter inserts
+// an actual newline, which wasn't possible at all with a single-line input.
+const MAX_COMPOSER_HEIGHT = 120;
+
 function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
+  const textareaRef = useRef(null);
+
+  useEffect(() => {
+    const el = textareaRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT) + "px";
+  }, [draft]);
+
+  function handleKeyDown(e) {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      onSend();
+    }
+  }
+
   return (
     <div className="flex gap-2 mt-auto pt-3 items-end">
-      <input
+      <textarea
+        ref={textareaRef}
         value={draft}
         onChange={(e) => onDraftChange(e.target.value)}
-        onKeyDown={(e) => e.key === "Enter" && onSend()}
+        onKeyDown={handleKeyDown}
         placeholder={placeholder}
-        style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)" }}
-        className="flex-1 px-4 py-2.5 text-[15px] font-medium rounded-full outline-none"
+        rows={1}
+        style={{
+          border: `1.5px solid ${LINE}`, background: INPUT_BG, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
+          resize: "none", maxHeight: MAX_COMPOSER_HEIGHT, overflowY: "auto",
+        }}
+        className="flex-1 px-4 py-2.5 text-[15px] font-medium rounded-3xl outline-none leading-snug"
       />
       <button
         onClick={onSend}

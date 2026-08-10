@@ -347,11 +347,16 @@
   .chat-composer {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 101;
     background: var(--bg); border-top: 1.5px solid var(--line);
-    display: flex; gap: 8px; align-items: center; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    display: flex; gap: 8px; align-items: flex-end; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   }
-  .chat-composer input {
-    flex: 1; margin-bottom: 0; border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
-    font-weight: 500;
+  /* Textarea instead of a single-line input so a long message wraps and
+     stays fully visible while typing instead of scrolling sideways as one
+     long line -- auto-grows with content (see resizeChatComposer() in the
+     script below) up to this max-height, then scrolls internally. */
+  .chat-composer textarea {
+    flex: 1; margin-bottom: 0; border-radius: 22px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+    font-weight: 500; font-family: inherit; resize: none; overflow-y: auto;
+    max-height: 120px; line-height: 1.4;
   }
   .chat-send-btn {
     width: 40px; height: 40px; border-radius: 50%; border: none; flex-shrink: 0;
@@ -1166,7 +1171,9 @@
     <div id="chat-thread-typing-indicator"></div>
   </div>
   <div class="chat-composer" id="chat-thread-composer">
-    <input id="chat-message-input" placeholder="Message the office..." onkeydown="if(event.key==='Enter')sendChatMessage()" oninput="onChatComposerInput()" />
+    <textarea id="chat-message-input" placeholder="Message the office..." rows="1"
+      onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendChatMessage();}"
+      oninput="onChatComposerInput()"></textarea>
     <button class="chat-send-btn" onclick="sendChatMessage()" aria-label="Send">&#10148;</button>
   </div>
 </div>
@@ -1181,7 +1188,9 @@
     <div id="team-chat-thread-typing-indicator"></div>
   </div>
   <div class="chat-composer" id="team-chat-thread-composer">
-    <input id="team-chat-message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendTeamChatMessage()" oninput="onTeamChatComposerInput()" />
+    <textarea id="team-chat-message-input" placeholder="Type a message..." rows="1"
+      onkeydown="if(event.key==='Enter' && !event.shiftKey){event.preventDefault(); sendTeamChatMessage();}"
+      oninput="onTeamChatComposerInput()"></textarea>
     <button class="chat-send-btn" onclick="sendTeamChatMessage()" aria-label="Send">&#10148;</button>
   </div>
 </div>
@@ -8856,11 +8865,23 @@ function stopChatTypingPoll() {
   }
 }
 
+// Grows the composer textarea to fit its content (up to the CSS max-height,
+// after which it scrolls internally instead of growing forever) -- called on
+// every keystroke and again after a send clears the box, so it always
+// matches what's actually typed instead of staying stretched or clipped.
+function resizeChatComposer(el) {
+  if (!el) return;
+  el.style.height = "auto";
+  el.style.height = el.scrollHeight + "px";
+}
+
 // Pings "I'm typing" at most once every ~2s while there's text in the box --
 // the backend TTLs each ping for 6s, so pinging more often is wasted.
 function onChatComposerInput() {
+  const el = document.getElementById("chat-message-input");
+  resizeChatComposer(el);
   if (!openChatEmployeeId) return;
-  const value = document.getElementById("chat-message-input").value;
+  const value = el.value;
   const now = Date.now();
   if (value.trim() && now - lastChatTypingPingAt > 2000) {
     lastChatTypingPingAt = now;
@@ -8880,6 +8901,7 @@ async function sendChatMessage() {
   const body = input.value.trim();
   if (!body) return;
   input.value = "";
+  resizeChatComposer(input);
   try {
     await admin.sendChatMessage(openChatEmployeeId, body);
     await openChatThreadSheet(openChatEmployeeId);
@@ -9016,8 +9038,10 @@ function stopTeamChatTypingPoll() {
 
 // Pings "I'm typing" at most once every ~2s while there's text in the box.
 function onTeamChatComposerInput() {
+  const el = document.getElementById("team-chat-message-input");
+  resizeChatComposer(el);
   if (!openTeamChatThreadId) return;
-  const value = document.getElementById("team-chat-message-input").value;
+  const value = el.value;
   const now = Date.now();
   if (value.trim() && now - lastTeamChatTypingPingAt > 2000) {
     lastTeamChatTypingPingAt = now;
@@ -9037,6 +9061,7 @@ async function sendTeamChatMessage() {
   const body = input.value.trim();
   if (!body) return;
   input.value = "";
+  resizeChatComposer(input);
   try {
     await admin.sendTeamChatMessage(openTeamChatThreadId, body);
     await openTeamChatThreadSheet(openTeamChatThreadId);
