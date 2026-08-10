@@ -302,6 +302,17 @@ async function getTeamTypingStatus(threadId) {
   return apiFetch(`/api/team-chat/threads/${threadId}/typing`);
 }
 
+// Returns the current pay period's start/end (ISO strings), computed
+// server-side using the company's actual pay frequency AND its own
+// timezone -- always matches what "Submit Hours for Payroll" will actually
+// use. See backend/routes/timeEntries.js's GET /pay-period for why the app
+// shouldn't compute this locally (device time zone, and a hardcoded
+// semi-monthly assumption regardless of the company's real settings, both
+// used to cause this to disagree with the backend near period boundaries).
+async function getCurrentPayPeriod() {
+  return apiFetch("/api/time-entries/pay-period");
+}
+
 async function getVapidPublicKey() {
   return apiFetch("/api/push/vapid-public-key");
 }
@@ -377,6 +388,7 @@ export {
   createTeamThread,
   getTeamMessages,
   sendTeamMessage,
+  getCurrentPayPeriod,
   pingChatTyping,
   getChatTypingStatus,
   pingTeamTyping,

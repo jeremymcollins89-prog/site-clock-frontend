@@ -46,6 +46,7 @@ import {
   createTeamThread,
   getTeamMessages,
   sendTeamMessage,
+  getCurrentPayPeriod,
   pingChatTyping,
   getChatTypingStatus,
   pingTeamTyping,
@@ -1207,16 +1208,6 @@ function formatDuration(seconds) {
   const m = totalMin % 60;
   if (h === 0) return `${m}m`;
   return `${h}h ${m}m`;
-}
-
-function getPayPeriod(date) {
-  const y = date.getFullYear();
-  const m = date.getMonth();
-  if (date.getDate() <= 15) {
-    return { start: new Date(y, m, 1), end: new Date(y, m, 15, 23, 59, 59) };
-  }
-  const lastDay = new Date(y, m + 1, 0).getDate();
-  return { start: new Date(y, m, 16), end: new Date(y, m, lastDay, 23, 59, 59) };
 }
 
 function formatDateShort(d) {
@@ -3997,6 +3988,11 @@ const [emailInput, setEmailInput] = useState("");
   const breakReminderFiredRef = useRef(null);
 
   const [log, setLog] = useState([]); // entries from time_entry_durations for this pay period
+  // { start, end } ISO strings for the current pay period, as computed by
+  // the backend (company's real pay frequency + its own timezone -- see
+  // getCurrentPayPeriod/refreshFromServer). Null only very briefly before
+  // the first fetch completes.
+  const [payPeriod, setPayPeriod] = useState(null);
   const [view, setView] = useState("clock"); // clock | schedule | customers | chat
   const touchStartRef = useRef(null); // swipe-to-switch-tabs gesture state, see handleTabSwipeStart/End below
   const [schedule, setSchedule] = useState([]);
@@ -4717,9 +4713,13 @@ const [emailInput, setEmailInput] = useState("");
 
   async function refreshFromServer() {
     try {
-      const period = getPayPeriod(new Date());
+      // Ask the backend for the current period instead of computing it here
+      // -- it knows the company's real pay frequency and its own timezone,
+      // neither of which this device necessarily matches.
+      const period = await getCurrentPayPeriod();
+      setPayPeriod(period);
       const rows = await apiFetch(
-        `/api/time-entries?start=${period.start.toISOString()}&end=${period.end.toISOString()}`
+        `/api/time-entries?start=${period.start}&end=${period.end}`
       );
       setLog(rows.filter((r) => r.clock_out)); // completed shifts for the log list
       const open = rows.find((r) => !r.clock_out);
@@ -4944,7 +4944,9 @@ const [emailInput, setEmailInput] = useState("");
     break: { label: "ON BREAK", color: "#fff", bg: `linear-gradient(135deg, #E4794F, ${RUST_DEEP})`, shadow: "0 3px 8px rgba(166,61,32,0.4)" },
   }[status];
 
-  const period = getPayPeriod(now);
+  // payPeriod comes from the backend (see refreshFromServer) -- falls back
+  // to "today" only for the brief instant before that first fetch resolves.
+  const period = payPeriod || { start: now.toISOString(), end: now.toISOString() };
   const periodTotalSeconds = log.reduce((s, e) => s + Number(e.worked_seconds || 0), 0);
 
   async function submitHours() {
