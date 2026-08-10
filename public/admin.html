@@ -89,7 +89,7 @@
   input:focus, select:focus, textarea:focus {
     outline: none; border-color: var(--amber); box-shadow: 0 0 0 3px rgba(244,176,76,0.25);
   }
-  label { font-size: 11px; color: var(--muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
+  label { font-size: 12px; color: var(--muted); display: block; margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.03em; }
   button { cursor: pointer; font-family: inherit; }
   .btn-primary {
     width: 100%; color: var(--ink); border: none;
@@ -115,8 +115,8 @@
     border: none; border-radius: 10px; padding: 8px 12px; font-size: 12.5px; color: #fff; font-weight: 600;
     box-shadow: 0 2px 6px rgba(31,36,33,0.2);
   }
-  .error { color: var(--rust); font-size: 13px; margin: 8px 0; display: none; }
-  .success-msg { color: var(--teal); font-size: 13px; margin: 8px 0; display: none; }
+  .error { color: var(--rust); font-size: 13.5px; font-weight: 500; margin: 8px 0; display: none; }
+  .success-msg { color: var(--teal); font-size: 13.5px; font-weight: 500; margin: 8px 0; display: none; }
   .card {
     background: var(--surface); border: 1px solid rgba(31,36,33,0.05); border-radius: 18px;
     padding: 18px; margin-bottom: 14px;
@@ -130,7 +130,7 @@
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; margin: 0 -18px; padding: 0 18px; }
   .table-scroll table { min-width: 100%; }
   table { border-collapse: collapse; white-space: nowrap; }
-  th, td { text-align: left; padding: 9px 10px; font-size: 12.5px; border-bottom: 1px solid var(--line); }
+  th, td { text-align: left; padding: 9px 10px; font-size: 13.5px; border-bottom: 1px solid var(--line); }
   th:first-child, td:first-child { padding-left: 0; white-space: normal; min-width: 110px; }
   th:last-child, td:last-child { padding-right: 0; }
   thead th {
@@ -139,11 +139,11 @@
   }
   tbody tr:last-child td { border-bottom: none; }
   .badge {
-    display: inline-block; font-size: 11px; padding: 5px 12px; border-radius: 20px; font-weight: 700;
+    display: inline-block; font-size: 12px; padding: 5px 12px; border-radius: 20px; font-weight: 700;
   }
   .chip {
     display: inline-block; background: var(--line); color: var(--ink);
-    font-size: 11px; padding: 3px 9px; border-radius: 20px; margin: 2px 4px 2px 0;
+    font-size: 12px; padding: 3px 9px; border-radius: 20px; margin: 2px 4px 2px 0;
   }
   .type-badge {
     display: inline-block; font-size: 10px; text-transform: uppercase; letter-spacing: 0.04em;
@@ -278,8 +278,8 @@
 
   /* ---------- Chat ---------- */
   .chat-thread-row { display: flex; align-items: center; gap: 12px; }
-  .chat-thread-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
-  .chat-thread-preview { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .chat-thread-name { font-size: 15.5px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
+  .chat-thread-preview { font-size: 13.5px; font-weight: 500; color: var(--muted); margin-top: 2px; }
   .chat-on-clock-dot { width: 7px; height: 7px; border-radius: 50%; background: #1E8E5A; flex-shrink: 0; }
   .chat-unread-pill {
     background: var(--rust); color: #fff; font-size: 10px; font-weight: 800;
@@ -291,22 +291,22 @@
     display: flex; align-items: center; justify-content: center;
     font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.01em;
   }
-  .chat-avatar-sm { width: 24px; height: 24px; font-size: 10.5px; }
+  .chat-avatar-sm { width: 24px; height: 24px; font-size: 11.5px; }
   .chat-avatar-office { background: linear-gradient(135deg, #F9C978, var(--amber)); color: var(--charcoal); }
   .chat-avatar-group { background: var(--surface); color: var(--muted); border: 1.5px solid var(--line); font-size: 15px; }
 
   .chat-messages { display: flex; flex-direction: column; gap: 2px; padding-bottom: 90px; }
   .chat-day-divider { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
   .chat-day-divider .line { flex: 1; height: 1px; background: var(--line); }
-  .chat-day-divider .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
+  .chat-day-divider .label { font-size: 12px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
 
   .chat-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 2px; }
   .chat-row.chat-row-first { margin-top: 10px; }
   .chat-row.chat-row-mine { flex-direction: row-reverse; }
   .chat-row .chat-avatar-slot { width: 24px; flex-shrink: 0; }
   .chat-bubble-wrap { max-width: 78%; }
-  .chat-sender-name { font-size: 10px; font-weight: 700; margin: 0 4px 2px; color: var(--muted); }
-  .chat-bubble { padding: 9px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.42; white-space: pre-wrap; word-break: break-word; }
+  .chat-sender-name { font-size: 11.5px; font-weight: 700; margin: 0 4px 2px; color: var(--muted); }
+  .chat-bubble { padding: 10px 14px; border-radius: 16px; font-size: 15px; font-weight: 500; line-height: 1.45; white-space: pre-wrap; word-break: break-word; }
   /* The admin bubble's gold gradient is a fixed warm accent in both themes
      (like the amber "bubbles" elsewhere), so it keeps a fixed dark ink
      rather than var(--ink) -- otherwise night mode would flip its text to
@@ -317,14 +317,14 @@
   .chat-bubble-employee { background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(31,36,33,0.05); }
   .chat-bubble-tail-r { border-bottom-right-radius: 4px; }
   .chat-bubble-tail-l { border-bottom-left-radius: 4px; }
-  .chat-bubble-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .chat-bubble-time { font-size: 12px; font-weight: 500; color: var(--muted); margin-top: 3px; }
   .chat-bubble-admin .chat-bubble-time { color: rgba(31,36,33,0.55); }
   .chat-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; color: var(--muted); text-align: center; }
   .chat-empty-state .icon {
     width: 46px; height: 46px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--line);
     display: flex; align-items: center; justify-content: center; font-size: 18px;
   }
-  .chat-empty-state p { font-size: 12px; max-width: 220px; margin: 0; }
+  .chat-empty-state p { font-size: 13.5px; font-weight: 500; max-width: 220px; margin: 0; }
 
   /* Typing indicator -- same position/shape as an incoming chat-bubble-employee
      bubble (so nothing visually jumps when it's replaced by a real message a
@@ -351,6 +351,7 @@
   }
   .chat-composer input {
     flex: 1; margin-bottom: 0; border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+    font-weight: 500;
   }
   .chat-send-btn {
     width: 40px; height: 40px; border-radius: 50%; border: none; flex-shrink: 0;
@@ -409,7 +410,7 @@
   }
   .cal-day.cal-day-empty { background: transparent; border: none; }
   .cal-day.cal-day-today { border-color: var(--amber); border-width: 2px; box-shadow: 0 0 0 3px rgba(244,176,76,0.18); }
-  .cal-day-num { font-size: 11px; color: var(--muted); }
+  .cal-day-num { font-size: 12px; color: var(--muted); }
   .cal-dots { display: flex; gap: 2px; margin-top: 3px; flex-wrap: wrap; justify-content: center; }
   .cal-dot { width: 6px; height: 6px; border-radius: 50%; }
 
@@ -455,7 +456,7 @@
   }
   .report-stat-change {
     flex-shrink: 0;
-    font-size: 11px; font-weight: 800; padding: 3px 9px; border-radius: 20px;
+    font-size: 12px; font-weight: 800; padding: 3px 9px; border-radius: 20px;
   }
   .report-stat-change.up { color: #1E8E5A; background: rgba(30,142,90,0.14); }
   .report-stat-change.down { color: #C1502E; background: rgba(193,80,46,0.14); }
@@ -483,7 +484,7 @@
   }
   .route-stop-num {
     width: 22px; height: 22px; border-radius: 50%; background: var(--charcoal); color: #fff;
-    display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 700; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 700; flex-shrink: 0;
   }
 </style>
 <!-- Leaflet: free, no-API-key map rendering on top of OpenStreetMap tiles,
@@ -584,11 +585,11 @@
         <button class="btn-primary" onclick="addEmployee()">Add employee</button>
         <div id="add-emp-error" class="error"></div>
       </div>
-      <p style="font-size:12px; color:var(--muted); margin:0 0 10px;">Tap an employee to view or edit their hours.</p>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 10px;">Tap an employee to view or edit their hours.</p>
       <div id="employees-list"></div>
       <h3 style="margin:16px 0 6px; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleInactiveEmployeesSection()">
-        <span id="inactive-employees-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
-        Inactive employees <span id="inactive-employees-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span>
+        <span id="inactive-employees-toggle-icon" style="display:inline-block; font-size:12px; transition: transform 0.15s ease;">&#9656;</span>
+        Inactive employees <span id="inactive-employees-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span>
       </h3>
       <div id="inactive-employees-section-body" style="display:none;">
         <div id="inactive-employees-list"></div>
@@ -600,8 +601,8 @@
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleCrewsSection()">
-            <span id="crews-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
-            Teams <span id="crews-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span>
+            <span id="crews-toggle-icon" style="display:inline-block; font-size:12px; transition: transform 0.15s ease;">&#9656;</span>
+            Teams <span id="crews-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span>
           </h3>
           <button class="btn-small" style="background:var(--teal);" onclick="openCrewSheet()">New team</button>
         </div>
@@ -611,7 +612,7 @@
           <div id="crew-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface); border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
         </div>
         <div id="crews-section-body" style="display:none; margin-top:8px;">
-          <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">A reusable group you can assign to a job all at once.</p>
+          <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">A reusable group you can assign to a job all at once.</p>
           <div id="crews-list"></div>
         </div>
       </div>
@@ -619,7 +620,7 @@
         <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
           <div>
             <h3 style="margin:0; font-size:15px;">Routes</h3>
-            <p style="font-size:12px; color:var(--muted); margin:4px 0 0;">
+            <p style="font-size:13px; color:var(--muted); margin:4px 0 0;">
               Optimized stop order for an employee or team's day, starting and ending back at the shop. Free to build.
             </p>
           </div>
@@ -629,8 +630,8 @@
       <div class="card">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
           <h3 style="margin:0; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleTimeOffSection()">
-            <span id="timeoff-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
-            Time Off Requests <span id="timeoff-pending-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span>
+            <span id="timeoff-toggle-icon" style="display:inline-block; font-size:12px; transition: transform 0.15s ease;">&#9656;</span>
+            Time Off Requests <span id="timeoff-pending-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span>
           </h3>
         </div>
         <div id="timeoff-section-body" style="display:none; margin-top:8px;">
@@ -639,7 +640,7 @@
               <span id="timeoff-history-toggle-label">Show history</span>
             </button>
           </div>
-          <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Approving adds it to the calendar below in bright yellow and notifies the employee.</p>
+          <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">Approving adds it to the calendar below in bright yellow and notifies the employee.</p>
           <div id="timeoff-pending-list"></div>
           <div id="timeoff-history-section" style="display:none; margin-top:10px; padding-top:10px; border-top:1.5px solid var(--line);">
             <div id="timeoff-history-list"></div>
@@ -670,7 +671,7 @@
           <button class="btn-small" style="background:var(--teal); flex:1;" onclick="exportCustomersCsv()">Export CSV</button>
         </div>
         <input type="file" id="customer-import-input" accept=".csv,text/csv" style="display:none;" onchange="handleCustomerImportFile(event)" />
-        <p style="font-size:11px; color:var(--muted); margin:8px 0 0;">
+        <p style="font-size:12px; color:var(--muted); margin:8px 0 0;">
           Import expects a CSV with a Name column (Company Name, Phone, Email, Street, City, State, Zip, Notes are optional). Rows matching an existing customer's name are skipped.
         </p>
       </div>
@@ -694,17 +695,17 @@
           <h3 style="margin-top:0; font-size:15px;">Billing overview</h3>
           <div style="display:flex; gap:8px; flex-wrap:wrap;">
             <div class="report-stat-card" style="cursor:pointer;" onclick="showBillingSubtab('invoices')">
-              <div style="font-size:11px; color:var(--muted);">Paid invoices</div>
+              <div style="font-size:12px; color:var(--muted);">Paid invoices</div>
               <div class="stat-value" style="font-size:18px;" id="billing-overview-paid-total"></div>
               <div style="font-size:10.5px; color:var(--muted); margin-top:2px;" id="billing-overview-paid-count"></div>
             </div>
             <div class="report-stat-card" style="cursor:pointer;" onclick="showBillingSubtab('invoices')">
-              <div style="font-size:11px; color:var(--muted);">Unpaid invoices</div>
+              <div style="font-size:12px; color:var(--muted);">Unpaid invoices</div>
               <div class="stat-value" style="font-size:18px;" id="billing-overview-unpaid-total"></div>
               <div style="font-size:10.5px; color:var(--muted); margin-top:2px;" id="billing-overview-unpaid-count"></div>
             </div>
             <div class="report-stat-card" style="cursor:pointer;" onclick="showBillingSubtab('quotes')">
-              <div style="font-size:11px; color:var(--muted);">Pending quotes</div>
+              <div style="font-size:12px; color:var(--muted);">Pending quotes</div>
               <div class="stat-value" style="font-size:18px;" id="billing-overview-pending-total"></div>
               <div style="font-size:10.5px; color:var(--muted); margin-top:2px;" id="billing-overview-pending-count"></div>
             </div>
@@ -719,7 +720,7 @@
         <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('quotes')">
           <div>
             <h3 style="margin:0; font-size:15px;">Quotes</h3>
-            <p style="font-size:12px; color:var(--muted); margin:4px 0 0;" id="billing-overview-quotes-summary">Estimates for work that hasn't been booked yet.</p>
+            <p style="font-size:13px; color:var(--muted); margin:4px 0 0;" id="billing-overview-quotes-summary">Estimates for work that hasn't been booked yet.</p>
           </div>
           <span style="color:var(--muted); font-size:20px;">&#8250;</span>
         </div>
@@ -727,7 +728,7 @@
         <div class="card" style="cursor:pointer; display:flex; justify-content:space-between; align-items:center;" onclick="showBillingSubtab('invoices')">
           <div>
             <h3 style="margin:0; font-size:15px;">Invoices</h3>
-            <p style="font-size:12px; color:var(--muted); margin:4px 0 0;" id="billing-overview-invoices-summary">Billed work, emailed to the customer once sent.</p>
+            <p style="font-size:13px; color:var(--muted); margin:4px 0 0;" id="billing-overview-invoices-summary">Billed work, emailed to the customer once sent.</p>
           </div>
           <span style="color:var(--muted); font-size:20px;">&#8250;</span>
         </div>
@@ -736,7 +737,7 @@
       <div id="billing-subtab-quotes" class="billing-subtab-panel" style="display:none;">
         <div class="card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <h3 style="margin:0; font-size:15px;">Quotes <span id="quotes-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span></h3>
+            <h3 style="margin:0; font-size:15px;">Quotes <span id="quotes-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span></h3>
             <button class="btn-small" style="background:var(--teal);" onclick="openQuoteSheet()">New quote</button>
           </div>
           <div style="position:relative;">
@@ -745,7 +746,7 @@
             <div id="quotes-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface); border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
           </div>
           <div style="margin-top:8px;">
-            <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">
+            <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">
               Quotes are estimates for work that hasn't been booked yet, emailed to the customer automatically as soon as
               you save one. Once a customer accepts, convert the quote into a scheduled job and/or an invoice.
             </p>
@@ -757,7 +758,7 @@
       <div id="billing-subtab-invoices" class="billing-subtab-panel" style="display:none;">
         <div class="card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <h3 style="margin:0; font-size:15px;">Invoices <span id="invoices-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span></h3>
+            <h3 style="margin:0; font-size:15px;">Invoices <span id="invoices-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span></h3>
             <button class="btn-small" style="background:var(--teal);" onclick="openInvoiceSheet()">New invoice</button>
           </div>
           <div style="position:relative;">
@@ -766,7 +767,7 @@
             <div id="invoices-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface); border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
           </div>
           <div style="margin-top:8px;">
-            <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">
+            <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">
               Invoices are created as drafts, then emailed to the customer once you tap Send. The email includes a
               Pay now button for online card/bank payments, which marks the invoice paid automatically. Use Mark Paid
               yourself only for payments that came in another way (cash, check, a card run elsewhere).
@@ -779,7 +780,7 @@
       <div id="billing-subtab-transactions" class="billing-subtab-panel" style="display:none;">
         <div class="card">
           <h3 style="margin:0 0 6px; font-size:15px;">Transactions</h3>
-          <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">
+          <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">
             Every paid invoice -- in-person/phone payments you recorded yourself, and online payments collected
             automatically through Stripe.
           </p>
@@ -795,7 +796,7 @@
             <button class="cal-nav-btn" onclick="navigateTransactions(1)">&rarr;</button>
           </div>
           <strong id="transactions-period-label" style="display:block; margin-bottom:2px;"></strong>
-          <div id="transactions-period-total" style="font-size:12px; color:var(--muted); margin-bottom:10px;"></div>
+          <div id="transactions-period-total" style="font-size:13px; color:var(--muted); margin-bottom:10px;"></div>
           <div id="transactions-list"></div>
         </div>
       </div>
@@ -803,12 +804,12 @@
       <div id="billing-subtab-expenses" class="billing-subtab-panel" style="display:none;">
         <div class="card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <h3 style="margin:0; font-size:15px;">Expenses <span id="expenses-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span></h3>
+            <h3 style="margin:0; font-size:15px;">Expenses <span id="expenses-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span></h3>
             <button class="btn-small" style="background:var(--teal);" onclick="openExpenseSheet()">New expense</button>
           </div>
           <input id="expenses-search-input" type="text" placeholder="Search expenses..." autocomplete="off"
             oninput="renderExpensesList()" style="margin-bottom:8px;" />
-          <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">
+          <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">
             Materials, insurance, rent, or any other business cost -- logged here so Net Profit on the Reports tab
             reflects what you actually spent, not just labor.
           </p>
@@ -821,9 +822,9 @@
       <div class="view-header" style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
         <h2>Inventory</h2>
         <div style="display:flex; gap:6px;">
-          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="openBuildPullSheetSheet()">Build Pull Sheet</button>
-          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="openBarcodeScanSheet()">Scan barcode</button>
-          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:11px; padding:3px 12px;" onclick="goToNewCatalogItem()">+ New item</button>
+          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:12px; padding:3px 12px;" onclick="openBuildPullSheetSheet()">Build Pull Sheet</button>
+          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:12px; padding:3px 12px;" onclick="openBarcodeScanSheet()">Scan barcode</button>
+          <button class="btn-small" style="background:var(--charcoal); border-radius:999px; font-size:12px; padding:3px 12px;" onclick="goToNewCatalogItem()">+ New item</button>
         </div>
       </div>
 
@@ -837,7 +838,7 @@
         <div id="inventory-summary-bubbles" style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:14px;"></div>
         <div class="card">
           <h3 style="margin-top:0; font-size:15px;">Inventory <span id="inventory-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span></h3>
-          <p style="font-size:12px; color:var(--muted); margin-top:-8px;">
+          <p style="font-size:13px; color:var(--muted); margin-top:-8px;">
             A quote alone never puts anything "on hold" -- items show up on hold once a pull sheet is built for the job
             or it's turned into an invoice, and come out of stock for good once that pull sheet is fulfilled or the
             invoice is paid in full. Turn tracking on for a catalog item and set its starting quantity/cost in the
@@ -856,7 +857,7 @@
 
         <div class="card" style="margin-top:16px;">
           <h3 style="margin-top:0; font-size:15px;">Pull sheets</h3>
-          <p style="font-size:12px; color:var(--muted); margin-top:-8px;">
+          <p style="font-size:13px; color:var(--muted); margin-top:-8px;">
             Picking lists built from a job's inventory-tracked items. Building one from a quote (or a standalone one)
             is what puts those items on hold; building one from an invoice doesn't add to the count since the invoice
             already reserved them. Marking one fulfilled removes those quantities from stock for good.
@@ -869,8 +870,8 @@
           </div>
 
           <h3 style="margin:16px 0 6px; font-size:15px; display:flex; align-items:center; gap:6px; cursor:pointer;" onclick="toggleFulfilledPullSheetsSection()">
-            <span id="fulfilled-pull-sheets-toggle-icon" style="display:inline-block; font-size:11px; transition: transform 0.15s ease;">&#9656;</span>
-            Fulfilled pull sheets <span id="fulfilled-pull-sheets-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span>
+            <span id="fulfilled-pull-sheets-toggle-icon" style="display:inline-block; font-size:12px; transition: transform 0.15s ease;">&#9656;</span>
+            Fulfilled pull sheets <span id="fulfilled-pull-sheets-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span>
           </h3>
           <div id="fulfilled-pull-sheets-section-body" style="display:none;">
             <div class="table-scroll">
@@ -886,7 +887,7 @@
       <div id="inventory-subtab-catalog" style="display:none;">
         <div class="card">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-            <h3 style="margin:0; font-size:15px;">Catalog <span id="catalog-count-badge" style="font-weight:400; color:var(--muted); font-size:12px;"></span></h3>
+            <h3 style="margin:0; font-size:15px;">Catalog <span id="catalog-count-badge" style="font-weight:400; color:var(--muted); font-size:13px;"></span></h3>
             <button class="btn-small" style="background:var(--teal);" onclick="openCatalogItemSheet()">New item</button>
           </div>
           <div style="display:flex; gap:8px; margin-bottom:6px;">
@@ -899,8 +900,8 @@
             <div id="catalog-search-dropdown" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface); border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:240px; overflow-y:auto;"></div>
           </div>
           <div style="margin-top:8px;">
-            <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
-            <p style="font-size:11px; color:var(--muted); margin:-4px 0 8px;">
+            <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">Recurring charges you can drop into a quote or invoice with one tap.</p>
+            <p style="font-size:12px; color:var(--muted); margin:-4px 0 8px;">
               Import an Excel (.xlsx) or CSV file with a Name column. Unit Price, Quantity (on hand), and Unit Cost columns are
               all optional -- if a row has a Quantity or Cost, inventory tracking turns on for that item automatically. Rows
               matching an existing item's name are skipped.
@@ -916,7 +917,7 @@
       <div id="inventory-subtab-settings" style="display:none;">
         <div class="card">
           <h3 style="margin-top:0; font-size:15px;">Inventory settings</h3>
-          <p style="font-size:12px; color:var(--muted); margin-top:-8px;">
+          <p style="font-size:13px; color:var(--muted); margin-top:-8px;">
             Turn on tracking for any catalog item, set its quantity on hand and cost, and set the low inventory
             level that triggers an alert. Editing quantity on hand here is also how you record a restock.
           </p>
@@ -928,7 +929,7 @@
     <section id="view-reports" class="view">
       <div class="view-header"><h2>Reports</h2></div>
       <div class="card">
-        <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Labor hours, invoiced totals, paid totals, and profit for a time range.</p>
+        <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">Labor hours, invoiced totals, paid totals, and profit for a time range.</p>
         <div style="display:flex; gap:6px; flex-wrap:wrap; margin-bottom:12px;">
           <button class="range-btn" data-range="1w" onclick="selectReportRange('1w')">1 Week</button>
           <button class="range-btn active" data-range="1m" onclick="selectReportRange('1m')">1 Month</button>
@@ -941,7 +942,7 @@
       <div id="reports-content"></div>
       <div class="card" style="margin-top:16px;">
         <h3 style="margin:0 0 4px;">Gross &amp; Net Profit by Month</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:0;">Trailing 6 months, regardless of the range picker above.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:0;">Trailing 6 months, regardless of the range picker above.</p>
         <div id="monthly-profit-chart"></div>
       </div>
     </section>
@@ -955,14 +956,14 @@
 
       <div id="chat-subtab-direct" class="chat-subtab-panel">
         <div id="chat-threads-list">
-          <p style="color:var(--muted); font-size:12px;">No chats yet.</p>
+          <p style="color:var(--muted); font-size:13px;">No chats yet.</p>
         </div>
       </div>
 
       <div id="chat-subtab-team" class="chat-subtab-panel" style="display:none;">
         <button class="btn-primary" style="margin-bottom:10px;" onclick="openNewTeamChatSheet()">+ New chat</button>
         <div id="team-chat-threads-list">
-          <p style="color:var(--muted); font-size:12px;">No team chats yet.</p>
+          <p style="color:var(--muted); font-size:13px;">No team chats yet.</p>
         </div>
       </div>
     </section>
@@ -972,7 +973,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Appearance</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Saved on this device only -- other computers/phones keep their own setting.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Saved on this device only -- other computers/phones keep their own setting.</p>
         <div style="display:flex; gap:8px;">
           <button type="button" class="range-btn" id="theme-btn-day" onclick="setTheme('day')">&#9728;&#65039; Day</button>
           <button type="button" class="range-btn" id="theme-btn-night" onclick="setTheme('night')">&#127769; Night</button>
@@ -981,7 +982,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Business name</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Shown on invoice/quote PDFs, and as the sender name customers see on invoice and quote emails.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Shown on invoice/quote PDFs, and as the sender name customers see on invoice and quote emails.</p>
         <label>Business name</label>
         <input id="company-name-input" placeholder="e.g. Modular Cleanrooms" />
         <button class="btn-primary" onclick="saveCompanyName()">Save</button>
@@ -991,7 +992,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Company logo</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Shown at the top of every invoice PDF, and next to "Coll Admin" up top. PNG, JPEG, or WebP, up to 3MB.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Shown at the top of every invoice PDF, and next to "Coll Admin" up top. PNG, JPEG, or WebP, up to 3MB.</p>
         <div id="company-logo-preview-wrap" style="display:none; margin-bottom:10px;">
           <img id="company-logo-preview" style="max-width:160px; max-height:70px; display:block; border:1px solid var(--line); border-radius:10px; padding:6px; background:var(--surface);" />
         </div>
@@ -1003,10 +1004,10 @@
 
       <div class="card" id="stripe-connect-card">
         <h3 style="margin-top:0; font-size:15px;">Get paid online</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Connect your own Stripe account so customer payments on your invoices go straight to your bank account, not ours. Stripe's own processing fees apply (2.9%+30&cent; card / 0.8% bank transfer), plus a 0.5% platform fee per payment.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Connect your own Stripe account so customer payments on your invoices go straight to your bank account, not ours. Stripe's own processing fees apply (2.9%+30&cent; card / 0.8% bank transfer), plus a 0.5% platform fee per payment.</p>
         <div id="stripe-connect-connected-row" style="display:none; align-items:center; gap:8px; margin-bottom:4px;">
           <span class="badge badge-paid">Connected</span>
-          <span style="font-size:12px; color:var(--muted);">Payments go directly to your Stripe account.</span>
+          <span style="font-size:13px; color:var(--muted);">Payments go directly to your Stripe account.</span>
         </div>
         <button id="stripe-connect-btn" class="btn-primary" style="display:none;" onclick="startStripeConnect()">Connect Stripe</button>
         <div id="stripe-connect-error" class="error"></div>
@@ -1014,7 +1015,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Payroll email</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Where "Submit Hours for Payroll" sends timesheets. Required before employees can submit hours.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Where "Submit Hours for Payroll" sends timesheets. Required before employees can submit hours.</p>
         <label>Payroll email</label>
         <input id="payroll-email-input" type="email" placeholder="payroll@company.com" />
         <button class="btn-primary" onclick="savePayrollEmail()">Save</button>
@@ -1024,7 +1025,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Long shift alert</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Get a notification if an employee is still clocked in past this many hours -- handy for catching a forgotten clock-out.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Get a notification if an employee is still clocked in past this many hours -- handy for catching a forgotten clock-out.</p>
         <label>Alert me after</label>
         <select id="long-shift-alert-select">
           <option value="">Off</option>
@@ -1036,7 +1037,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Overview profit bubbles</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Show the Gross Profit and Net Profit bubbles for the current month at the top of the Overview tab.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Show the Gross Profit and Net Profit bubbles for the current month at the top of the Overview tab.</p>
         <label style="display:flex; align-items:center; gap:8px; font-size:13px; cursor:pointer; margin-bottom:0;">
           <input type="checkbox" id="show-profit-bubbles-checkbox" onchange="saveShowProfitBubbles()" style="width:auto; padding:0; margin:0;" />
           Show profit bubbles on Overview
@@ -1046,7 +1047,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Pay schedule</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Controls what "Submit Hours for Payroll" bundles together.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Controls what "Submit Hours for Payroll" bundles together.</p>
         <label>Pay frequency</label>
         <select id="pay-frequency-select" onchange="togglePayScheduleFields()">
           <option value="semi_monthly">1st &amp; 15th (semi-monthly)</option>
@@ -1070,7 +1071,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Change admin email</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">This is the email you sign in with. Requires your current password.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">This is the email you sign in with. Requires your current password.</p>
         <label>New email</label>
         <input id="change-email-new" type="email" placeholder="you@company.com" />
         <label>Current password</label>
@@ -1095,7 +1096,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Business timezone</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Where this business is located. Used to send automated emails (like invoice reminders) at a sensible local hour instead of a fixed one.</p>
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Where this business is located. Used to send automated emails (like invoice reminders) at a sensible local hour instead of a fixed one.</p>
         <label>Timezone</label>
         <select id="company-timezone-select"></select>
         <button class="btn-primary" onclick="saveCompanyTimezone()">Save</button>
@@ -1105,7 +1106,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Shop location</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">
           Where employees auto clock-in/out. Start typing your shop's address below and pick it from the list -- or paste exact coordinates directly if you already have them.
         </p>
         <label>Address</label>
@@ -1115,7 +1116,7 @@
             onblur="setTimeout(hideShopAddressSuggestions, 150)" />
           <div id="shop-address-suggestions" style="display:none; position:absolute; top:100%; left:0; right:0; margin-top:4px; background:var(--surface); border:1.5px solid var(--line); border-radius:8px; box-shadow:0 8px 24px rgba(0,0,0,0.15); z-index:50; max-height:220px; overflow-y:auto;"></div>
         </div>
-        <div id="shop-address-picked" style="display:none; font-size:12px; color:var(--muted); margin:4px 0 0;"></div>
+        <div id="shop-address-picked" style="display:none; font-size:13px; color:var(--muted); margin:4px 0 0;"></div>
         <label>Latitude</label>
         <input id="shop-lat-input" placeholder="e.g. 39.7392" />
         <label>Longitude</label>
@@ -1123,7 +1124,7 @@
         <label>Radius (meters)</label>
         <input id="shop-radius-input" placeholder="152" />
         <label>Auto clock-in time</label>
-        <p style="font-size:11px; color:var(--muted); margin:0 0 4px;">No auto clock-in before this time, even if they're at the shop. Leave at 12:00 AM for no restriction.</p>
+        <p style="font-size:12px; color:var(--muted); margin:0 0 4px;">No auto clock-in before this time, even if they're at the shop. Leave at 12:00 AM for no restriction.</p>
         <input id="clockin-time-input" type="time" />
         <label>Auto clock-out time</label>
         <input id="clockout-time-input" type="time" />
@@ -1134,7 +1135,7 @@
 
       <div class="card">
         <h3 style="margin-top:0; font-size:15px;">Delete account</h3>
-        <p style="font-size:12px; color:var(--muted); margin-top:-4px;">
+        <p style="font-size:13px; color:var(--muted); margin-top:-4px;">
           Permanently deletes your company's Coll Timeclock account and all its data -- employees,
           time records, customers, invoices, and everything else. This can't be undone.
         </p>
@@ -1211,9 +1212,9 @@
     <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:16px; padding-bottom:14px; border-bottom:1.5px solid var(--line);">
       <div style="min-width:0;">
         <div id="edit-emp-name" style="font-size:16px; font-weight:700;"></div>
-        <div id="edit-emp-email-display" style="font-size:12px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
+        <div id="edit-emp-email-display" style="font-size:13px; color:var(--muted); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;"></div>
       </div>
-      <span id="edit-emp-status-badge" style="flex-shrink:0; font-size:11px; font-weight:700; padding:4px 10px; border-radius:20px;"></span>
+      <span id="edit-emp-status-badge" style="flex-shrink:0; font-size:12px; font-weight:700; padding:4px 10px; border-radius:20px;"></span>
     </div>
     <div id="edit-emp-error" class="error"></div>
     <div id="edit-emp-success" class="success-msg"></div>
@@ -1250,7 +1251,7 @@
 </div>
 
 <div class="anim-popover" id="anim-popover">
-  <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); font-weight:700; margin-bottom:10px;">Clock-in animations</div>
+  <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); font-weight:700; margin-bottom:10px;">Clock-in animations</div>
   <label style="font-size:13px; color:var(--ink); display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
     <input type="radio" name="anim-popover-choice" value="none" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     No animation
@@ -1279,14 +1280,14 @@
     <input type="radio" name="anim-popover-choice" value="christmas" style="width:16px; height:16px; margin:0;" onchange="submitAnimationsPopover()" />
     Christmas / Winter
   </label>
-  <div id="anim-popover-status" style="font-size:11px; margin-top:8px; display:none;"></div>
+  <div id="anim-popover-status" style="font-size:12px; margin-top:8px; display:none;"></div>
 </div>
 
 <div class="anim-popover" id="rate-popover">
-  <div style="font-size:11px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); font-weight:700; margin-bottom:10px;">Hourly rate</div>
+  <div style="font-size:12px; text-transform:uppercase; letter-spacing:0.05em; color:var(--muted); font-weight:700; margin-bottom:10px;">Hourly rate</div>
   <input id="rate-popover-input" type="number" min="0" step="0.01" placeholder="e.g. 22.50" style="margin-bottom:8px;" />
   <button class="btn-primary" style="width:auto;" onclick="submitRatePopover()">Save</button>
-  <div id="rate-popover-status" style="font-size:11px; margin-top:8px; display:none;"></div>
+  <div id="rate-popover-status" style="font-size:12px; margin-top:8px; display:none;"></div>
 </div>
 
 <div class="sheet" id="crew-sheet">
@@ -1310,16 +1311,16 @@
     <h2>Build a Route</h2>
   </div>
   <div class="sheet-body">
-    <p style="font-size:12px; color:var(--muted); margin:0 0 12px;">
+    <p style="font-size:13px; color:var(--muted); margin:0 0 12px;">
       Pulls in a day's scheduled jobs for one employee or a whole team, and orders the stops for the fastest round trip starting and ending back at the shop. Free to build -- no cost per route.
     </p>
     <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:8px;">
       <div style="flex:1; min-width:130px;">
-        <label style="font-size:12px; color:var(--muted);">Date</label>
+        <label style="font-size:13px; color:var(--muted);">Date</label>
         <input type="date" id="route-date-input" onchange="loadRouteCandidates()" />
       </div>
       <div style="flex:2; min-width:160px;">
-        <label style="font-size:12px; color:var(--muted);">Employee or team</label>
+        <label style="font-size:13px; color:var(--muted);">Employee or team</label>
         <select id="route-target-select" onchange="loadRouteCandidates()">
           <option value="">Select...</option>
         </select>
@@ -1327,7 +1328,7 @@
     </div>
 
     <div id="route-candidates-section" style="display:none;">
-      <div style="font-size:12px; color:var(--muted); margin-bottom:6px;">Stops scheduled that day (uncheck any to leave out):</div>
+      <div style="font-size:13px; color:var(--muted); margin-bottom:6px;">Stops scheduled that day (uncheck any to leave out):</div>
       <div id="route-candidates-list"></div>
       <div id="route-geocode-retry-wrap" style="display:none; margin-top:8px;">
         <button id="route-geocode-retry-btn" class="btn-secondary" style="width:auto;" onclick="retryGeocodeCandidates()">Retry locating addresses</button>
@@ -1347,7 +1348,7 @@
       <div id="route-stops-list"></div>
     </div>
 
-    <p style="font-size:11px; color:var(--muted); margin:14px 0 4px;">
+    <p style="font-size:12px; color:var(--muted); margin:14px 0 4px;">
       <span style="color:#1E88FF;">&#9679;</span> on-the-clock employees &nbsp;
       <span style="color:var(--success);">&#9679;</span> shop &nbsp;
       <span style="color:#C1502E;">&#9679;</span> route stops
@@ -1395,7 +1396,7 @@
     <label>Time</label>
     <div style="display:flex; align-items:center; gap:10px; margin-bottom:14px;">
       <input id="job-time-input" type="time" style="flex:1; margin-bottom:0;" />
-      <label style="font-size:12px; color:var(--muted); display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer;">
+      <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px; white-space:nowrap; cursor:pointer;">
         <input id="job-no-time-input" type="checkbox" style="width:15px; height:15px; margin:0;" onchange="toggleJobTimeInput()" />
         No specific time
       </label>
@@ -1484,7 +1485,7 @@
     </select>
     <label>Issue date</label>
     <input id="invoice-issue-date-input" type="date" onchange="renderInvoiceDueDatePreview()" />
-    <p id="invoice-due-date-preview" style="font-size:12px; color:var(--muted); margin-top:-6px;"></p>
+    <p id="invoice-due-date-preview" style="font-size:13px; color:var(--muted); margin-top:-6px;"></p>
 
     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin: 4px 0 14px;">
       <input type="checkbox" id="invoice-allow-partial-input" style="width:16px; height:16px; margin:0; flex-shrink:0;" />
@@ -1518,7 +1519,7 @@
       <button class="btn-secondary" style="width:auto;" onclick="document.getElementById('invoice-attachment-file-input').click()">+ Add attachment</button>
     </div>
 
-    <p id="invoice-save-hint" style="font-size:11px; color:var(--muted); margin:-4px 0 8px;">Saving emails this invoice to the customer right away, unless they don't have an email on file.</p>
+    <p id="invoice-save-hint" style="font-size:12px; color:var(--muted); margin:-4px 0 8px;">Saving emails this invoice to the customer right away, unless they don't have an email on file.</p>
     <button class="btn-primary" id="invoice-save-btn" onclick="submitInvoice()">Save &amp; send to customer</button>
     <button class="btn-small" id="invoice-viewpdf-btn" style="display:none; width:100%; margin-top:10px; background: var(--charcoal);" onclick="viewInvoicePdf(editingInvoiceId)">View PDF</button>
     <button class="btn-small" id="invoice-pullsheet-btn" style="display:none; width:100%; margin-top:10px; background: var(--teal-deep);" onclick="buildPullSheetForSource('invoice', editingInvoiceId)">Build Pull Sheet</button>
@@ -1535,7 +1536,7 @@
     <h2>Mark as paid</h2>
   </div>
   <div class="sheet-body">
-    <p style="font-size:12px; color:var(--muted); margin-top:-4px;">This doesn't process a payment -- it just records how the customer paid.</p>
+    <p style="font-size:13px; color:var(--muted); margin-top:-4px;">This doesn't process a payment -- it just records how the customer paid.</p>
     <label>Payment method</label>
     <select id="mark-paid-method-input" onchange="toggleMarkPaidCheckNumberField()">
       <option value="check">Check</option>
@@ -1558,7 +1559,7 @@
     <h2>Record a payment</h2>
   </div>
   <div class="sheet-body">
-    <p id="record-payment-balance-hint" style="font-size:12px; color:var(--muted); margin-top:-4px;"></p>
+    <p id="record-payment-balance-hint" style="font-size:13px; color:var(--muted); margin-top:-4px;"></p>
     <label>Amount</label>
     <input id="record-payment-amount-input" type="number" min="0.01" step="0.01" placeholder="0.00" />
     <label>Payment method</label>
@@ -1583,7 +1584,7 @@
     <h2>Resend receipt</h2>
   </div>
   <div class="sheet-body">
-    <p style="font-size:12px; color:var(--muted); margin-top:-4px;">Sends the same payment confirmation email for this invoice again.</p>
+    <p style="font-size:13px; color:var(--muted); margin-top:-4px;">Sends the same payment confirmation email for this invoice again.</p>
     <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:8px;">
       <input type="radio" name="resend-receipt-choice" value="onfile" checked onchange="toggleResendReceiptEmailField()" style="width:16px; height:16px; margin:0;" />
       Send to email on file
@@ -1623,7 +1624,7 @@
       <option value="180">6 months</option>
       <option value="365">1 year</option>
     </select>
-    <p id="quote-expiration-preview" style="font-size:12px; color:var(--muted); margin-top:-6px;"></p>
+    <p id="quote-expiration-preview" style="font-size:13px; color:var(--muted); margin-top:-6px;"></p>
 
     <label>Notes (optional)</label>
     <textarea id="quote-notes-input" placeholder="Scope of work, exclusions, etc." rows="2" style="width:100%; resize:vertical; font-family:inherit;"></textarea>
@@ -1654,10 +1655,10 @@
     <button class="btn-small" id="quote-delete-btn" style="display:none; width:100%; margin-top:10px; background: #C1502E;" onclick="deleteQuoteConfirm(editingQuoteId)">Delete</button>
 
     <div id="quote-convert-actions" style="display:none; margin-top:14px; padding-top:14px; border-top:1.5px solid var(--line);">
-      <p style="font-size:12px; color:var(--muted); margin:0 0 8px;">Once the customer's on board:</p>
+      <p style="font-size:13px; color:var(--muted); margin:0 0 8px;">Once the customer's on board:</p>
       <button class="btn-small" style="width:100%; margin-bottom:8px; background: var(--teal-deep);" onclick="openConvertQuoteToJobSheet(editingQuoteId)">Convert to scheduled job&hellip;</button>
       <button class="btn-small" style="width:100%; background: var(--teal-deep);" onclick="openConvertQuoteToInvoiceSheet(editingQuoteId)">Convert to invoice&hellip;</button>
-      <div id="quote-converted-note" style="font-size:12px; color:var(--muted); margin-top:8px;"></div>
+      <div id="quote-converted-note" style="font-size:13px; color:var(--muted); margin-top:8px;"></div>
     </div>
   </div>
 </div>
@@ -1668,7 +1669,7 @@
     <h2>Convert to invoice</h2>
   </div>
   <div class="sheet-body">
-    <p style="font-size:12px; color:var(--muted); margin-top:-4px;">
+    <p style="font-size:13px; color:var(--muted); margin-top:-4px;">
       Creates a draft invoice with the same customer and line items. You'll review and send it from the Invoices tab.
     </p>
     <label>Payment terms</label>
@@ -1699,24 +1700,24 @@
     <div id="barcode-scan-error" class="error" style="display:none;"></div>
     <input type="file" id="barcode-scan-file-input" accept="image/*" capture="environment" style="display:none;" onchange="handleBarcodeFileCapture(event)" />
     <button class="btn-primary" style="width:100%; margin-bottom:4px;" onclick="document.getElementById('barcode-scan-file-input').click()">Use camera app for a sharper photo</button>
-    <p style="font-size:11px; color:var(--muted); text-align:center; margin:0 0 10px;">Recommended -- opens your phone's real camera app instead of the in-app preview. Back off enough that the WHOLE barcode, plus a little white space around it, fits in the photo -- getting too close can crop the barcode or cut off the blank margin it needs to be readable.</p>
-    <p style="font-size:11px; color:var(--muted); text-align:center; margin:0 0 6px; text-transform:uppercase; letter-spacing:0.05em;">or use the live scanner</p>
+    <p style="font-size:12px; color:var(--muted); text-align:center; margin:0 0 10px;">Recommended -- opens your phone's real camera app instead of the in-app preview. Back off enough that the WHOLE barcode, plus a little white space around it, fits in the photo -- getting too close can crop the barcode or cut off the blank margin it needs to be readable.</p>
+    <p style="font-size:12px; color:var(--muted); text-align:center; margin:0 0 6px; text-transform:uppercase; letter-spacing:0.05em;">or use the live scanner</p>
     <div id="barcode-scan-camera-wrap" style="position:relative; background:#000; border-radius:8px; overflow:hidden; margin-bottom:8px; cursor:pointer; height:38vh; max-height:320px;" onclick="handleBarcodeScanTap(event)" title="Tap to refocus">
       <video id="barcode-scan-video" style="width:100%; height:100%; display:block; object-fit:cover;" muted playsinline></video>
-      <button id="barcode-scan-torch-btn" onclick="event.stopPropagation(); toggleBarcodeScanTorch()" style="display:none; position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:11px; cursor:pointer;">Flashlight on</button>
+      <button id="barcode-scan-torch-btn" onclick="event.stopPropagation(); toggleBarcodeScanTorch()" style="display:none; position:absolute; top:8px; right:8px; background:rgba(0,0,0,0.55); color:#fff; border:none; border-radius:6px; padding:6px 10px; font-size:12px; cursor:pointer;">Flashlight on</button>
     </div>
     <div id="barcode-scan-zoom-wrap" style="display:none; align-items:center; gap:8px; margin-bottom:8px;">
-      <span style="font-size:11px; color:var(--muted); white-space:nowrap;">Zoom</span>
+      <span style="font-size:12px; color:var(--muted); white-space:nowrap;">Zoom</span>
       <input id="barcode-scan-zoom-input" type="range" style="flex:1;" oninput="handleBarcodeScanZoom(this.value)" />
     </div>
     <div style="display:flex; align-items:center; gap:8px; margin-bottom:8px;">
-      <span style="font-size:11px; color:var(--muted); white-space:nowrap;">Focus</span>
+      <span style="font-size:12px; color:var(--muted); white-space:nowrap;">Focus</span>
       <div style="flex:1; height:6px; background:var(--line); border-radius:3px; overflow:hidden;">
         <div id="barcode-scan-sharpness-bar" style="height:100%; width:0%; background:var(--teal); transition:width 0.15s linear;"></div>
       </div>
     </div>
     <button class="btn-small" id="barcode-scan-capture-btn" style="width:100%; background:var(--teal); margin-bottom:8px;" onclick="captureBarcodeStill()">Capture photo</button>
-    <p id="barcode-scan-status" style="font-size:12px; color:var(--muted);">Point the camera at a barcode and hold steady. Tap the video to refocus, or tap Capture photo to grab a sharp still -- the Focus bar fills in as it sharpens and will auto-capture once it's high.</p>
+    <p id="barcode-scan-status" style="font-size:13px; color:var(--muted);">Point the camera at a barcode and hold steady. Tap the video to refocus, or tap Capture photo to grab a sharp still -- the Focus bar fills in as it sharpens and will auto-capture once it's high.</p>
     <div id="barcode-scan-result" style="display:none;"></div>
   </div>
 </div>
@@ -1757,7 +1758,7 @@
 
     <div id="pull-sheet-picker-step">
       <button class="btn-small" style="background:var(--charcoal); margin-bottom:12px;" onclick="openManualPullSheetStep()">Start a blank pull sheet</button>
-      <p style="font-size:12px; color:var(--muted);">Or choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
+      <p style="font-size:13px; color:var(--muted);">Or choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
       <div id="pull-sheet-source-list"></div>
     </div>
 
@@ -1806,7 +1807,7 @@
     <h2 id="report-breakdown-sheet-title">Breakdown</h2>
   </div>
   <div class="sheet-body">
-    <div id="report-breakdown-sheet-subtitle" style="font-size:12px; color:var(--muted); margin-top:-8px; margin-bottom:12px;"></div>
+    <div id="report-breakdown-sheet-subtitle" style="font-size:13px; color:var(--muted); margin-top:-8px; margin-bottom:12px;"></div>
     <div id="report-breakdown-sheet-body"></div>
   </div>
 </div>
@@ -2988,7 +2989,7 @@ async function renderEmployeeDetail(start, end) {
   const contactCardHtml = '<div class="card" style="margin:0 0 14px; cursor:pointer;" onclick="toggleEmpContactCard()">' +
     '<div style="display:flex; justify-content:space-between; align-items:center;">' +
       '<strong style="font-size:13px;">Contact info</strong>' +
-      '<span id="emp-contact-toggle-label" style="color:var(--muted); font-size:11px;">Tap to view &#9662;</span>' +
+      '<span id="emp-contact-toggle-label" style="color:var(--muted); font-size:12px;">Tap to view &#9662;</span>' +
     '</div>' +
     '<div id="emp-contact-details" style="display:none; margin-top:10px;" onclick="event.stopPropagation();">' +
       '<div style="font-size:13px; margin-bottom:6px;"><strong>' + escapeHtml(ed.name || "Name not set") + '</strong></div>' +
@@ -3022,7 +3023,7 @@ async function renderEmployeeDetail(start, end) {
       (ed.isClockedIn ? '<button class="btn-primary" style="width:auto; margin:0;" onclick="requestPing(\'' + ed.id + '\')">Ping now</button>' : '') +
       (openRow ? '<button class="btn-secondary" style="width:auto; margin:0; background:#C1502E; color:#fff; border-color:#C1502E;" onclick="forceClockOutConfirm(\'' + openRow.time_entry_id + '\')">Force clock out now</button>' : '') +
     '</div>' +
-    (ed.isClockedIn ? '<p id="ping-status-msg" style="font-size:12px; color:var(--muted); margin-top:8px;"></p>' : '');
+    (ed.isClockedIn ? '<p id="ping-status-msg" style="font-size:13px; color:var(--muted); margin-top:8px;"></p>' : '');
 }
 
 function toggleEmpContactCard() {
@@ -3175,16 +3176,16 @@ function renderCrewSearchDropdown() {
   });
 
   if (allCrews.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No teams yet.</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No teams yet.</div>';
   } else if (matches.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No teams match "' + term + '".</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No teams match "' + term + '".</div>';
   } else {
     dropdown.innerHTML = matches.map(function(c) {
       const memberNames = escapeHtml(c.members.map(function(m) { return m.name; }).join(", ") || "No members yet");
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectCrewSearchResult(\'' + c.id + '\')">' +
         '<div style="font-weight:600; font-size:13px;">' + escapeHtml(c.name) + '</div>' +
-        '<div style="font-size:11px; color:var(--muted);">' + memberNames + '</div>' +
+        '<div style="font-size:12px; color:var(--muted);">' + memberNames + '</div>' +
       '</div>';
     }).join("");
   }
@@ -3236,7 +3237,7 @@ function renderCrewsList() {
           '<button class="btn-small" style="background:#C1502E; margin-left:6px;" onclick="deleteCrewConfirm(\'' + c.id + '\')">Delete</button>' +
         '</span>' +
       '</div>' +
-      '<div style="margin-top:6px;">' + (members || '<span style="color:var(--muted); font-size:12px;">No members yet</span>') + '</div>' +
+      '<div style="margin-top:6px;">' + (members || '<span style="color:var(--muted); font-size:13px;">No members yet</span>') + '</div>' +
     '</div>';
   }).join("");
 }
@@ -3253,7 +3254,7 @@ function openCrewSheet(crewId) {
   document.getElementById("crew-members-list").innerHTML = employees.map(function(e) {
     const checked = memberIds.indexOf(e.id) !== -1 ? "checked" : "";
     return '<label><input type="checkbox" value="' + e.id + '" ' + checked + ' /> ' + escapeHtml(e.name) + '</label>';
-  }).join("") || '<p style="color:var(--muted); font-size:12px;">Add employees first, then build teams.</p>';
+  }).join("") || '<p style="color:var(--muted); font-size:13px;">Add employees first, then build teams.</p>';
 
   document.getElementById("crew-sheet").classList.add("visible");
 }
@@ -3330,11 +3331,11 @@ function renderTimeOffPending() {
   const all = window.allTimeOffRequests || [];
   const pending = all.filter(function(r) { return r.status === "pending"; });
   if (pending.length === 0) {
-    wrap.innerHTML = '<p style="font-size:12px; color:var(--muted); margin:8px 0 0;">No pending requests.</p>';
+    wrap.innerHTML = '<p style="font-size:13px; color:var(--muted); margin:8px 0 0;">No pending requests.</p>';
     return;
   }
   wrap.innerHTML = pending.map(function(r) {
-    const note = r.note ? '<div style="font-size:12px; color:#5B5647; margin-top:4px;">' + escapeHtml(r.note) + '</div>' : "";
+    const note = r.note ? '<div style="font-size:13px; color:#5B5647; margin-top:4px;">' + escapeHtml(r.note) + '</div>' : "";
     return '<div class="card" style="margin-top:8px; background:#FFF9E0; border-color:#FFE400; color:#1F2421;">' +
       '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px; flex-wrap:wrap;">' +
         '<div>' +
@@ -3357,19 +3358,19 @@ function renderTimeOffHistory() {
   const all = window.allTimeOffRequests || [];
   const reviewed = all.filter(function(r) { return r.status !== "pending"; });
   if (reviewed.length === 0) {
-    wrap.innerHTML = '<p style="font-size:12px; color:var(--muted); margin:0;">No reviewed requests yet.</p>';
+    wrap.innerHTML = '<p style="font-size:13px; color:var(--muted); margin:0;">No reviewed requests yet.</p>';
     return;
   }
   wrap.innerHTML = reviewed.map(function(r) {
     const statusColor = r.status === "approved" ? "var(--success)" : "var(--danger)";
-    const note = r.note ? '<div style="font-size:12px; color:var(--muted); margin-top:2px;">' + escapeHtml(r.note) + '</div>' : "";
+    const note = r.note ? '<div style="font-size:13px; color:var(--muted); margin-top:2px;">' + escapeHtml(r.note) + '</div>' : "";
     return '<div style="padding:8px 0; border-bottom:1px solid var(--line);">' +
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px; flex-wrap:wrap;">' +
         '<div>' +
           '<span style="font-weight:600;">' + escapeHtml(r.employee_name) + '</span>' +
           '<span style="font-size:13px; color:var(--ink);"> · ' + escapeHtml(formatTimeOffRange(r)) + '</span>' +
         '</div>' +
-        '<span style="font-size:12px; font-weight:600; color:' + statusColor + ';">' + (r.status === "approved" ? "Approved" : "Denied") + '</span>' +
+        '<span style="font-size:13px; font-weight:600; color:' + statusColor + ';">' + (r.status === "approved" ? "Approved" : "Denied") + '</span>' +
       '</div>' +
       note +
     '</div>';
@@ -3468,7 +3469,7 @@ function renderRouteCandidatesList(candidates) {
     // address on file but haven't successfully looked up its map coordinates
     // yet (most often a customer added before route-building existed). The
     // retry button below fixes this without touching the Customers tab.
-    const note = disabled ? ' <span style="color:var(--danger); font-size:11px;">(address not yet located on the map)</span>' : "";
+    const note = disabled ? ' <span style="color:var(--danger); font-size:12px;">(address not yet located on the map)</span>' : "";
     return '<label style="display:flex; align-items:center; gap:8px; padding:6px 0; font-size:13px; ' +
       (disabled ? 'opacity:0.5;' : '') + '">' +
       '<input type="checkbox" data-idx="' + i + '" class="route-candidate-check" ' + (disabled ? 'disabled' : 'checked') + ' />' +
@@ -3654,7 +3655,7 @@ function routeStopIcon(label, color) {
   return L.divIcon({
     className: "",
     html: '<div style="width:24px; height:24px; border-radius:50%; background:' + color + '; color:#fff; ' +
-      'display:flex; align-items:center; justify-content:center; font-size:12px; font-weight:700; ' +
+      'display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; ' +
       'box-shadow:0 2px 6px rgba(0,0,0,0.3);">' + label + '</div>',
     iconSize: [24, 24],
     iconAnchor: [12, 12],
@@ -3784,14 +3785,14 @@ function renderDayJobCard(j) {
       '<strong>' + escapeHtml(j.title) + '</strong>' +
       '<span class="type-badge">' + (EVENT_TYPE_LABELS[j.event_type] || "Job") + '</span>' +
     '</div>' +
-    (j.customer_name ? '<div style="font-size:12px; color:var(--muted); margin-top:6px;">' +
+    (j.customer_name ? '<div style="font-size:13px; color:var(--muted); margin-top:6px;">' +
       '<strong>' + escapeHtml(j.customer_company_name || j.customer_name) + '</strong>' +
       (j.customer_company_name ? '<br/>' + escapeHtml(j.customer_name) : "") +
       (j.customer_phone ? '<br/><a class="link" href="' + escapeHtml(telUrl(j.customer_phone)) + '">' + escapeHtml(j.customer_phone) + '</a>' : "") +
       (jobAddress ? '<br/><a class="link" href="' + escapeHtml(mapsUrl(jobAddress)) + '" target="_blank">' + escapeHtml(jobAddress) + '</a>' : "") +
     '</div>' : '') +
-    (j.notes ? '<div style="font-size:12px; color:var(--muted); margin-top:6px;">' + escapeHtml(j.notes) + '</div>' : '') +
-    '<div style="margin-top:8px;">' + (assigned || '<span style="color:var(--muted); font-size:12px;">Nobody assigned yet</span>') + '</div>' +
+    (j.notes ? '<div style="font-size:13px; color:var(--muted); margin-top:6px;">' + escapeHtml(j.notes) + '</div>' : '') +
+    '<div style="margin-top:8px;">' + (assigned || '<span style="color:var(--muted); font-size:13px;">Nobody assigned yet</span>') + '</div>' +
     '<div style="margin-top:10px; display:flex; gap:8px;">' +
       '<button class="btn-small" style="background:var(--teal); flex:1;" onclick="closeDaySheet(); openJobSheet(\'' + j.id + '\');">Edit</button>' +
       '<button class="btn-small" style="background:#C1502E; flex:1;" onclick="deleteJobConfirm(\'' + j.id + '\')">Delete</button>' +
@@ -3919,15 +3920,15 @@ function renderPendingJobAttachments() {
   const container = document.getElementById("job-attachments-list");
   if (!container) return;
   if (window.pendingJobAttachments.length === 0) {
-    container.innerHTML = '<p style="font-size:12px; color:var(--muted);">No attachments yet.</p>';
+    container.innerHTML = '<p style="font-size:13px; color:var(--muted);">No attachments yet.</p>';
     return;
   }
   container.innerHTML = window.pendingJobAttachments.map(function(file, idx) {
     return '<div style="display:flex; align-items:center; justify-content:space-between; gap:8px; padding:6px 0; border-bottom:1px solid var(--line);">' +
       '<span style="font-size:13px;">' + escapeHtml(file.name) + '</span>' +
       '<span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">' +
-        '<span style="font-size:11px; color:var(--muted);">' + formatFileSize(file.size) + '</span>' +
-        '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:var(--danger); border-color:var(--danger);" ' +
+        '<span style="font-size:12px; color:var(--muted);">' + formatFileSize(file.size) + '</span>' +
+        '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:12px; color:var(--danger); border-color:var(--danger);" ' +
           'onclick="removePendingJobAttachment(' + idx + ')">Remove</button>' +
       '</span>' +
     '</div>';
@@ -3959,12 +3960,12 @@ async function renderAttachmentsList(containerId, entityType, entityId) {
   const container = document.getElementById(containerId);
   if (!container) return;
   if (!entityId) { container.innerHTML = ""; return; }
-  container.innerHTML = '<p style="font-size:12px; color:var(--muted);">Loading...</p>';
+  container.innerHTML = '<p style="font-size:13px; color:var(--muted);">Loading...</p>';
   try {
     const attachments = await admin.listAttachments(entityType, entityId);
     attachments.forEach(function(a) { window.attachmentsCache[a.id] = a; });
     if (attachments.length === 0) {
-      container.innerHTML = '<p style="font-size:12px; color:var(--muted);">No attachments yet.</p>';
+      container.innerHTML = '<p style="font-size:13px; color:var(--muted);">No attachments yet.</p>';
       return;
     }
     container.innerHTML = attachments.map(function(a) {
@@ -3973,14 +3974,14 @@ async function renderAttachmentsList(containerId, entityType, entityId) {
           escapeHtml(a.file_name) +
         '</span>' +
         '<span style="display:flex; align-items:center; gap:8px; flex-shrink:0;">' +
-          '<span style="font-size:11px; color:var(--muted);">' + formatFileSize(a.file_size) + '</span>' +
-          '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:11px; color:var(--danger); border-color:var(--danger);" ' +
+          '<span style="font-size:12px; color:var(--muted);">' + formatFileSize(a.file_size) + '</span>' +
+          '<button class="btn-small" style="width:auto; padding:2px 8px; font-size:12px; color:var(--danger); border-color:var(--danger);" ' +
             'onclick="deleteAttachmentFile(\'' + a.id + '\', \'' + entityType + '\', \'' + entityId + '\', \'' + containerId + '\')">Remove</button>' +
         '</span>' +
       '</div>';
     }).join("");
   } catch (err) {
-    container.innerHTML = '<p style="font-size:12px; color:var(--danger);">Couldn\'t load attachments.</p>';
+    container.innerHTML = '<p style="font-size:13px; color:var(--danger);">Couldn\'t load attachments.</p>';
   }
 }
 
@@ -4083,7 +4084,7 @@ function openJobSheet(jobId, prefillDateStr, prefillTimeStr) {
   document.getElementById("job-crews-list").innerHTML = crews.map(function(c) {
     const checked = assignedCrewIds.indexOf(c.id) !== -1 ? "checked" : "";
     return '<label><input type="checkbox" value="' + c.id + '" ' + checked + ' /> ' + escapeHtml(c.name) + '</label>';
-  }).join("") || '<p style="color:var(--muted); font-size:12px;">No teams yet.</p>';
+  }).join("") || '<p style="color:var(--muted); font-size:13px;">No teams yet.</p>';
 
   const employees = (window.allEmployees || []).filter(function(e) { return e.active || assignedIds.indexOf(e.id) !== -1; });
   document.getElementById("job-employees-list").innerHTML = employees.map(function(e) {
@@ -4448,10 +4449,10 @@ function renderCustomersList() {
     return '<div class="card">' +
       (c.company_name ?
         '<strong>' + escapeHtml(c.company_name) + '</strong>' +
-        '<div style="font-size:12px; color:var(--muted);">' + escapeHtml(c.name) + '</div>'
+        '<div style="font-size:13px; color:var(--muted);">' + escapeHtml(c.name) + '</div>'
         : '<strong>' + escapeHtml(c.name) + '</strong>') +
       details +
-      (c.notes ? '<div style="font-size:12px; color:var(--muted); margin-top:4px;">' + escapeHtml(c.notes) + '</div>' : '') +
+      (c.notes ? '<div style="font-size:13px; color:var(--muted); margin-top:4px;">' + escapeHtml(c.notes) + '</div>' : '') +
       '<div style="margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;">' +
         '<button class="btn-small" style="background:var(--charcoal);" onclick="openCustomerHistorySheet(\'' + c.id + '\')">History</button>' +
         '<button class="btn-small" style="background:var(--teal);" onclick="openCustomerSheet(\'' + c.id + '\')">Edit</button>' +
@@ -4640,7 +4641,7 @@ async function openCustomerHistorySheet(id) {
         '<span class="job-color-dot" style="background:' + (JOB_COLORS[ev.color] || JOB_COLORS.rust) + ';"></span>' +
         '<strong>' + escapeHtml(ev.title) + '</strong>' +
         '<span class="type-badge">' + (EVENT_TYPE_LABELS[ev.event_type] || "Job") + '</span>' +
-        '<div style="font-size:12px; color:var(--muted); margin-top:4px;">' + dateLabel + '</div>' +
+        '<div style="font-size:13px; color:var(--muted); margin-top:4px;">' + dateLabel + '</div>' +
       '</div>';
     }
     const inv = item.data;
@@ -4650,13 +4651,13 @@ async function openCustomerHistorySheet(id) {
         '<div><strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) + '</div>' +
         '<div class="stat-value" style="font-size:15px;">' + fmtMoney(inv.total) + '</div>' +
       '</div>' +
-      '<div style="font-size:12px; color:var(--muted); margin-top:4px;">' + dateLabel + '</div>' +
+      '<div style="font-size:13px; color:var(--muted); margin-top:4px;">' + dateLabel + '</div>' +
     '</div>';
   }).join("");
 
   document.getElementById("customer-history-content").innerHTML =
     '<h2 style="margin-top:0; font-size:18px;">' + escapeHtml(customerDisplayName(customer.name, customer.company_name)) + '</h2>' +
-    '<p style="font-size:12px; color:var(--muted); margin-top:-8px;">Appointments and invoices</p>' +
+    '<p style="font-size:13px; color:var(--muted); margin-top:-8px;">Appointments and invoices</p>' +
     (rows || '<p style="color:var(--muted); font-size:13px;">Nothing on file for this customer yet.</p>');
 
   document.getElementById("customer-history-sheet").classList.add("visible");
@@ -4793,7 +4794,7 @@ function renderBillingPaymentBreakdown(data) {
   const paymentCount = (data && data.count) || 0;
 
   if (!paymentCount) {
-    container.innerHTML = '<p style="font-size:12px; color:var(--muted); margin:0;">No payments recorded yet.</p>';
+    container.innerHTML = '<p style="font-size:13px; color:var(--muted); margin:0;">No payments recorded yet.</p>';
     return;
   }
 
@@ -4993,11 +4994,11 @@ async function renderTransactionsList() {
       '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
         '<div>' +
           '<strong>' + escapeHtml(customerDisplayName(p.customer_name, p.customer_company_name)) + '</strong><br/>' +
-          '<span style="font-size:12px; color:var(--muted);">Invoice #' + p.invoice_number + '</span>' +
+          '<span style="font-size:13px; color:var(--muted);">Invoice #' + p.invoice_number + '</span>' +
         '</div>' +
         '<strong>' + fmtMoney(p.amount) + '</strong>' +
       '</div>' +
-      '<div style="font-size:12px; color:var(--muted); margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
+      '<div style="font-size:13px; color:var(--muted); margin-top:6px; display:flex; align-items:center; gap:6px; flex-wrap:wrap;">' +
         '<span>' + String(p.paid_at).slice(0, 10) + ' &middot; ' + methodLabel + checkNumberSuffix + '</span>' + channelBadge + partialTag +
       '</div>' +
       '<div style="display:flex; gap:6px; margin-top:8px;">' +
@@ -5028,15 +5029,15 @@ function renderInvoicesSearchDropdown() {
   const matches = !term ? allInvoices : allInvoices.filter(function(inv) { return invoiceMatchesTerm(inv, term); });
 
   if (allInvoices.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No invoices yet.</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No invoices yet.</div>';
   } else if (matches.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No invoices match "' + term + '".</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No invoices match "' + term + '".</div>';
   } else {
     dropdown.innerHTML = matches.map(function(inv) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectInvoicesSearchResult(\'' + inv.id + '\')">' +
         '<div style="font-weight:600; font-size:13px;">Invoice #' + inv.invoice_number + ' &middot; ' + escapeHtml(customerDisplayName(inv.customer_name, inv.customer_company_name)) + '</div>' +
-        '<div style="font-size:11px; color:var(--muted);">' + fmtMoney(inv.total) + '</div>' +
+        '<div style="font-size:12px; color:var(--muted);">' + fmtMoney(inv.total) + '</div>' +
       '</div>';
     }).join("");
   }
@@ -5093,18 +5094,18 @@ function renderInvoicesList() {
     // the full total is shown crossed out above it as context.
     const balanceDue = Number(inv.total) - Number(inv.amount_paid || 0);
     const amountDisplay = inv.status === "partial"
-      ? '<div style="font-size:11px; color:var(--muted); text-decoration:line-through;">' + fmtMoney(inv.total) + '</div>' +
+      ? '<div style="font-size:12px; color:var(--muted); text-decoration:line-through;">' + fmtMoney(inv.total) + '</div>' +
         '<div class="stat-value" style="font-size:17px;">' + fmtMoney(balanceDue) + ' due</div>'
       : '<div class="stat-value" style="font-size:17px;">' + fmtMoney(inv.total) + '</div>';
     return '<div class="card invoice-card">' +
       '<div>' +
         '<strong>Invoice #' + inv.invoice_number + '</strong> ' + invoiceStatusBadge(inv) +
         '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(customerDisplayName(inv.customer_name, inv.customer_company_name)) + '</div>' +
-        '<div style="font-size:12px; color:var(--muted); margin-top:2px;">' +
+        '<div style="font-size:13px; color:var(--muted); margin-top:2px;">' +
           PAYMENT_TERMS_LABELS[inv.payment_terms] + ' &middot; Due ' + inv.due_date.slice(0, 10) +
         '</div>' +
         (inv.reminder_count > 0
-          ? '<div style="font-size:11px; color:var(--muted); margin-top:2px;">Reminders sent: ' + inv.reminder_count + ' of 5</div>'
+          ? '<div style="font-size:12px; color:var(--muted); margin-top:2px;">Reminders sent: ' + inv.reminder_count + ' of 5</div>'
           : '') +
       '</div>' +
       '<div style="text-align:right;">' +
@@ -5199,7 +5200,7 @@ async function openInvoiceSheet(invoiceId) {
       is_overdue: invoice.status === "sent" && invoice.due_date.slice(0, 10) < todayStr(),
     }));
     if (invoice.reminder_count > 0) {
-      statusHtml += '<div style="font-size:12px; color:var(--muted); margin-top:6px;">' +
+      statusHtml += '<div style="font-size:13px; color:var(--muted); margin-top:6px;">' +
         'Reminders sent: ' + invoice.reminder_count + ' of 5' +
         (invoice.last_reminder_sent_at ? ' &middot; last sent ' + invoice.last_reminder_sent_at.slice(0, 10) : '') +
       '</div>';
@@ -5570,15 +5571,15 @@ function renderQuotesSearchDropdown() {
   const matches = !term ? allQuotes : allQuotes.filter(function(q) { return quoteMatchesTerm(q, term); });
 
   if (allQuotes.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No quotes yet.</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No quotes yet.</div>';
   } else if (matches.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No quotes match "' + term + '".</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No quotes match "' + term + '".</div>';
   } else {
     dropdown.innerHTML = matches.map(function(q) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectQuotesSearchResult(\'' + q.id + '\')">' +
         '<div style="font-weight:600; font-size:13px;">Quote #' + q.quote_number + ' &middot; ' + escapeHtml(customerDisplayName(q.customer_name, q.customer_company_name)) + '</div>' +
-        '<div style="font-size:11px; color:var(--muted);">' + fmtMoney(q.total) + '</div>' +
+        '<div style="font-size:12px; color:var(--muted);">' + fmtMoney(q.total) + '</div>' +
       '</div>';
     }).join("");
   }
@@ -5642,11 +5643,11 @@ function renderQuotesList() {
       '<div>' +
         '<strong>Quote #' + q.quote_number + '</strong> ' + quoteStatusBadge(q) +
         '<div style="font-size:13px; margin-top:4px;">' + escapeHtml(customerDisplayName(q.customer_name, q.customer_company_name)) + '</div>' +
-        '<div style="font-size:12px; color:var(--muted); margin-top:2px;">' +
+        '<div style="font-size:13px; color:var(--muted); margin-top:2px;">' +
           (q.expiration_date ? 'Valid until ' + q.expiration_date.slice(0, 10) : 'No expiration set') +
         '</div>' +
         (q.converted_job_id || q.converted_invoice_id
-          ? '<div style="font-size:11px; color:var(--muted); margin-top:2px;">' +
+          ? '<div style="font-size:12px; color:var(--muted); margin-top:2px;">' +
               [q.converted_job_id ? 'Scheduled' : null, q.converted_invoice_id ? 'Invoiced' : null].filter(Boolean).join(' &middot; ') +
             '</div>'
           : '') +
@@ -6096,11 +6097,11 @@ function renderReportStatCard(label, value, sub, changeParts, onclick) {
   const clickAttr = onclick ? ' style="cursor:pointer;" onclick="' + onclick + '"' : '';
   return '<div class="report-stat-card"' + clickAttr + '>' +
     '<div style="display:flex; justify-content:space-between; align-items:flex-start; gap:8px;">' +
-      '<div style="font-size:12px; color:var(--muted);">' + label + '</div>' +
+      '<div style="font-size:13px; color:var(--muted);">' + label + '</div>' +
       changeHtml +
     '</div>' +
     '<div class="stat-value" style="font-size:20px;">' + value + '</div>' +
-    (sub ? '<div style="font-size:11px; color:var(--muted); margin-top:2px;">' + sub + '</div>' : '') +
+    (sub ? '<div style="font-size:12px; color:var(--muted); margin-top:2px;">' + sub + '</div>' : '') +
   '</div>';
 }
 
@@ -6143,7 +6144,7 @@ function missingHourlyRateWarning() {
     return e.hourly_rate === null || e.hourly_rate === undefined;
   });
   if (!missing.length) return "";
-  return '<div style="margin-bottom:12px; padding:10px 12px; background:#FBF3E7; border:1px solid #E8D9BE; border-radius:8px; font-size:12px; color:#7A6A4A;">' +
+  return '<div style="margin-bottom:12px; padding:10px 12px; background:#FBF3E7; border:1px solid #E8D9BE; border-radius:8px; font-size:13px; color:#7A6A4A;">' +
     "Profit numbers don't include labor cost for " + missing.length + (missing.length === 1 ? " employee" : " employees") +
     " without an hourly rate set. Add rates in Employees &rarr; Edit (or the Pay Rate label on the list) for accurate Gross/Net Profit." +
   '</div>';
@@ -6221,7 +6222,7 @@ async function loadReportSummary() {
         renderReportStatCard("Gross Profit", pctValueHtml(profitChangeParts(profits.grossProfit, prevProfits.grossProfit)), "vs. prior period", null, reportBubbleOnclick("gross", rangeStart, rangeEnd)) +
         renderReportStatCard("Net Profit", pctValueHtml(profitChangeParts(profits.netProfit, prevProfits.netProfit)), "vs. prior period", null, reportBubbleOnclick("net", rangeStart, rangeEnd)) +
       '</div>' +
-      '<div style="margin-top:10px; font-size:12px; color:var(--muted);">' + rangeStart + ' – ' + rangeEnd +
+      '<div style="margin-top:10px; font-size:13px; color:var(--muted);">' + rangeStart + ' – ' + rangeEnd +
         ' vs. ' + dateToStr(bounds.prevStart) + ' – ' + dateToStr(bounds.prevEnd) + '</div>';
   } catch (err) {
     content.innerHTML = '<p style="color:var(--muted); font-size:13px;">Couldn\'t load report data.</p>';
@@ -6292,7 +6293,7 @@ function renderMonthlyProfitChart(months) {
   }).join("");
 
   const legend =
-    '<div style="display:flex; gap:16px; justify-content:center; margin-bottom:4px; font-size:12px; color:var(--ink);">' +
+    '<div style="display:flex; gap:16px; justify-content:center; margin-bottom:4px; font-size:13px; color:var(--ink);">' +
       '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:#F4B04C; margin-right:5px;"></span>Gross Profit</span>' +
       '<span><span style="display:inline-block; width:10px; height:10px; border-radius:3px; background:var(--success); margin-right:5px;"></span>Net Profit</span>' +
     '</div>';
@@ -6446,7 +6447,7 @@ function renderGrossProfitBreakdown(summary, breakdown) {
       '<span>Labor cost</span><span>' + fmtMoney(summary.labor_cost) + '</span>' +
     '</div>' +
     (feesTotal > 0
-      ? '<div style="font-size:12px; color:var(--muted); font-weight:600; margin:8px 0 4px;">Minus processing fees:</div>' +
+      ? '<div style="font-size:13px; color:var(--muted); font-weight:600; margin:8px 0 4px;">Minus processing fees:</div>' +
         renderProcessingFeeRows(summary) +
         '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
           '<span>Processing fees total</span><span>' + fmtMoney(feesTotal) + '</span>' +
@@ -6481,9 +6482,9 @@ function renderNetProfitBreakdown(summary, breakdown, start, end) {
       '<span>Gross Profit</span><span>' + fmtMoney(grossProfit) + '</span>' +
     '</div>' +
     (feesTotal > 0
-      ? '<div style="font-size:11px; color:var(--muted); margin:-2px 0 6px;">(already includes ' + fmtMoney(feesTotal) + ' in processing fees -- see Gross Profit breakdown)</div>'
+      ? '<div style="font-size:12px; color:var(--muted); margin:-2px 0 6px;">(already includes ' + fmtMoney(feesTotal) + ' in processing fees -- see Gross Profit breakdown)</div>'
       : '') +
-    '<div style="font-size:12px; color:var(--muted); font-weight:600; margin:8px 0 4px;">Minus expenses:</div>' +
+    '<div style="font-size:13px; color:var(--muted); font-weight:600; margin:8px 0 4px;">Minus expenses:</div>' +
     expenseRows +
     '<div style="display:flex; justify-content:space-between; font-size:12.5px; padding-top:4px; border-top:1px solid var(--line); margin-top:6px;">' +
       '<span>Expenses total</span><span>' + fmtMoney(expenseTotal) + '</span>' +
@@ -6603,9 +6604,9 @@ function renderItemHoldsList(holds) {
     return '<div class="card" style="margin-bottom:8px; cursor:pointer;" onclick="openItemHoldSource(\'' + h.source_type + '\', \'' + h.id + '\')">' +
       '<div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">' +
         '<strong>' + escapeHtml(h.label || "") + '</strong>' +
-        '<span style="font-size:12px; color:var(--muted);">' + h.quantity + ' held</span>' +
+        '<span style="font-size:13px; color:var(--muted);">' + h.quantity + ' held</span>' +
       '</div>' +
-      '<div style="font-size:12px; color:var(--muted);">' + escapeHtml(customerDisplayName(h.customer_name, h.customer_company_name) || "") + '</div>' +
+      '<div style="font-size:13px; color:var(--muted);">' + escapeHtml(customerDisplayName(h.customer_name, h.customer_company_name) || "") + '</div>' +
     '</div>';
   }).join("");
 }
@@ -6665,7 +6666,7 @@ function renderInventorySettingsList() {
             'onblur="saveInventoryField(\'' + item.id + '\', \'unit_cost\', this.value)" /></td>' +
           '<td><input type="number" min="0" step="1" class="inv-grid-input" data-col="threshold" placeholder="Off" value="' + threshold + '" style="width:90px;" ' +
             'onblur="saveInventoryField(\'' + item.id + '\', \'low_stock_threshold\', this.value)" /></td>' +
-          '<td style="white-space:nowrap;"><span class="inv-row-status" id="inv-status-' + item.id + '" style="font-size:11px;"></span>' +
+          '<td style="white-space:nowrap;"><span class="inv-row-status" id="inv-status-' + item.id + '" style="font-size:12px;"></span>' +
             '<button class="btn-small" style="background:#C1502E;" onclick="deleteInventoryItemConfirm(\'' + item.id + '\')">Delete</button></td>' +
         '</tr>';
       }).join("") +
@@ -6875,7 +6876,7 @@ async function openBuildPullSheetSheet() {
 
 async function renderPullSheetSourceList() {
   const list = document.getElementById("pull-sheet-source-list");
-  list.innerHTML = '<p style="font-size:12px; color:var(--muted);">Loading...</p>';
+  list.innerHTML = '<p style="font-size:13px; color:var(--muted);">Loading...</p>';
   try {
     const sources = await admin.getPullSheetSources();
     const rows = [].concat(
@@ -6883,18 +6884,18 @@ async function renderPullSheetSourceList() {
       sources.invoices.map(function(i) { return { source_type: "invoice", id: i.id, label: "Invoice #" + i.number, customer_name: i.customer_name, customer_company_name: i.customer_company_name }; })
     );
     if (rows.length === 0) {
-      list.innerHTML = '<p style="font-size:12px; color:var(--muted);">No open quotes or invoices have inventory-tracked items left to pull.</p>';
+      list.innerHTML = '<p style="font-size:13px; color:var(--muted);">No open quotes or invoices have inventory-tracked items left to pull.</p>';
       return;
     }
     list.innerHTML = rows.map(function(r) {
       return '<div class="card" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;" ' +
         'onclick="selectPullSheetSource(\'' + r.source_type + '\', \'' + r.id + '\')">' +
-        '<div><strong>' + escapeHtml(r.label) + '</strong><div style="font-size:12px; color:var(--muted);">' + escapeHtml(customerDisplayName(r.customer_name, r.customer_company_name)) + '</div></div>' +
+        '<div><strong>' + escapeHtml(r.label) + '</strong><div style="font-size:13px; color:var(--muted);">' + escapeHtml(customerDisplayName(r.customer_name, r.customer_company_name)) + '</div></div>' +
         '<span style="color:var(--muted);">&rsaquo;</span>' +
       '</div>';
     }).join("");
   } catch (err) {
-    list.innerHTML = '<p style="font-size:12px; color:var(--muted);">Couldn\'t load quotes/invoices.</p>';
+    list.innerHTML = '<p style="font-size:13px; color:var(--muted);">Couldn\'t load quotes/invoices.</p>';
   }
 }
 
@@ -7177,15 +7178,15 @@ function renderCatalogSearchDropdown() {
   });
 
   if (allItems.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No catalog items yet.</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No catalog items yet.</div>';
   } else if (matches.length === 0) {
-    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:12px; color:var(--muted);">No items match "' + term + '".</div>';
+    dropdown.innerHTML = '<div style="padding:10px 12px; font-size:13px; color:var(--muted);">No items match "' + term + '".</div>';
   } else {
     dropdown.innerHTML = matches.map(function(i) {
       return '<div style="padding:8px 12px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
         'onclick="selectCatalogSearchResult(\'' + i.id + '\')">' +
         '<div style="font-weight:600; font-size:13px;">' + escapeHtml(i.name) + '</div>' +
-        '<div style="font-size:11px; color:var(--muted);">' + fmtMoney(i.unit_price) + '</div>' +
+        '<div style="font-size:12px; color:var(--muted);">' + fmtMoney(i.unit_price) + '</div>' +
       '</div>';
     }).join("");
   }
@@ -7228,7 +7229,7 @@ function renderCatalogItemsList() {
   }
   list.innerHTML = items.map(function(item) {
     return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div><strong>' + escapeHtml(item.name) + '</strong><div style="font-size:12px; color:var(--muted);">' + fmtMoney(item.unit_price) + '</div></div>' +
+      '<div><strong>' + escapeHtml(item.name) + '</strong><div style="font-size:13px; color:var(--muted);">' + fmtMoney(item.unit_price) + '</div></div>' +
       '<span style="white-space:nowrap;">' +
         '<button class="btn-small" style="background:var(--teal); margin-right:6px;" onclick="openCatalogItemSheet(\'' + item.id + '\')">Edit</button>' +
         '<button class="btn-small" style="background:#C1502E;" onclick="deleteCatalogItemConfirm(\'' + item.id + '\')">Delete</button>' +
@@ -7885,7 +7886,7 @@ function renderBarcodeMatchedItem(item) {
   const currentQty = Number(item.quantity_on_hand) || 0;
   resultEl.innerHTML =
     '<p style="font-size:14px;"><strong>' + escapeHtml(item.name) + '</strong></p>' +
-    '<p style="font-size:12px; color:var(--muted); margin-top:-8px;">Currently ' + currentQty + ' on hand' +
+    '<p style="font-size:13px; color:var(--muted); margin-top:-8px;">Currently ' + currentQty + ' on hand' +
       (item.track_inventory ? '' : ' -- inventory tracking is off for this item, turning it on now') + '</p>' +
     '<label>Quantity received</label>' +
     '<input id="barcode-scan-qty-input" type="number" min="1" step="1" value="1" />' +
@@ -8073,7 +8074,7 @@ function renderExpensesList() {
   }
   list.innerHTML = expenses.map(function(x) {
     return '<div class="card" style="display:flex; justify-content:space-between; align-items:center;">' +
-      '<div><strong>' + fmtMoney(x.amount) + '</strong><div style="font-size:12px; color:var(--muted);">' +
+      '<div><strong>' + fmtMoney(x.amount) + '</strong><div style="font-size:13px; color:var(--muted);">' +
         String(x.expense_date).slice(0, 10) + (x.description ? ' &middot; ' + escapeHtml(x.description) : '') + (x.job_title ? ' &middot; Job: ' + escapeHtml(x.job_title) : '') +
       '</div></div>' +
       '<span style="white-space:nowrap;">' +
@@ -9051,13 +9052,13 @@ async function openNewTeamChatSheet() {
   document.getElementById("team-chat-new-group-name-wrap").style.display = "none";
   document.getElementById("team-chat-new-group-name").value = "";
   const list = document.getElementById("team-chat-new-employees");
-  list.innerHTML = '<p style="color:var(--muted); font-size:12px;">Loading...</p>';
+  list.innerHTML = '<p style="color:var(--muted); font-size:13px;">Loading...</p>';
   document.getElementById("team-chat-new-sheet").classList.add("visible");
   try {
     const employees = (window.allEmployees && window.allEmployees.length ? window.allEmployees : await admin.listEmployees())
       .filter(function(e) { return e.active; });
     if (employees.length === 0) {
-      list.innerHTML = '<p style="color:var(--muted); font-size:12px;">No active employees yet.</p>';
+      list.innerHTML = '<p style="color:var(--muted); font-size:13px;">No active employees yet.</p>';
       return;
     }
     list.innerHTML = employees.map(function(e) {
@@ -9068,7 +9069,7 @@ async function openNewTeamChatSheet() {
       '</label>';
     }).join("");
   } catch (err) {
-    list.innerHTML = '<p style="color:var(--muted); font-size:12px;">Couldn\'t load employees.</p>';
+    list.innerHTML = '<p style="color:var(--muted); font-size:13px;">Couldn\'t load employees.</p>';
   }
 }
 
