@@ -256,31 +256,69 @@
   .sheet-body { padding: 16px; max-width: 560px; margin: 0 auto; }
 
   /* ---------- Chat ---------- */
-  .chat-thread-row { display: flex; align-items: center; gap: 10px; }
+  .chat-thread-row { display: flex; align-items: center; gap: 12px; }
   .chat-thread-name { font-size: 14px; font-weight: 700; display: flex; align-items: center; gap: 6px; }
   .chat-thread-preview { font-size: 12px; color: var(--muted); margin-top: 2px; }
   .chat-on-clock-dot { width: 7px; height: 7px; border-radius: 50%; background: #1E8E5A; flex-shrink: 0; }
   .chat-unread-pill {
     background: var(--rust); color: #fff; font-size: 10px; font-weight: 800;
     border-radius: 20px; padding: 2px 8px; margin-left: auto; flex-shrink: 0;
+    box-shadow: 0 2px 6px rgba(211,90,52,0.35);
   }
-  .chat-messages { display: flex; flex-direction: column; gap: 8px; padding-bottom: 90px; }
-  .chat-bubble { max-width: 78%; padding: 8px 12px; border-radius: 14px; font-size: 13.5px; line-height: 1.4; }
+  .chat-avatar {
+    width: 38px; height: 38px; border-radius: 50%; flex-shrink: 0;
+    display: flex; align-items: center; justify-content: center;
+    font-family: 'Oswald', sans-serif; font-weight: 700; font-size: 14px; letter-spacing: 0.01em;
+  }
+  .chat-avatar-sm { width: 24px; height: 24px; font-size: 10.5px; }
+  .chat-avatar-office { background: linear-gradient(135deg, #F9C978, var(--amber)); color: var(--charcoal); }
+  .chat-avatar-group { background: var(--surface); color: var(--muted); border: 1.5px solid var(--line); font-size: 15px; }
+
+  .chat-messages { display: flex; flex-direction: column; gap: 2px; padding-bottom: 90px; }
+  .chat-day-divider { display: flex; align-items: center; gap: 8px; margin: 14px 0 6px; }
+  .chat-day-divider .line { flex: 1; height: 1px; background: var(--line); }
+  .chat-day-divider .label { font-size: 10px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); white-space: nowrap; }
+
+  .chat-row { display: flex; align-items: flex-end; gap: 8px; margin-top: 2px; }
+  .chat-row.chat-row-first { margin-top: 10px; }
+  .chat-row.chat-row-mine { flex-direction: row-reverse; }
+  .chat-row .chat-avatar-slot { width: 24px; flex-shrink: 0; }
+  .chat-bubble-wrap { max-width: 78%; }
+  .chat-sender-name { font-size: 10px; font-weight: 700; margin: 0 4px 2px; color: var(--muted); }
+  .chat-bubble { padding: 9px 13px; border-radius: 16px; font-size: 13.5px; line-height: 1.42; white-space: pre-wrap; word-break: break-word; }
   /* The admin bubble's gold gradient is a fixed warm accent in both themes
      (like the amber "bubbles" elsewhere), so it keeps a fixed dark ink
      rather than var(--ink) -- otherwise night mode would flip its text to
      light-on-gold, which doesn't read. The employee bubble is just the
      generic card surface, so its background AND text both flip together
      with the rest of the page. */
-  .chat-bubble-admin { align-self: flex-end; background: linear-gradient(135deg, #F9C978, var(--amber)); color: var(--charcoal); border-bottom-right-radius: 4px; }
-  .chat-bubble-employee { align-self: flex-start; background: var(--surface); color: var(--ink); border-bottom-left-radius: 4px; }
-  .chat-bubble-time { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .chat-bubble-admin { background: linear-gradient(135deg, #F9C978, var(--amber)); color: var(--charcoal); box-shadow: 0 3px 10px rgba(219,138,22,0.22); }
+  .chat-bubble-employee { background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(31,36,33,0.05); }
+  .chat-bubble-tail-r { border-bottom-right-radius: 4px; }
+  .chat-bubble-tail-l { border-bottom-left-radius: 4px; }
+  .chat-bubble-time { font-size: 10px; color: var(--muted); margin-top: 3px; }
+  .chat-bubble-admin .chat-bubble-time { color: rgba(31,36,33,0.55); }
+  .chat-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; color: var(--muted); text-align: center; }
+  .chat-empty-state .icon {
+    width: 46px; height: 46px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--line);
+    display: flex; align-items: center; justify-content: center; font-size: 18px;
+  }
+  .chat-empty-state p { font-size: 12px; max-width: 220px; margin: 0; }
+
   .chat-composer {
     position: fixed; bottom: 0; left: 0; right: 0; z-index: 101;
     background: var(--bg); border-top: 1.5px solid var(--line);
-    display: flex; gap: 8px; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    display: flex; gap: 8px; align-items: center; padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
   }
-  .chat-composer input { flex: 1; margin-bottom: 0; }
+  .chat-composer input {
+    flex: 1; margin-bottom: 0; border-radius: 999px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .chat-send-btn {
+    width: 40px; height: 40px; border-radius: 50%; border: none; flex-shrink: 0;
+    background: linear-gradient(135deg, #F9C978, var(--amber)); color: var(--charcoal);
+    box-shadow: 0 3px 10px rgba(219,138,22,0.35);
+    display: flex; align-items: center; justify-content: center;
+  }
 
   /* ---------- Employees ---------- */
   /* flex-wrap lets the action buttons drop to their own row instead of
@@ -1043,13 +1081,10 @@
   </div>
   <div class="sheet-body">
     <div id="chat-thread-messages" class="chat-messages"></div>
-    <div id="chat-thread-offline-note" style="display:none; font-size:12px; color:var(--muted); padding-bottom:20px;">
-      This employee isn't clocked in right now, so new messages can't be sent -- you can still see the conversation history above.
-    </div>
   </div>
-  <div class="chat-composer" id="chat-thread-composer" style="display:none;">
-    <input id="chat-message-input" placeholder="Type a message..." />
-    <button class="btn-primary" style="width:auto;" onclick="sendChatMessage()">Send</button>
+  <div class="chat-composer" id="chat-thread-composer">
+    <input id="chat-message-input" placeholder="Message the office..." onkeydown="if(event.key==='Enter')sendChatMessage()" />
+    <button class="chat-send-btn" onclick="sendChatMessage()" aria-label="Send">&#10148;</button>
   </div>
 </div>
 
@@ -1062,8 +1097,8 @@
     <div id="team-chat-thread-messages" class="chat-messages"></div>
   </div>
   <div class="chat-composer" id="team-chat-thread-composer">
-    <input id="team-chat-message-input" placeholder="Type a message..." />
-    <button class="btn-primary" style="width:auto;" onclick="sendTeamChatMessage()">Send</button>
+    <input id="team-chat-message-input" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendTeamChatMessage()" />
+    <button class="chat-send-btn" onclick="sendTeamChatMessage()" aria-label="Send">&#10148;</button>
   </div>
 </div>
 
@@ -8441,6 +8476,110 @@ function customerDisplayName(name, companyName) {
 let chatThreads = [];
 let openChatEmployeeId = null;
 
+// ---------- Shared chat presentation helpers ----------
+// A small on-brand palette to deterministically color each person's avatar
+// (same palette + same hashing approach as the employee app, so the same
+// person reads as the same color in both places) without needing to store
+// a color anywhere.
+const CHAT_AVATAR_PALETTE = [
+  { bg: "var(--teal-deep)", fg: "#fff" },
+  { bg: "var(--rust-deep)", fg: "#fff" },
+  { bg: "var(--amber-deep)", fg: "#fff" },
+  { bg: "var(--teal)", fg: "#fff" },
+  { bg: "var(--rust)", fg: "#fff" },
+  { bg: "var(--amber)", fg: "var(--charcoal)" },
+];
+function chatHash(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+function chatInitials(name) {
+  const parts = (name || "?").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+function avatarHtml(name, opts) {
+  opts = opts || {};
+  const sizeClass = opts.small ? " chat-avatar-sm" : "";
+  if (opts.office) {
+    return '<div class="chat-avatar chat-avatar-office' + sizeClass + '">HQ</div>';
+  }
+  if (opts.group) {
+    return '<div class="chat-avatar chat-avatar-group' + sizeClass + '">&#128101;</div>';
+  }
+  const palette = CHAT_AVATAR_PALETTE[chatHash(name || "?") % CHAT_AVATAR_PALETTE.length];
+  return '<div class="chat-avatar' + sizeClass + '" style="background:' + palette.bg + '; color:' + palette.fg + ';">' + escapeHtml(chatInitials(name)) + '</div>';
+}
+function fmtBubbleTime(iso) {
+  return new Date(iso).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+}
+function chatDayLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const sameDay = function(a, b) { return a.toDateString() === b.toDateString(); };
+  if (sameDay(d, today)) return "Today";
+  if (sameDay(d, yesterday)) return "Yesterday";
+  const opts = { month: "long", day: "numeric" };
+  if (d.getFullYear() !== today.getFullYear()) opts.year = "numeric";
+  return d.toLocaleDateString([], opts);
+}
+// Annotates each message with grouping info (same rules as the employee
+// app's groupChatMessages): consecutive messages from the same sender
+// within 5 minutes collapse together -- avatar/name only on the first
+// bubble of a run, timestamp only on the last, tighter spacing within a run.
+function groupForRender(messages, senderKeyFn) {
+  return messages.map(function(m, i) {
+    const prev = messages[i - 1];
+    const next = messages[i + 1];
+    const key = senderKeyFn(m);
+    const closeToPrev = prev && senderKeyFn(prev) === key && (new Date(m.created_at) - new Date(prev.created_at)) < 5 * 60 * 1000;
+    const closeToNext = next && senderKeyFn(next) === key && (new Date(next.created_at) - new Date(m.created_at)) < 5 * 60 * 1000;
+    const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
+    const out = {};
+    for (const k in m) out[k] = m[k];
+    out._first = !closeToPrev || newDay;
+    out._last = !closeToNext;
+    out._newDay = newDay;
+    return out;
+  });
+}
+function dayDividerHtml(iso) {
+  return '<div class="chat-day-divider"><div class="line"></div><span class="label">' + chatDayLabel(iso) + '</span><div class="line"></div></div>';
+}
+function chatEmptyStateHtml(text) {
+  return '<div class="chat-empty-state"><div class="icon">&#128172;</div><p>' + escapeHtml(text) + '</p></div>';
+}
+// Renders one grouped chat message as a full row (avatar slot + bubble),
+// shared by both the Direct (office) and Team chat sheets.
+function chatRowHtml(m, opts) {
+  const mine = opts.mine;
+  const rowClasses = "chat-row" + (m._first ? " chat-row-first" : "") + (mine ? " chat-row-mine" : "");
+  const avatarSlot = !mine && m._last
+    ? avatarHtml(opts.avatarName, { office: opts.isOffice, group: false, small: true })
+    : "";
+  const nameLabel = !mine && m._first && opts.avatarName
+    ? '<div class="chat-sender-name">' + escapeHtml(opts.isOffice ? "The Office" : opts.avatarName) + '</div>'
+    : "";
+  const tailClass = m._last ? (mine ? " chat-bubble-tail-r" : " chat-bubble-tail-l") : "";
+  const bubbleClass = "chat-bubble " + (mine ? "chat-bubble-admin" : "chat-bubble-employee") + tailClass;
+  const timeHtml = m._last ? '<div class="chat-bubble-time">' + fmtBubbleTime(m.created_at) + '</div>' : "";
+  return (m._newDay ? dayDividerHtml(m.created_at) : "") +
+    '<div class="' + rowClasses + '">' +
+      '<div class="chat-avatar-slot">' + avatarSlot + '</div>' +
+      '<div class="chat-bubble-wrap">' +
+        nameLabel +
+        '<div class="' + bubbleClass + '">' + escapeHtml(m.body) + timeHtml + '</div>' +
+      '</div>' +
+    '</div>';
+}
+
 async function loadChatThreads() {
   try {
     chatThreads = await admin.listChatThreads();
@@ -8463,14 +8602,15 @@ function renderChatThreads() {
 
   const list = document.getElementById("chat-threads-list");
   if (chatThreads.length === 0) {
-    list.innerHTML = '<p style="color:var(--muted); font-size:12px;">No chats yet -- conversations show up here once someone is on the clock.</p>';
+    list.innerHTML = chatEmptyStateHtml("No employees yet -- conversations show up here once you have active employees.");
     return;
   }
   list.innerHTML = chatThreads.map(function(t) {
     const preview = t.last_message_body
       ? (t.last_message_sender === "admin" ? "You: " : "") + t.last_message_body
-      : (t.on_clock ? "On the clock -- say hi" : "No messages yet");
+      : (t.on_clock ? "On the clock -- say hi" : "No messages yet -- say hi any time");
     return '<div class="card chat-thread-row" style="cursor:pointer;" onclick="openChatThreadSheet(\'' + t.id + '\')">' +
+      avatarHtml(t.name) +
       '<div style="flex:1; min-width:0;">' +
         '<div class="chat-thread-name">' + (t.on_clock ? '<span class="chat-on-clock-dot"></span>' : '') + escapeHtml(t.name) + '</div>' +
         '<div class="chat-thread-preview">' + escapeHtml(preview) + '</div>' +
@@ -8491,16 +8631,10 @@ async function openChatThreadSheet(employeeId) {
   } catch (err) {
     console.error("Couldn't load messages:", err.message);
   }
-  document.getElementById("chat-thread-messages").innerHTML = messages.map(function(m) {
-    return '<div class="chat-bubble chat-bubble-' + m.sender + '">' +
-      escapeHtml(m.body) +
-      '<div class="chat-bubble-time">' + fmtDateTime(m.created_at) + '</div>' +
-    '</div>';
-  }).join("") || '<p style="color:var(--muted); font-size:12px;">No messages yet.</p>';
-
-  const onClock = thread ? thread.on_clock : false;
-  document.getElementById("chat-thread-composer").style.display = onClock ? "flex" : "none";
-  document.getElementById("chat-thread-offline-note").style.display = onClock ? "none" : "block";
+  const grouped = groupForRender(messages, function(m) { return m.sender; });
+  document.getElementById("chat-thread-messages").innerHTML = grouped.map(function(m) {
+    return chatRowHtml(m, { mine: m.sender === "admin", avatarName: thread ? thread.name : "Employee", isOffice: false });
+  }).join("") || chatEmptyStateHtml("No messages yet -- send a note any time, on or off the clock.");
 
   document.getElementById("chat-thread-sheet").classList.add("visible");
   if (thread) thread.unread_count = 0;
@@ -8573,15 +8707,18 @@ function renderTeamChatThreads() {
 
   const list = document.getElementById("team-chat-threads-list");
   if (teamChatThreads.length === 0) {
-    list.innerHTML = '<p style="color:var(--muted); font-size:12px;">No team chats yet -- tap "+ New chat" to start one.</p>';
+    list.innerHTML = chatEmptyStateHtml('No team chats yet -- tap "+ New chat" to message anyone, any time.');
     return;
   }
   list.innerHTML = teamChatThreads.map(function(t) {
     const name = teamThreadName(t);
+    const isGroup = !!t.is_group;
+    const otherName = t.other_participants && t.other_participants[0] && t.other_participants[0].name;
     const preview = t.last_message
       ? (t.last_message.sender_is_admin ? "You: " : "") + t.last_message.body
       : "No messages yet";
     return '<div class="card chat-thread-row" style="cursor:pointer;" onclick="openTeamChatThreadSheet(\'' + t.id + '\')">' +
+      avatarHtml(otherName, { group: isGroup }) +
       '<div style="flex:1; min-width:0;">' +
         '<div class="chat-thread-name">' + escapeHtml(name) + '</div>' +
         '<div class="chat-thread-preview">' + escapeHtml(preview) + '</div>' +
@@ -8602,13 +8739,10 @@ async function openTeamChatThreadSheet(threadId) {
   } catch (err) {
     console.error("Couldn't load team chat messages:", err.message);
   }
-  document.getElementById("team-chat-thread-messages").innerHTML = messages.map(function(m) {
-    return '<div class="chat-bubble chat-bubble-' + (m.sender_is_admin ? "admin" : "employee") + '">' +
-      (m.sender_is_admin ? "" : '<div style="font-size:10px; font-weight:700; opacity:0.7; margin-bottom:2px;">' + escapeHtml(m.sender_name) + '</div>') +
-      escapeHtml(m.body) +
-      '<div class="chat-bubble-time">' + fmtDateTime(m.created_at) + '</div>' +
-    '</div>';
-  }).join("") || '<p style="color:var(--muted); font-size:12px;">No messages yet.</p>';
+  const grouped = groupForRender(messages, function(m) { return m.sender_is_admin ? "admin" : m.sender_employee_id; });
+  document.getElementById("team-chat-thread-messages").innerHTML = grouped.map(function(m) {
+    return chatRowHtml(m, { mine: m.sender_is_admin, avatarName: m.sender_name, isOffice: false });
+  }).join("") || chatEmptyStateHtml("No messages yet -- say hi any time, to anyone.");
 
   document.getElementById("team-chat-thread-sheet").classList.add("visible");
   if (thread) thread.unread_count = 0;
@@ -8656,7 +8790,11 @@ async function openNewTeamChatSheet() {
       return;
     }
     list.innerHTML = employees.map(function(e) {
-      return '<label><input type="checkbox" value="' + e.id + '" onchange="onTeamChatNewSelectionChange()" /> ' + escapeHtml(e.name) + '</label>';
+      return '<label style="display:flex; align-items:center; gap:8px;">' +
+        '<input type="checkbox" value="' + e.id + '" onchange="onTeamChatNewSelectionChange()" style="margin:0;" />' +
+        avatarHtml(e.name, { small: true }) +
+        '<span>' + escapeHtml(e.name) + '</span>' +
+      '</label>';
     }).join("");
   } catch (err) {
     list.innerHTML = '<p style="color:var(--muted); font-size:12px;">Couldn\'t load employees.</p>';

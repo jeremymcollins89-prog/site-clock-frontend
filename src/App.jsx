@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper, Sun, Moon } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper, Sun, Moon, ArrowLeft, Search } from "lucide-react";
 // @zxing/library is the single biggest contributor to the main JS bundle,
 // but only employees with can_manage_inventory ever open the barcode
 // scanner -- so it's loaded on demand (see loadZxing, used by
@@ -3243,7 +3243,184 @@ function BarcodeScanSheet({ open, onClose, onDone }) {
 // visible after clocking out so history isn't lost, but the composer is
 // disabled until the next clock-in -- messages can only be sent while on
 // the clock.
-function ChatView({ messages, loading, onClock, onSend }) {
+// ---------- Shared chat presentation helpers ----------
+// Used by both ChatView (the single admin<->employee "office" channel) and
+// TeamChatView (employee<->employee/admin threads) so avatars, message
+// grouping, and day dividers look and behave identically in both places.
+
+const AVATAR_PALETTE = [
+  { bg: "var(--teal-deep)", fg: "#fff" },
+  { bg: "var(--rust-deep)", fg: "#fff" },
+  { bg: "var(--amber-deep)", fg: "#fff" },
+  { bg: "var(--teal)", fg: "#fff" },
+  { bg: "var(--rust)", fg: "#fff" },
+  { bg: "var(--amber)", fg: CHARCOAL },
+];
+function hashString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = (h << 5) - h + str.charCodeAt(i);
+    h |= 0;
+  }
+  return Math.abs(h);
+}
+function initialsOf(name) {
+  const parts = (name || "?").trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return "?";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
+// isOffice renders a fixed gold "HQ" avatar for the admin/office side of the
+// Direct channel -- everyone else gets a color deterministically picked from
+// AVATAR_PALETTE by hashing their name, so the same person always lands on
+// the same color without needing to store one anywhere.
+function Avatar({ name, size = 32, isOffice = false, isGroup = false }) {
+  const base = {
+    width: size, height: size, borderRadius: "50%", flexShrink: 0,
+    display: "flex", alignItems: "center", justifyContent: "center",
+    fontFamily: "'Oswald', sans-serif", fontWeight: 700, letterSpacing: "0.01em",
+    fontSize: size * 0.38,
+  };
+  if (isOffice) {
+    return (
+      <div style={{ ...base, background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}>
+        HQ
+      </div>
+    );
+  }
+  if (isGroup) {
+    return (
+      <div style={{ ...base, background: SURFACE, color: MUTED, border: `1.5px solid ${LINE}` }}>
+        <Users size={size * 0.48} />
+      </div>
+    );
+  }
+  const palette = AVATAR_PALETTE[hashString(name || "?") % AVATAR_PALETTE.length];
+  return (
+    <div style={{ ...base, background: palette.bg, color: palette.fg }}>
+      {initialsOf(name)}
+    </div>
+  );
+}
+
+function dayDividerLabel(iso) {
+  const d = new Date(iso);
+  const today = new Date();
+  const yesterday = new Date(today);
+  yesterday.setDate(yesterday.getDate() - 1);
+  const sameDay = (a, b) => a.toDateString() === b.toDateString();
+  if (sameDay(d, today)) return "Today";
+  if (sameDay(d, yesterday)) return "Yesterday";
+  return d.toLocaleDateString([], { month: "long", day: "numeric", year: d.getFullYear() !== today.getFullYear() ? "numeric" : undefined });
+}
+
+// Annotates each message with whether it starts/ends a run of consecutive
+// messages from the same sender (within 5 minutes of each other) and
+// whether a day divider belongs above it -- powers the grouped-bubble look
+// (avatar/name only on the first bubble of a run, tighter spacing within a
+// run, timestamp only on the last).
+function groupChatMessages(messages, senderKey) {
+  return messages.map((m, i) => {
+    const prev = messages[i - 1];
+    const next = messages[i + 1];
+    const key = senderKey(m);
+    const closeToPrev = prev && senderKey(prev) === key && new Date(m.created_at) - new Date(prev.created_at) < 5 * 60 * 1000;
+    const closeToNext = next && senderKey(next) === key && new Date(next.created_at) - new Date(m.created_at) < 5 * 60 * 1000;
+    const newDay = !prev || new Date(prev.created_at).toDateString() !== new Date(m.created_at).toDateString();
+    return { ...m, _first: !closeToPrev || newDay, _last: !closeToNext, _newDay: newDay };
+  });
+}
+
+function DayDivider({ iso }) {
+  return (
+    <div className="flex items-center gap-2 my-1">
+      <div style={{ flex: 1, height: 1, background: LINE }} />
+      <span className="text-[10px] uppercase tracking-widest" style={{ color: MUTED }}>{dayDividerLabel(iso)}</span>
+      <div style={{ flex: 1, height: 1, background: LINE }} />
+    </div>
+  );
+}
+
+function ChatBubble({ mine, first, last, avatarName, isOffice, body, createdAt }) {
+  return (
+    <div className="flex items-end gap-2" style={{ alignSelf: mine ? "flex-end" : "flex-start", flexDirection: mine ? "row-reverse" : "row" }}>
+      <div style={{ width: 26, flexShrink: 0 }}>
+        {!mine && last && <Avatar name={avatarName} isOffice={isOffice} size={26} />}
+      </div>
+      <div style={{ maxWidth: "78%" }}>
+        {!mine && first && avatarName && (
+          <div className="text-[10px] mb-0.5 px-1 font-medium" style={{ color: MUTED }}>
+            {isOffice ? "The Office" : avatarName}
+          </div>
+        )}
+        <div
+          style={{
+            background: mine ? `linear-gradient(135deg, #F9C978, ${AMBER})` : SURFACE,
+            color: mine ? CHARCOAL : INK,
+            boxShadow: mine ? "0 3px 10px rgba(219,138,22,0.22)" : "0 1px 2px rgba(0,0,0,0.05)",
+            border: mine ? "none" : `1px solid ${LINE}`,
+            borderRadius: 16,
+            borderBottomRightRadius: mine && last ? 4 : 16,
+            borderBottomLeftRadius: !mine && last ? 4 : 16,
+          }}
+          className="px-3 py-2 text-sm leading-snug"
+        >
+          <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{body}</span>
+          {last && (
+            <div className="text-[10px] mt-0.5" style={{ color: mine ? "rgba(31,36,33,0.55)" : MUTED }}>
+              {new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
+  return (
+    <div className="flex gap-2 mt-auto pt-3 items-end">
+      <input
+        value={draft}
+        onChange={(e) => onDraftChange(e.target.value)}
+        onKeyDown={(e) => e.key === "Enter" && onSend()}
+        placeholder={placeholder}
+        style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)" }}
+        className="flex-1 px-4 py-2.5 text-sm rounded-full outline-none"
+      />
+      <button
+        onClick={onSend}
+        disabled={sending || !draft.trim()}
+        style={{
+          background: `linear-gradient(135deg, #F9C978, ${AMBER})`,
+          color: CHARCOAL,
+          boxShadow: "0 3px 10px rgba(219,138,22,0.35)",
+          opacity: draft.trim() ? 1 : 0.5,
+          width: 40, height: 40,
+        }}
+        className="rounded-full flex items-center justify-center flex-shrink-0 transition-opacity"
+      >
+        <Send size={16} />
+      </button>
+    </div>
+  );
+}
+
+function ChatEmptyState({ text }) {
+  return (
+    <div className="flex-1 flex flex-col items-center justify-center gap-2 py-10" style={{ color: MUTED }}>
+      <div
+        style={{ width: 46, height: 46, borderRadius: "50%", background: SURFACE, border: `1.5px solid ${LINE}` }}
+        className="flex items-center justify-center"
+      >
+        <MessageCircle size={20} />
+      </div>
+      <p className="text-xs text-center max-w-[220px]">{text}</p>
+    </div>
+  );
+}
+
+function ChatView({ messages, loading, onSend }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const bottomRef = useRef(null);
@@ -3266,33 +3443,29 @@ function ChatView({ messages, loading, onClock, onSend }) {
     }
   }
 
+  const grouped = groupChatMessages(messages, (m) => m.sender);
+
   return (
     <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
       {loading ? (
         <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : messages.length === 0 ? (
-        <p className="text-sm mb-4" style={{ color: MUTED }}>No messages yet.</p>
+        <ChatEmptyState text="No messages yet -- send a note to the office any time, on or off the clock." />
       ) : (
-        <div className="flex flex-col gap-2 mb-4">
-          {messages.map((m) => (
-            <div
-              key={m.id}
-              style={{
-                alignSelf: m.sender === "employee" ? "flex-end" : "flex-start",
-                maxWidth: "78%",
-                // The employee's own bubble is a fixed warm gold gradient in both
-                // themes, so it needs fixed dark text; the other bubble is the
-                // generic surface color, so its text flips along with it.
-                background: m.sender === "employee" ? `linear-gradient(135deg, #F9C978, ${AMBER})` : SURFACE,
-                color: m.sender === "employee" ? CHARCOAL : INK,
-                borderBottomRightRadius: m.sender === "employee" ? 4 : 14,
-                borderBottomLeftRadius: m.sender === "employee" ? 14 : 4,
-              }}
-              className="rounded-2xl px-3 py-2 text-sm"
-            >
-              {m.body}
-              <div className="text-[10px] mt-0.5" style={{ color: MUTED }}>
-                {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
+        <div className="flex flex-col gap-1 mb-4">
+          {grouped.map((m) => (
+            <div key={m.id}>
+              {m._newDay && <DayDivider iso={m.created_at} />}
+              <div style={{ marginTop: m._first ? 8 : 2 }}>
+                <ChatBubble
+                  mine={m.sender === "employee"}
+                  first={m._first}
+                  last={m._last}
+                  avatarName="Office"
+                  isOffice
+                  body={m.body}
+                  createdAt={m.created_at}
+                />
               </div>
             </div>
           ))}
@@ -3300,30 +3473,7 @@ function ChatView({ messages, loading, onClock, onSend }) {
         </div>
       )}
 
-      {onClock ? (
-        <div className="flex gap-2 mt-auto pt-2">
-          <input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && handleSend()}
-            placeholder="Type a message..."
-            style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
-            className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
-          />
-          <button
-            onClick={handleSend}
-            disabled={sending}
-            style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
-            className="rounded-xl px-4 text-sm font-medium flex items-center justify-center"
-          >
-            <Send size={16} />
-          </button>
-        </div>
-      ) : (
-        <p className="text-xs mt-auto pt-2" style={{ color: MUTED }}>
-          Clock in to send a message.
-        </p>
-      )}
+      <ChatComposer draft={draft} onDraftChange={setDraft} onSend={handleSend} sending={sending} placeholder="Message the office..." />
     </div>
   );
 }
@@ -3331,9 +3481,7 @@ function ChatView({ messages, loading, onClock, onSend }) {
 // Employee-to-employee direct messages and group chats -- separate from
 // ChatView above (which is the single admin<->employee channel). Renders
 // one of three states: the new-chat coworker picker, an open thread, or the
-// thread list, based on which props the parent hands it. Sending is gated
-// on `onClock` exactly like ChatView -- employees can only message each
-// other while clocked in, though history stays readable either way.
+// thread list, based on which props the parent hands it.
 function TeamChatView({
   threads,
   threadsLoading,
@@ -3341,7 +3489,6 @@ function TeamChatView({
   messages,
   messagesLoading,
   myEmployeeId,
-  onClock,
   onOpenThread,
   onCloseThread,
   onSend,
@@ -3357,6 +3504,7 @@ function TeamChatView({
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
+  const [coworkerSearch, setCoworkerSearch] = useState("");
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -3385,6 +3533,9 @@ function TeamChatView({
   }
 
   if (showNewChat) {
+    const filtered = coworkerSearch.trim()
+      ? coworkers.filter((c) => c.name.toLowerCase().includes(coworkerSearch.trim().toLowerCase()))
+      : coworkers;
     return (
       <div style={{ fontFamily: "'IBM Plex Mono', monospace" }}>
         <div className="mb-4 flex items-center justify-between">
@@ -3396,27 +3547,45 @@ function TeamChatView({
           </button>
         </div>
         {coworkers.length === 0 ? (
-          <p className="text-sm" style={{ color: MUTED }}>No other active coworkers yet.</p>
+          <ChatEmptyState text="No other active coworkers yet." />
         ) : (
-          <div className="flex flex-col gap-1 mb-4">
-            {coworkers.map((c) => (
-              <label
-                key={c.id}
-                className="flex items-center gap-2 text-sm rounded-xl px-3 py-2"
-                style={{ background: selectedIds.includes(c.id) ? SURFACE : "transparent" }}
-              >
-                <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => onToggleSelect(c.id)} />
-                {c.name}
-              </label>
-            ))}
-          </div>
+          <>
+            {coworkers.length > 5 && (
+              <div className="relative mb-3">
+                <Search size={14} style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: MUTED }} />
+                <input
+                  value={coworkerSearch}
+                  onChange={(e) => setCoworkerSearch(e.target.value)}
+                  placeholder="Search coworkers..."
+                  style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG }}
+                  className="w-full pl-8 pr-3 py-2 text-sm rounded-full outline-none"
+                />
+              </div>
+            )}
+            <div className="flex flex-col gap-1 mb-4">
+              {filtered.map((c) => (
+                <label
+                  key={c.id}
+                  className="flex items-center gap-3 text-sm rounded-xl px-3 py-2 cursor-pointer transition-colors"
+                  style={{ background: selectedIds.includes(c.id) ? SURFACE : "transparent", border: `1px solid ${selectedIds.includes(c.id) ? LINE : "transparent"}` }}
+                >
+                  <Avatar name={c.name} size={30} />
+                  <span className="flex-1">{c.name}</span>
+                  <input type="checkbox" checked={selectedIds.includes(c.id)} onChange={() => onToggleSelect(c.id)} />
+                </label>
+              ))}
+              {filtered.length === 0 && (
+                <p className="text-xs px-1" style={{ color: MUTED }}>No coworkers match "{coworkerSearch}".</p>
+              )}
+            </div>
+          </>
         )}
         {selectedIds.length > 1 && (
           <input
             value={groupName}
             onChange={(e) => onGroupNameChange(e.target.value)}
             placeholder="Group name (optional)"
-            style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
+            style={{ border: `1.5px solid ${LINE}`, background: INPUT_BG }}
             className="w-full px-3 py-2 text-sm rounded-xl outline-none mb-3"
           />
         )}
@@ -3426,9 +3595,10 @@ function TeamChatView({
           style={{
             background: `linear-gradient(135deg, #F9C978, ${AMBER})`,
             color: CHARCOAL,
+            boxShadow: "0 3px 10px rgba(219,138,22,0.3)",
             opacity: selectedIds.length === 0 ? 0.5 : 1,
           }}
-          className="w-full rounded-xl px-4 py-2 text-sm font-medium"
+          className="w-full rounded-xl px-4 py-2.5 text-sm font-medium"
         >
           {selectedIds.length > 1 ? "Start group chat" : "Start chat"}
         </button>
@@ -3437,11 +3607,19 @@ function TeamChatView({
   }
 
   if (activeThreadId) {
+    const grouped = groupChatMessages(messages, (m) => (m.sender_is_admin ? "admin" : m.sender_employee_id));
     return (
       <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
         <div className="mb-4 flex items-center gap-2">
-          <button onClick={onCloseThread} className="text-lg leading-none" style={{ color: INK }}>
-            &larr;
+          <button
+            onClick={onCloseThread}
+            style={{ background: SURFACE, border: `1.5px solid ${LINE}` }}
+            className="rounded-full flex items-center justify-center flex-shrink-0"
+            aria-label="Back"
+          >
+            <span style={{ width: 30, height: 30, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <ArrowLeft size={16} style={{ color: INK }} />
+            </span>
           </button>
           <h2 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-sm uppercase tracking-widest">
             Team chat
@@ -3451,31 +3629,24 @@ function TeamChatView({
         {messagesLoading ? (
           <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
         ) : messages.length === 0 ? (
-          <p className="text-sm mb-4" style={{ color: MUTED }}>No messages yet.</p>
+          <ChatEmptyState text="No messages yet -- say hi any time, on or off the clock." />
         ) : (
-          <div className="flex flex-col gap-2 mb-4">
-            {messages.map((m) => {
+          <div className="flex flex-col gap-1 mb-4">
+            {grouped.map((m) => {
               const mine = m.sender_employee_id === myEmployeeId;
               return (
-                <div key={m.id} style={{ alignSelf: mine ? "flex-end" : "flex-start", maxWidth: "78%" }}>
-                  {!mine && (
-                    <div className="text-[10px] mb-0.5 px-1" style={{ color: MUTED }}>
-                      {m.sender_name}
-                    </div>
-                  )}
-                  <div
-                    style={{
-                      background: mine ? `linear-gradient(135deg, #F9C978, ${AMBER})` : SURFACE,
-                      color: mine ? CHARCOAL : INK,
-                      borderBottomRightRadius: mine ? 4 : 14,
-                      borderBottomLeftRadius: mine ? 14 : 4,
-                    }}
-                    className="rounded-2xl px-3 py-2 text-sm"
-                  >
-                    {m.body}
-                    <div className="text-[10px] mt-0.5" style={{ color: MUTED }}>
-                      {new Date(m.created_at).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })}
-                    </div>
+                <div key={m.id}>
+                  {m._newDay && <DayDivider iso={m.created_at} />}
+                  <div style={{ marginTop: m._first ? 8 : 2 }}>
+                    <ChatBubble
+                      mine={mine}
+                      first={m._first}
+                      last={m._last}
+                      avatarName={m.sender_name}
+                      isOffice={m.sender_is_admin}
+                      body={m.body}
+                      createdAt={m.created_at}
+                    />
                   </div>
                 </div>
               );
@@ -3484,30 +3655,7 @@ function TeamChatView({
           </div>
         )}
 
-        {onClock ? (
-          <div className="flex gap-2 mt-auto pt-2">
-            <input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && handleSend()}
-              placeholder="Type a message..."
-              style={{ border: `1px solid ${LINE}`, background: INPUT_BG }}
-              className="flex-1 px-3 py-2 text-sm rounded-xl outline-none"
-            />
-            <button
-              onClick={handleSend}
-              disabled={sending}
-              style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
-              className="rounded-xl px-4 text-sm font-medium flex items-center justify-center"
-            >
-              <Send size={16} />
-            </button>
-          </div>
-        ) : (
-          <p className="text-xs mt-auto pt-2" style={{ color: MUTED }}>
-            Clock in to message your team.
-          </p>
-        )}
+        <ChatComposer draft={draft} onDraftChange={setDraft} onSend={handleSend} sending={sending} placeholder="Type a message..." />
       </div>
     );
   }
@@ -3517,47 +3665,48 @@ function TeamChatView({
       <div className="mb-4 flex items-center justify-end">
         <button
           onClick={onOpenNewChat}
-          style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL }}
-          className="rounded-xl px-3 py-1.5 text-xs font-medium"
+          style={{ background: `linear-gradient(135deg, #F9C978, ${AMBER})`, color: CHARCOAL, boxShadow: "0 3px 10px rgba(219,138,22,0.3)" }}
+          className="rounded-full px-4 py-1.5 text-xs font-medium"
         >
           + New
         </button>
       </div>
 
-      {!onClock && (
-        <p className="text-xs mb-3" style={{ color: MUTED }}>
-          You can read your chats anytime, but you'll need to clock in to send a message.
-        </p>
-      )}
-
       {threadsLoading ? (
         <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : threads.length === 0 ? (
-        <p className="text-sm" style={{ color: MUTED }}>No chats yet — tap "+ New" to message a coworker.</p>
+        <ChatEmptyState text='No chats yet -- tap "+ New" to message a coworker, any time.' />
       ) : (
         <div className="flex flex-col gap-2">
-          {threads.map((t) => (
-            <button
-              key={t.id}
-              onClick={() => onOpenThread(t.id)}
-              className="text-left rounded-xl px-3 py-2 flex items-center justify-between gap-2"
-              style={{ background: SURFACE, border: `1px solid ${LINE}` }}
-            >
-              <div className="min-w-0">
-                <div className="text-sm font-medium truncate">{threadName(t)}</div>
-                {t.last_message && (
-                  <div className="text-xs truncate" style={{ color: MUTED }}>{t.last_message.body}</div>
+          {threads.map((t) => {
+            const isGroup = !!t.is_group;
+            const otherName = t.other_participants?.[0]?.name;
+            return (
+              <button
+                key={t.id}
+                onClick={() => onOpenThread(t.id)}
+                className="text-left rounded-2xl px-3 py-2.5 flex items-center gap-3 transition-transform"
+                style={{ background: SURFACE, border: `1px solid ${LINE}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
+              >
+                <Avatar name={otherName} isGroup={isGroup} size={38} />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium truncate">{threadName(t)}</div>
+                  {t.last_message && (
+                    <div className="text-xs truncate" style={{ color: MUTED }}>
+                      {t.last_message.sender_is_admin ? "Admin: " : ""}{t.last_message.body}
+                    </div>
+                  )}
+                </div>
+                {t.unread_count > 0 && (
+                  <span
+                    style={{ background: RUST, color: "#fff", fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "2px 7px", boxShadow: "0 2px 6px rgba(211,90,52,0.35)" }}
+                  >
+                    {t.unread_count}
+                  </span>
                 )}
-              </div>
-              {t.unread_count > 0 && (
-                <span
-                  style={{ background: RUST, color: "#fff", fontSize: 10, fontWeight: 800, borderRadius: 20, padding: "2px 7px" }}
-                >
-                  {t.unread_count}
-                </span>
-              )}
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       )}
     </div>
@@ -4959,7 +5108,6 @@ const [emailInput, setEmailInput] = useState("");
               <ChatView
                 messages={chatMessages}
                 loading={chatLoading}
-                onClock={status !== "off"}
                 onSend={handleSendChatMessage}
               />
             ) : (
@@ -4970,7 +5118,6 @@ const [emailInput, setEmailInput] = useState("");
                 messages={teamMessages}
                 messagesLoading={teamMessagesLoading}
                 myEmployeeId={employee?.id}
-                onClock={status !== "off"}
                 onOpenThread={openTeamThread}
                 onCloseThread={closeTeamThread}
                 onSend={handleSendTeamMessage}
