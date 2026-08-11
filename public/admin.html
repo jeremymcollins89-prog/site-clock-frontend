@@ -1691,7 +1691,12 @@
     <div id="quote-sheet-error" class="error"></div>
 
     <label>Customer</label>
-    <select id="quote-customer-input"></select>
+    <div style="position:relative; margin-bottom:14px;">
+      <input id="quote-customer-search-input" placeholder="Type a customer name..." autocomplete="off"
+        oninput="onQuoteCustomerSearchInput()" onfocus="showQuoteCustomerDropdown()" style="margin-bottom:0;" />
+      <div id="quote-customer-dropdown" style="display:none; position:absolute; z-index:20; top:100%; left:0; right:0; margin-top:2px; background:var(--surface); border:1.5px solid var(--line); border-radius:8px; max-height:220px; overflow-y:auto; box-shadow:0 8px 20px rgba(0,0,0,0.14);"></div>
+    </div>
+    <input type="hidden" id="quote-customer-input" />
 
     <label>Issue date</label>
     <input id="quote-issue-date-input" type="date" onchange="renderQuoteExpirationPreview()" />
@@ -4316,12 +4321,83 @@ function addNewCustomerFromJob(name) {
   openCustomerSheet(null, name);
 }
 
+// Same type-ahead customer picker as the job form above, reused for the New
+// Quote form so a brand-new customer can be added right there too, instead
+// of having to back out to the Customers tab first.
+function renderQuoteCustomerDropdown() {
+  const dropdown = document.getElementById("quote-customer-dropdown");
+  const raw = document.getElementById("quote-customer-search-input").value.trim();
+  const term = raw.toLowerCase();
+  const customers = window.allCustomers || [];
+  const matches = term
+    ? customers.filter(function(c) {
+        return c.name.toLowerCase().indexOf(term) !== -1 || (c.company_name || "").toLowerCase().indexOf(term) !== -1;
+      })
+    : customers;
+  const exactMatch = customers.some(function(c) { return c.name.toLowerCase() === term; });
+
+  const rows = matches.slice(0, 30).map(function(c) {
+    return '<div style="padding:8px 10px; font-size:13px; cursor:pointer; border-bottom:1px solid var(--line);" ' +
+      'onclick="selectQuoteCustomer(\'' + c.id + '\')">' +
+      (c.company_name
+        ? escapeHtml(c.company_name) + ' <span style="color:var(--muted);">&middot; ' + escapeHtml(c.name) + '</span>'
+        : escapeHtml(c.name)) +
+      '</div>';
+  });
+
+  if (raw && !exactMatch) {
+    rows.push(
+      '<div style="padding:8px 10px; font-size:13px; cursor:pointer; color: var(--teal-deep); font-weight:700;" ' +
+      'onclick=\'addNewCustomerFromQuote(' + JSON.stringify(raw) + ')\'>+ Add customer &ldquo;' + escapeHtml(raw) + '&rdquo;</div>'
+    );
+  }
+
+  dropdown.innerHTML = rows.length
+    ? rows.join("")
+    : '<div style="padding:8px 10px; font-size:13px; color:var(--muted);">No customers yet -- start typing a name to add one.</div>';
+  dropdown.style.display = "block";
+}
+
+function onQuoteCustomerSearchInput() {
+  document.getElementById("quote-customer-input").value = "";
+  renderQuoteCustomerDropdown();
+}
+
+function showQuoteCustomerDropdown() {
+  renderQuoteCustomerDropdown();
+}
+
+function selectQuoteCustomer(id) {
+  const customer = (window.allCustomers || []).find(function(c) { return c.id === id; });
+  if (!customer) return;
+  document.getElementById("quote-customer-input").value = id;
+  document.getElementById("quote-customer-search-input").value = customer.name;
+  document.getElementById("quote-customer-dropdown").style.display = "none";
+}
+
+let quoteCustomerCreatePending = false;
+
+// Hides the quote sheet, opens the existing "New customer" sheet prefilled
+// with whatever was already typed, and remembers to jump straight back into
+// this same quote (with the new customer already selected) once it's saved
+// -- see submitCustomer() and closeCustomerSheet().
+function addNewCustomerFromQuote(name) {
+  quoteCustomerCreatePending = true;
+  document.getElementById("quote-customer-dropdown").style.display = "none";
+  document.getElementById("quote-sheet").classList.remove("visible");
+  openCustomerSheet(null, name);
+}
+
 document.addEventListener("click", function(e) {
   const dropdown = document.getElementById("job-customer-dropdown");
   const input = document.getElementById("job-customer-search-input");
-  if (!dropdown || !input || dropdown.style.display === "none") return;
-  if (e.target !== input && !dropdown.contains(e.target)) {
+  if (dropdown && input && dropdown.style.display !== "none" && e.target !== input && !dropdown.contains(e.target)) {
     dropdown.style.display = "none";
+  }
+  const qDropdown = document.getElementById("quote-customer-dropdown");
+  const qInput = document.getElementById("quote-customer-search-input");
+  if (qDropdown && qInput && qDropdown.style.display !== "none" && e.target !== qInput && !qDropdown.contains(e.target)) {
+    qDropdown.style.display = "none";
   }
 });
 
@@ -4621,6 +4697,11 @@ function closeCustomerSheet() {
     jobCustomerCreatePending = false;
     document.getElementById("job-sheet").classList.add("visible");
   }
+  // Same idea for "+ Add customer" from the New Quote form.
+  if (quoteCustomerCreatePending) {
+    quoteCustomerCreatePending = false;
+    document.getElementById("quote-sheet").classList.add("visible");
+  }
 }
 
 // ---------- Address autocomplete (predictive text, free via Nominatim) ----------
@@ -4739,6 +4820,14 @@ async function submitCustomer() {
       selectJobCustomer(created.id);
     } else {
       jobCustomerCreatePending = false;
+    }
+    // Same idea, but for "+ Add customer" from the New Quote form.
+    if (quoteCustomerCreatePending && created) {
+      quoteCustomerCreatePending = false;
+      document.getElementById("quote-sheet").classList.add("visible");
+      selectQuoteCustomer(created.id);
+    } else {
+      quoteCustomerCreatePending = false;
     }
   } catch (err) {
     errEl.textContent = err.message || "Couldn't save customer.";
@@ -5924,9 +6013,11 @@ async function openQuoteSheet(quoteId) {
   }
 
   const customers = window.allCustomers || [];
-  document.getElementById("quote-customer-input").innerHTML =
-    customers.map(function(c) { return '<option value="' + c.id + '">' + escapeHtml(customerDisplayName(c.name, c.company_name)) + '</option>'; }).join("");
-  document.getElementById("quote-customer-input").value = quote ? quote.customer_id : (customers[0] ? customers[0].id : "");
+  const preselectedQuoteCustomerId = quote ? quote.customer_id : (customers[0] ? customers[0].id : "");
+  const preselectedQuoteCustomer = customers.find(function(c) { return c.id === preselectedQuoteCustomerId; });
+  document.getElementById("quote-customer-input").value = preselectedQuoteCustomerId || "";
+  document.getElementById("quote-customer-search-input").value = preselectedQuoteCustomer ? preselectedQuoteCustomer.name : "";
+  document.getElementById("quote-customer-dropdown").style.display = "none";
 
   document.getElementById("quote-issue-date-input").value = quote ? quote.issue_date.slice(0, 10) : todayStr();
   setQuoteValidityInput(quote);
@@ -5941,7 +6032,7 @@ async function openQuoteSheet(quoteId) {
   renderQuoteExpirationPreview();
 
   const fieldIds = [
-    "quote-customer-input", "quote-issue-date-input", "quote-validity-input",
+    "quote-customer-input", "quote-customer-search-input", "quote-issue-date-input", "quote-validity-input",
     "quote-notes-input", "quote-tax-rate-input",
   ];
   fieldIds.forEach(function(id) { document.getElementById(id).disabled = !isEditable; });
