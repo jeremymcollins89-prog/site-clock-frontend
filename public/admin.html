@@ -7115,11 +7115,14 @@ function showPullSheetManualStep(mode) {
   document.getElementById("pull-sheet-manual-qty-input").value = "";
 
   if (!isFormat) {
-    const assigneePicker = document.getElementById("pull-sheet-manual-assignee-picker");
-    const activeEmployees = (window.allEmployees || []).filter(function(e) { return e.active; });
-    assigneePicker.innerHTML = '<option value="">Not assigned</option>' + activeEmployees.map(function(e) {
-      return '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>';
-    }).join("");
+    // Render with whatever's cached immediately (instant, no flash of an
+    // empty dropdown if it's already loaded), then always refetch fresh --
+    // window.allEmployees is only populated once the Employees or Reports
+    // tab has been visited, so an admin who goes straight from Inventory
+    // into "Build pull sheet" could otherwise see a picker with nothing in
+    // it at all. Same fix as loadReportSummary uses for the same reason.
+    populatePullSheetAssigneePicker();
+    refreshPullSheetAssigneePicker();
   }
 
   const picker = document.getElementById("pull-sheet-manual-item-picker");
@@ -7132,6 +7135,31 @@ function showPullSheetManualStep(mode) {
       }).join("");
 
   renderManualPullSheetItemsTable();
+}
+
+function populatePullSheetAssigneePicker() {
+  const assigneePicker = document.getElementById("pull-sheet-manual-assignee-picker");
+  if (!assigneePicker) return;
+  const activeEmployees = (window.allEmployees || []).filter(function(e) { return e.active; });
+  assigneePicker.innerHTML = '<option value="">Not assigned</option>' + activeEmployees.map(function(e) {
+    return '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>';
+  }).join("");
+}
+
+async function refreshPullSheetAssigneePicker() {
+  try {
+    window.allEmployees = await admin.listEmployees();
+  } catch (err) {
+    return; // non-fatal -- whatever's already cached (possibly nothing) stays showing
+  }
+  // Bail if the builder was closed or switched to format mode while this was
+  // in flight, and preserve whatever the admin may have already picked.
+  if (pullSheetManualMode === "format") return;
+  const assigneePicker = document.getElementById("pull-sheet-manual-assignee-picker");
+  if (!assigneePicker) return;
+  const prevValue = assigneePicker.value;
+  populatePullSheetAssigneePicker();
+  if (prevValue) assigneePicker.value = prevValue;
 }
 
 function backToPullSheetPicker() {
