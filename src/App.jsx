@@ -3385,7 +3385,7 @@ function ChatBubble({ mine, first, last, avatarName, isOffice, body, createdAt }
       </div>
       <div style={{ maxWidth: "78%" }}>
         {!mine && first && avatarName && (
-          <div className="text-[11.5px] mb-0.5 px-1 font-semibold" style={{ color: MUTED }}>
+          <div className="text-[13.5px] mb-0.5 px-1 font-semibold" style={{ color: MUTED }}>
             {isOffice ? "The Office" : avatarName}
           </div>
         )}
@@ -3399,11 +3399,11 @@ function ChatBubble({ mine, first, last, avatarName, isOffice, body, createdAt }
             borderBottomRightRadius: mine && last ? 4 : 16,
             borderBottomLeftRadius: !mine && last ? 4 : 16,
           }}
-          className="px-3.5 py-2.5 text-[15px] font-medium leading-[1.45]"
+          className="px-3.5 py-2.5 text-[17px] font-medium leading-[1.45]"
         >
           <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{body}</span>
           {last && (
-            <div className="text-[11px] font-medium mt-0.5" style={{ color: mine ? "rgba(31,36,33,0.55)" : MUTED }}>
+            <div className="text-[13px] font-medium mt-0.5" style={{ color: mine ? "rgba(31,36,33,0.55)" : MUTED }}>
               {new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           )}
@@ -3478,7 +3478,7 @@ function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
           border: `1.5px solid ${LINE}`, background: INPUT_BG, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
           resize: "none", maxHeight: MAX_COMPOSER_HEIGHT, overflowY: "auto",
         }}
-        className="flex-1 px-4 py-2.5 text-[15px] font-medium rounded-3xl outline-none leading-snug"
+        className="flex-1 px-4 py-2.5 text-[17px] font-medium rounded-3xl outline-none leading-snug"
       />
       <button
         onClick={onSend}
@@ -3507,7 +3507,7 @@ function ChatEmptyState({ text }) {
       >
         <MessageCircle size={20} />
       </div>
-      <p className="text-[13.5px] font-medium text-center max-w-[220px]">{text}</p>
+      <p className="text-[15.5px] font-medium text-center max-w-[220px]">{text}</p>
     </div>
   );
 }
@@ -3868,9 +3868,9 @@ function TeamChatView({
               >
                 <Avatar name={otherName} isGroup={isGroup} size={38} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium truncate">{threadName(t)}</div>
+                  <div className="text-[16px] font-medium truncate">{threadName(t)}</div>
                   {t.last_message && (
-                    <div className="text-[13px] truncate" style={{ color: MUTED }}>
+                    <div className="text-[15px] truncate" style={{ color: MUTED }}>
                       {t.last_message.sender_is_admin ? "Admin: " : ""}{t.last_message.body}
                     </div>
                   )}
