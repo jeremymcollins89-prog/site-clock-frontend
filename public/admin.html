@@ -1853,6 +1853,8 @@
 
     <div id="pull-sheet-import-mapping-step" style="display:none;">
       <p style="font-size:13px; color:var(--muted);">Couldn't automatically tell which columns are which -- pick them below.</p>
+      <label>Header row (row number in the file)</label>
+      <input type="number" id="pull-sheet-import-header-row" min="1" step="1" oninput="onPullSheetImportHeaderRowChange()" />
       <label>Item name column</label>
       <select id="pull-sheet-import-name-col"></select>
       <label>Quantity column</label>
@@ -7195,36 +7197,84 @@ const PULL_SHEET_FIELD_ALIASES = {
 };
 
 let pullSheetImportRows2D = null;
+// Set of row indexes (into pullSheetImportRows2D) that are structurally
+// merged across two or more columns -- our own downloadable template (and
+// plenty of real spreadsheets) uses a merged cell for section-header rows
+// like "Ceiling Grid CLASS ONE". null when the file has no merge info at
+// all (a CSV, or an Excel file that just didn't use merges).
+let pullSheetImportMergedRows = null;
 
-// Returns { nameIdx, qtyIdx } if both columns can be confidently guessed
-// from the header row, or null if a human needs to pick.
+// Scans up to the first 25 rows (not just row 1) for one containing both a
+// recognizable item-name and quantity header -- handles a file with a
+// title or instructions block before the real header row, like our own
+// downloadable template. Returns { headerRowIdx, nameIdx, qtyIdx } if
+// found, or null if a human needs to pick.
 function guessPullSheetColumns(rows2D) {
   if (!rows2D || rows2D.length < 2) return null;
-  const headerRow = rows2D[0].map(normalizeCsvHeader);
-  const nameIdx = headerRow.findIndex(function(h) { return PULL_SHEET_FIELD_ALIASES.name.indexOf(h) !== -1; });
-  const qtyIdx = headerRow.findIndex(function(h) { return PULL_SHEET_FIELD_ALIASES.quantity.indexOf(h) !== -1; });
-  if (nameIdx === -1 || qtyIdx === -1 || nameIdx === qtyIdx) return null;
-  return { nameIdx: nameIdx, qtyIdx: qtyIdx };
+  const maxScan = Math.min(rows2D.length - 1, 25);
+  for (let r = 0; r <= maxScan; r++) {
+    const headerRow = rows2D[r].map(normalizeCsvHeader);
+    const nameIdx = headerRow.findIndex(function(h) { return PULL_SHEET_FIELD_ALIASES.name.indexOf(h) !== -1; });
+    const qtyIdx = headerRow.findIndex(function(h) { return PULL_SHEET_FIELD_ALIASES.quantity.indexOf(h) !== -1; });
+    if (nameIdx !== -1 && qtyIdx !== -1 && nameIdx !== qtyIdx) {
+      return { headerRowIdx: r, nameIdx: nameIdx, qtyIdx: qtyIdx };
+    }
+  }
+  return null;
 }
 
-// Turns the 2D rows + chosen column indexes into { name, quantity,
-// section_name } triples. A row with no usable quantity isn't dropped
-// outright anymore -- in a real-world sheet these are almost always
-// section-header rows (e.g. "Ceiling Grid CLASS ONE" grouping a set of
-// sub-items below it), so instead its name becomes the section label
-// attached to every item row that follows, until the next such row.
-function extractPullSheetRows(rows2D, nameIdx, qtyIdx) {
+// Best-effort guess at which row is the header when none of them matched a
+// known alias (a file with fully custom column names) -- the first row with
+// at least two short, non-empty cells, skipping any title or instructional
+// text above it (which tends to be either a single cell or a long sentence,
+// so this naturally steps past both).
+function guessHeaderRowIndex(rows2D) {
+  const maxScan = Math.min(rows2D.length, 25);
+  for (let r = 0; r < maxScan; r++) {
+    const nonEmpty = rows2D[r].filter(function(c) { return String(c == null ? "" : c).trim() !== ""; });
+    const allShort = nonEmpty.every(function(c) { return String(c).trim().length <= 40; });
+    if (nonEmpty.length >= 2 && allShort) return r;
+  }
+  return 0;
+}
+
+// Turns the 2D rows + chosen header row/column indexes into { name,
+// quantity, section_name } triples.
+//
+// Telling a section-header row (a pure grouping label, never a real item)
+// apart from an item whose quantity just hasn't been filled in yet needs a
+// real signal, not a guess -- so this prefers structural evidence (a
+// merged cell, see mergedRows above) when it's available. Without that
+// (e.g. a CSV) it falls back to treating a blank-quantity row as a section
+// ONLY if at least one other row in the file has a real quantity -- a sheet
+// that's already partly filled in (like a real pull sheet report) still
+// gets its section labels recognized. But if the whole file is blank (a
+// freshly downloaded, not-yet-filled-in template), there's no way to tell
+// a label from a not-yet-filled item, so every row is kept as an item with
+// quantity left blank -- which is exactly what makes importing a blank
+// template work as a stand-in for "start from my format".
+function extractPullSheetRows(rows2D, headerRowIdx, nameIdx, qtyIdx, mergedRows) {
+  const dataRows = rows2D.slice(headerRowIdx + 1);
+  const hasMergeInfo = !!(mergedRows && mergedRows.size > 0);
+  const anyQuantity = dataRows.some(function(r) {
+    const raw = r[qtyIdx];
+    return raw != null && String(raw).trim() !== "" && (Math.round(Number(String(raw).replace(/[^0-9.\-]/g, ""))) || 0) > 0;
+  });
+
   const out = [];
   let currentSection = null;
-  rows2D.slice(1).forEach(function(r) {
+  dataRows.forEach(function(r, i) {
     const name = String(r[nameIdx] == null ? "" : r[nameIdx]).trim();
     if (!name) return;
+    const absoluteRow = headerRowIdx + 1 + i;
     const qtyRaw = r[qtyIdx];
     const quantity = qtyRaw == null || qtyRaw === "" ? 0 : Math.round(Number(String(qtyRaw).replace(/[^0-9.\-]/g, ""))) || 0;
-    if (quantity > 0) {
-      out.push({ name: name, quantity: quantity, section_name: currentSection });
-    } else {
+
+    const isSectionRow = hasMergeInfo ? mergedRows.has(absoluteRow) : (quantity === 0 && anyQuantity);
+    if (isSectionRow) {
       currentSection = name;
+    } else {
+      out.push({ name: name, quantity: quantity, section_name: currentSection });
     }
   });
   return out;
@@ -7237,31 +7287,48 @@ async function handlePullSheetImportFile(event) {
 
   const isExcel = /\.(xlsx|xls)$/i.test(file.name);
   let rows2D;
+  let mergedRows = null;
   try {
     if (isExcel) {
       const buffer = await file.arrayBuffer();
       const workbook = XLSX.read(buffer, { type: "array" });
       const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
-      rows2D = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+      const rawRows = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+      const merges = firstSheet["!merges"] || [];
+      const rawMergedRowIndices = new Set(
+        merges.filter(function(m) { return m.s.r === m.e.r && m.e.c > m.s.c; }).map(function(m) { return m.s.r; })
+      );
+      // Drop fully-blank rows (common spacer rows in a formatted sheet like
+      // our own template), re-indexing the merge info as we go -- a merge's
+      // row number is tied to the ORIGINAL sheet, not whatever's left once
+      // blank rows are removed.
+      const keepIndices = [];
+      rawRows.forEach(function(r, i) {
+        if (r.some(function(c) { return String(c == null ? "" : c).trim() !== ""; })) keepIndices.push(i);
+      });
+      rows2D = keepIndices.map(function(i) { return rawRows[i]; });
+      mergedRows = new Set();
+      keepIndices.forEach(function(origIdx, newIdx) {
+        if (rawMergedRowIndices.has(origIdx)) mergedRows.add(newIdx);
+      });
     } else {
       const text = await file.text();
-      rows2D = parseCsv(text);
+      rows2D = parseCsv(text).filter(function(r) { return r.some(function(c) { return String(c == null ? "" : c).trim() !== ""; }); });
     }
   } catch (err) {
     alert("Couldn't read that file. Make sure it's a valid Excel (.xlsx) or CSV file.");
     return;
   }
-  // Drop fully-blank rows (common padding in exported sheets) before anything else.
-  rows2D = (rows2D || []).filter(function(r) { return r.some(function(c) { return String(c == null ? "" : c).trim() !== ""; }); });
-  if (rows2D.length < 2) {
+  if (!rows2D || rows2D.length < 2) {
     alert("Couldn't find any rows in that file.");
     return;
   }
   pullSheetImportRows2D = rows2D;
+  pullSheetImportMergedRows = mergedRows;
 
   const guess = guessPullSheetColumns(rows2D);
   if (guess) {
-    finishPullSheetImport(guess.nameIdx, guess.qtyIdx);
+    finishPullSheetImport(guess.headerRowIdx, guess.nameIdx, guess.qtyIdx);
   } else {
     openPullSheetImportMappingStep(rows2D);
   }
@@ -7274,7 +7341,17 @@ function openPullSheetImportMappingStep(rows2D) {
   document.getElementById("pull-sheet-detail-step").style.display = "none";
   document.getElementById("pull-sheet-import-mapping-step").style.display = "";
 
-  const headerRow = rows2D[0];
+  const headerRowIdx = guessHeaderRowIndex(rows2D);
+  document.getElementById("pull-sheet-import-header-row").value = headerRowIdx + 1;
+  renderPullSheetImportMappingControls(rows2D, headerRowIdx);
+}
+
+// Re-renders the column pickers + preview table for whichever row is
+// currently marked as the header -- called on open, and again whenever the
+// admin edits the "Header row" number (some files need a human to say
+// where the real header is, e.g. anything with a title block above it).
+function renderPullSheetImportMappingControls(rows2D, headerRowIdx) {
+  const headerRow = rows2D[headerRowIdx] || [];
   const options = headerRow.map(function(h, i) {
     return '<option value="' + i + '">' + escapeHtml(String(h || "Column " + (i + 1))) + '</option>';
   }).join("");
@@ -7290,25 +7367,34 @@ function openPullSheetImportMappingStep(rows2D) {
 
   document.getElementById("pull-sheet-import-preview-head").innerHTML =
     headerRow.map(function(h, i) { return '<th>' + escapeHtml(String(h || "Column " + (i + 1))) + '</th>'; }).join("");
-  document.getElementById("pull-sheet-import-preview-body").innerHTML = rows2D.slice(1, 6).map(function(r) {
+  document.getElementById("pull-sheet-import-preview-body").innerHTML = rows2D.slice(headerRowIdx + 1, headerRowIdx + 6).map(function(r) {
     return '<tr>' + headerRow.map(function(_, i) { return '<td>' + escapeHtml(String(r[i] == null ? "" : r[i])) + '</td>'; }).join("") + '</tr>';
   }).join("");
 }
 
+function onPullSheetImportHeaderRowChange() {
+  if (!pullSheetImportRows2D) return;
+  const raw = Math.round(Number(document.getElementById("pull-sheet-import-header-row").value)) - 1;
+  const idx = Math.max(0, Math.min(pullSheetImportRows2D.length - 1, isNaN(raw) ? 0 : raw));
+  renderPullSheetImportMappingControls(pullSheetImportRows2D, idx);
+}
+
 function cancelPullSheetImportMapping() {
   pullSheetImportRows2D = null;
+  pullSheetImportMergedRows = null;
   document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
   document.getElementById("pull-sheet-picker-step").style.display = "";
 }
 
 function confirmPullSheetImportMapping() {
+  const headerRowIdx = Math.max(0, Math.round(Number(document.getElementById("pull-sheet-import-header-row").value)) - 1 || 0);
   const nameIdx = Number(document.getElementById("pull-sheet-import-name-col").value);
   const qtyIdx = Number(document.getElementById("pull-sheet-import-qty-col").value);
   if (nameIdx === qtyIdx) {
     alert("Item name and quantity can't be the same column.");
     return;
   }
-  finishPullSheetImport(nameIdx, qtyIdx);
+  finishPullSheetImport(headerRowIdx, nameIdx, qtyIdx);
 }
 
 // Matches parsed rows against the company's existing catalog by name. Any
@@ -7318,12 +7404,13 @@ function confirmPullSheetImportMapping() {
 // Ends by dropping the admin into the same review table the manual builder
 // uses, pre-filled from the file, so quantities can still be checked or
 // adjusted before actually creating the pull sheet.
-async function finishPullSheetImport(nameIdx, qtyIdx) {
-  const rows = extractPullSheetRows(pullSheetImportRows2D, nameIdx, qtyIdx);
+async function finishPullSheetImport(headerRowIdx, nameIdx, qtyIdx) {
+  const rows = extractPullSheetRows(pullSheetImportRows2D, headerRowIdx, nameIdx, qtyIdx, pullSheetImportMergedRows);
   pullSheetImportRows2D = null;
+  pullSheetImportMergedRows = null;
   document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
   if (rows.length === 0) {
-    alert("Couldn't find any rows with both a name and a quantity greater than 0.");
+    alert("Couldn't find any rows with a name in that file (section-header rows are skipped automatically). Quantities can be blank -- they'll just need to be filled in before creating the pull sheet.");
     document.getElementById("pull-sheet-picker-step").style.display = "";
     return;
   }
@@ -7449,7 +7536,7 @@ function renderManualPullSheetItemsTable() {
     lastSection = item.section_name || null;
     rows.push(
       '<tr><td>' + escapeHtml(item.name) + '</td>' +
-      '<td><input type="number" min="0" step="1" value="' + escapeHtml(String(item.quantity)) + '" oninput="updateManualPullSheetItemQuantity(' + i + ', this.value)" style="width:70px;" /></td>' +
+      '<td><input type="number" min="0" step="1" value="' + (item.quantity ? escapeHtml(String(item.quantity)) : "") + '" oninput="updateManualPullSheetItemQuantity(' + i + ', this.value)" style="width:70px;" placeholder="Qty" /></td>' +
       reorderCell(i) + removeCell(i) +
       '</tr>'
     );
