@@ -1666,25 +1666,42 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
       </div>
 
       <div className="mt-2 flex flex-col gap-1.5">
-        {sheet.items.map((item) => (
-          <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
-            <span className="flex-1">{item.name}</span>
-            <span className="text-[13px]" style={{ color: MUTED }}>of {item.quantity}</span>
-            {isFulfilled ? (
-              <span style={{ color: MUTED }}>{item.quantity_pulled != null ? item.quantity_pulled : item.quantity}</span>
-            ) : (
-              <input
-                type="number"
-                min="0"
-                step="1"
-                value={qtys[item.id]}
-                onChange={(e) => setQtys((q) => ({ ...q, [item.id]: e.target.value }))}
-                style={{ width: 56, border: `1px solid ${LINE}`, background: SURFACE }}
-                className="rounded-lg px-2 py-1 text-sm text-right"
-              />
-            )}
-          </div>
-        ))}
+        {/* Items already arrive pre-sorted by sort_order (see GET
+            /schedule/pull-sheets), so a section header only needs to render
+            when this item's section differs from the one before it --
+            consecutive same-section items are already grouped together by
+            that order. Matches the same grouped layout the admin sees when
+            building or viewing the sheet. */}
+        {sheet.items.reduce((acc, item, i) => {
+          const prevSection = i > 0 ? sheet.items[i - 1].section_name : undefined;
+          if (item.section_name && item.section_name !== prevSection) {
+            acc.push(
+              <div key={`section-${item.id}`} className="text-[12px] font-semibold mt-1" style={{ color: MUTED }}>
+                {item.section_name}
+              </div>
+            );
+          }
+          acc.push(
+            <div key={item.id} className="flex items-center justify-between gap-2 text-sm">
+              <span className="flex-1">{item.name}</span>
+              <span className="text-[13px]" style={{ color: MUTED }}>of {item.quantity}</span>
+              {isFulfilled ? (
+                <span style={{ color: MUTED }}>{item.quantity_pulled != null ? item.quantity_pulled : item.quantity}</span>
+              ) : (
+                <input
+                  type="number"
+                  min="0"
+                  step="1"
+                  value={qtys[item.id]}
+                  onChange={(e) => setQtys((q) => ({ ...q, [item.id]: e.target.value }))}
+                  style={{ width: 56, border: `1px solid ${LINE}`, background: SURFACE }}
+                  className="rounded-lg px-2 py-1 text-sm text-right"
+                />
+              )}
+            </div>
+          );
+          return acc;
+        }, [])}
       </div>
 
       {!isFulfilled && (

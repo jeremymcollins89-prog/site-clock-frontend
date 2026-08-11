@@ -1838,10 +1838,13 @@
 
     <div id="pull-sheet-picker-step">
       <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
-        <button class="btn-small" style="background:var(--charcoal); width:auto;" onclick="openManualPullSheetStep()">Start a blank pull sheet</button>
-        <button class="btn-small" style="background:var(--teal-deep); width:auto;" onclick="document.getElementById('pull-sheet-import-input').click()">Import from file</button>
+        <button class="btn-small" style="background:var(--teal-deep); width:auto;" onclick="startPullSheetFromFormat()">Start from my format</button>
+        <button class="btn-small" style="background:var(--charcoal); width:auto;" onclick="openManualPullSheetStep('build')">Start a blank pull sheet</button>
+        <button class="btn-small" style="background:var(--charcoal); width:auto;" onclick="document.getElementById('pull-sheet-import-input').click()">Import from file</button>
         <input type="file" id="pull-sheet-import-input" accept=".xlsx,.xls,.csv,text/csv" style="display:none;" onchange="handlePullSheetImportFile(event)" />
       </div>
+      <p style="font-size:13px; color:var(--muted);">"Start from my format" fills in your saved default layout with blank quantities, ready to fill in.
+        <a href="#" onclick="event.preventDefault(); openPullSheetFormatEditor();" style="color:var(--teal-deep);">Edit your default format</a>.</p>
       <p style="font-size:13px; color:var(--muted);">Import reads any company's own material/pull-sheet spreadsheet (Excel or CSV) -- it doesn't need to match a particular format.
         Don't have one yet? <a href="/pull-sheet-import-template.xlsx" target="_blank" style="color:var(--teal-deep);">Download a blank template</a>.</p>
       <p style="font-size:13px; color:var(--muted);">Or choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
@@ -1867,24 +1870,27 @@
     </div>
 
     <div id="pull-sheet-manual-step" style="display:none;">
-      <label>What's this for? (optional)</label>
+      <label id="pull-sheet-manual-label-label">What's this for? (optional)</label>
       <input id="pull-sheet-manual-label" placeholder="e.g. Restocking the van" />
       <label>Item</label>
       <select id="pull-sheet-manual-item-picker"></select>
-      <label>Quantity</label>
+      <label id="pull-sheet-manual-section-label">Section (optional -- groups items when viewing/printing)</label>
+      <input id="pull-sheet-manual-section-input" placeholder="e.g. Ceiling Grid CLASS ONE" />
+      <label id="pull-sheet-manual-qty-label">Quantity</label>
       <div style="display:flex; gap:8px;">
         <input id="pull-sheet-manual-qty-input" type="number" min="1" step="1" placeholder="Qty" style="flex:1;" />
         <button class="btn-small" style="background:var(--charcoal); width:auto; white-space:nowrap;" onclick="addManualPullSheetItem()">Add</button>
       </div>
       <div class="table-scroll" style="margin-top:10px;">
         <table>
-          <thead><tr><th>Item</th><th>Quantity</th><th></th></tr></thead>
+          <thead><tr id="pull-sheet-manual-items-head"><th>Item</th><th>Quantity</th><th colspan="2"></th></tr></thead>
           <tbody id="pull-sheet-manual-items-body"></tbody>
         </table>
       </div>
       <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
         <button class="btn-small" style="background:var(--charcoal);" onclick="backToPullSheetPicker()">Back</button>
-        <button class="btn-primary" onclick="submitManualPullSheet()">Create pull sheet</button>
+        <button class="btn-small" id="pull-sheet-save-format-btn" style="background:var(--teal-deep);" onclick="submitPullSheetFormat()">Save as default format</button>
+        <button class="btn-primary" id="pull-sheet-create-btn" onclick="submitManualPullSheet()">Create pull sheet</button>
       </div>
     </div>
 
@@ -2236,6 +2242,8 @@ const admin = {
     apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: "manual", items, label } }),
   fulfillPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}/fulfill`, { method: "PATCH" }),
   deletePullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`, { method: "DELETE" }),
+  getPullSheetFormat: () => apiFetch("/api/admin/pull-sheet-format"),
+  savePullSheetFormat: (items) => apiFetch("/api/admin/pull-sheet-format", { method: "PUT", body: { items } }),
   // Same blob-URL pattern as viewInvoicePdf.
   viewPullSheetPdf: async (id) => {
     const token = getToken();
@@ -7016,25 +7024,93 @@ async function renderPullSheetSourceList() {
 }
 
 // ---- Solo / standalone pull sheets (not tied to any quote or invoice) ----
-function openManualPullSheetStep() {
+// 'build' mode is the normal path -- filling in quantities to actually
+// create a pull sheet (blank, from an import, or pre-filled from the saved
+// format). 'format' mode is editing the saved default format itself: no
+// quantities (a format is pure structure), and each row's Section is
+// directly editable instead of shown as a read-only grouped header. Both
+// modes share the same underlying manualPullSheetItems array/table/picker
+// so the two workflows ("build a sheet" and "edit my format") don't need
+// two parallel implementations.
+let pullSheetManualMode = "build";
+
+function openManualPullSheetStep(mode) {
   manualPullSheetItems = [];
+  showPullSheetManualStep(mode || "build");
+}
+
+// Loads the saved default format (if any) and drops the admin straight into
+// a normal build with blank quantities -- "start from my format".
+async function startPullSheetFromFormat() {
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  try {
+    const format = await admin.getPullSheetFormat();
+    if (!format.items || format.items.length === 0) {
+      alert("No default format saved yet. Build or import a pull sheet, then use \"Save as default format\" first.");
+      return;
+    }
+    manualPullSheetItems = format.items.map(function(i) {
+      return { catalog_item_id: i.catalog_item_id, name: i.name, section_name: i.section_name, quantity: "" };
+    });
+    document.getElementById("pull-sheet-sheet").classList.add("visible");
+    showPullSheetManualStep("build");
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't load your default format.";
+    errEl.style.display = "block";
+    document.getElementById("pull-sheet-sheet").classList.add("visible");
+  }
+}
+
+// Loads the saved default format (or starts blank if none exists yet) into
+// the format-editing view of the same step.
+async function openPullSheetFormatEditor() {
+  document.getElementById("pull-sheet-sheet").classList.add("visible");
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  try {
+    const format = await admin.getPullSheetFormat();
+    manualPullSheetItems = (format.items || []).map(function(i) {
+      return { catalog_item_id: i.catalog_item_id, name: i.name, section_name: i.section_name, quantity: 1 };
+    });
+    showPullSheetManualStep("format");
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't load your default format.";
+    errEl.style.display = "block";
+  }
+}
+
+// Shared step-display logic for both modes -- shows/hides the
+// quantity/label fields that only make sense in 'build' mode, sets the
+// title, populates the item picker, and (re)renders the items table.
+// Does NOT touch manualPullSheetItems -- callers seed that first.
+function showPullSheetManualStep(mode) {
+  pullSheetManualMode = mode;
+  const isFormat = mode === "format";
+
   document.getElementById("pull-sheet-sheet-error").style.display = "none";
   document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
+  document.getElementById("pull-sheet-detail-step").style.display = "none";
   document.getElementById("pull-sheet-manual-step").style.display = "";
-  document.getElementById("pull-sheet-manual-label").value = "";
+  document.getElementById("pull-sheet-sheet-title").textContent = isFormat ? "Edit default pull sheet format" : "Build pull sheet";
+
+  document.getElementById("pull-sheet-manual-label-label").style.display = isFormat ? "none" : "";
+  document.getElementById("pull-sheet-manual-label").style.display = isFormat ? "none" : "";
+  document.getElementById("pull-sheet-manual-qty-label").style.display = isFormat ? "none" : "";
+  document.getElementById("pull-sheet-manual-qty-input").style.display = isFormat ? "none" : "";
+  document.getElementById("pull-sheet-create-btn").style.display = isFormat ? "none" : "";
+  if (!isFormat) document.getElementById("pull-sheet-manual-label").value = "";
+  document.getElementById("pull-sheet-manual-section-input").value = "";
   document.getElementById("pull-sheet-manual-qty-input").value = "";
 
   const picker = document.getElementById("pull-sheet-manual-item-picker");
   const trackedItems = (window.allCatalogItems || []).filter(function(i) { return i.track_inventory; });
-  if (trackedItems.length === 0) {
-    picker.innerHTML = '<option value="">No inventory-tracked items yet</option>';
-  } else {
-    picker.innerHTML = '<option value="">Pick an item...</option>' +
-      trackedItems.map(function(i) {
+  picker.innerHTML = trackedItems.length === 0
+    ? '<option value="">No inventory-tracked items yet</option>'
+    : '<option value="">Pick an item...</option>' + trackedItems.map(function(i) {
         const available = Number(i.quantity_on_hand) - Number(i.quantity_on_hold);
         return '<option value="' + i.id + '">' + escapeHtml(i.name) + ' (' + available + ' available)</option>';
       }).join("");
-  }
+
   renderManualPullSheetItemsTable();
 }
 
@@ -7046,26 +7122,60 @@ function backToPullSheetPicker() {
 function addManualPullSheetItem() {
   const picker = document.getElementById("pull-sheet-manual-item-picker");
   const qtyInput = document.getElementById("pull-sheet-manual-qty-input");
+  const sectionInput = document.getElementById("pull-sheet-manual-section-input");
   const itemId = picker.value;
-  const quantity = Math.round(Number(qtyInput.value));
-  if (!itemId || !quantity || quantity <= 0) return;
+  const isFormat = pullSheetManualMode === "format";
+  // A format has no quantities -- 1 is just an internal placeholder so the
+  // rest of the item-shape stays uniform between modes.
+  const quantity = isFormat ? 1 : Math.round(Number(qtyInput.value));
+  if (!itemId) return;
+  if (!isFormat && (!quantity || quantity <= 0)) return;
   const item = (window.allCatalogItems || []).find(function(i) { return i.id === itemId; });
   if (!item) return;
+  const sectionName = sectionInput.value.trim() || null;
 
-  const existing = manualPullSheetItems.find(function(i) { return i.catalog_item_id === itemId; });
+  // Same item can legitimately appear under two different sections (e.g. a
+  // bolt used in both "Hardware" and "Ante Room"), so the merge check below
+  // only collapses an exact item+section match, not just item alone.
+  const existing = manualPullSheetItems.find(function(i) {
+    return i.catalog_item_id === itemId && (i.section_name || null) === sectionName;
+  });
   if (existing) {
-    existing.quantity += quantity;
+    if (!isFormat) existing.quantity += quantity;
   } else {
-    manualPullSheetItems.push({ catalog_item_id: itemId, name: item.name, quantity: quantity });
+    manualPullSheetItems.push({ catalog_item_id: itemId, name: item.name, section_name: sectionName, quantity: quantity });
   }
   picker.value = "";
   qtyInput.value = "";
+  sectionInput.value = "";
   renderManualPullSheetItemsTable();
 }
 
-function removeManualPullSheetItem(itemId) {
-  manualPullSheetItems = manualPullSheetItems.filter(function(i) { return i.catalog_item_id !== itemId; });
+// Index-based (not id-based) now that the same catalog item can legitimately
+// appear more than once across different sections.
+function removeManualPullSheetItem(index) {
+  manualPullSheetItems.splice(index, 1);
   renderManualPullSheetItemsTable();
+}
+
+function moveManualPullSheetItem(index, direction) {
+  const newIndex = index + direction;
+  if (newIndex < 0 || newIndex >= manualPullSheetItems.length) return;
+  const tmp = manualPullSheetItems[index];
+  manualPullSheetItems[index] = manualPullSheetItems[newIndex];
+  manualPullSheetItems[newIndex] = tmp;
+  renderManualPullSheetItemsTable();
+}
+
+// Called directly from the Section text input's oninput -- doesn't
+// re-render, so typing doesn't lose focus on every keystroke.
+function updateManualPullSheetItemSection(index, value) {
+  manualPullSheetItems[index].section_name = value.trim() || null;
+}
+
+// Called directly from a Quantity input's oninput, same reasoning.
+function updateManualPullSheetItemQuantity(index, value) {
+  manualPullSheetItems[index].quantity = value === "" ? "" : Math.max(0, Math.round(Number(value)) || 0);
 }
 
 // ---- Import a pull sheet from a spreadsheet (Excel/CSV) ----
@@ -7097,18 +7207,27 @@ function guessPullSheetColumns(rows2D) {
   return { nameIdx: nameIdx, qtyIdx: qtyIdx };
 }
 
-// Turns the 2D rows + chosen column indexes into { name, quantity } pairs.
-// Rows with no usable quantity are silently dropped rather than flagged as
-// errors -- in a real-world sheet these are almost always section-header
-// rows (e.g. "Ceiling Grid CLASS ONE" grouping a set of sub-items below it),
-// not mistakes worth interrupting the import over.
+// Turns the 2D rows + chosen column indexes into { name, quantity,
+// section_name } triples. A row with no usable quantity isn't dropped
+// outright anymore -- in a real-world sheet these are almost always
+// section-header rows (e.g. "Ceiling Grid CLASS ONE" grouping a set of
+// sub-items below it), so instead its name becomes the section label
+// attached to every item row that follows, until the next such row.
 function extractPullSheetRows(rows2D, nameIdx, qtyIdx) {
-  return rows2D.slice(1).map(function(r) {
+  const out = [];
+  let currentSection = null;
+  rows2D.slice(1).forEach(function(r) {
     const name = String(r[nameIdx] == null ? "" : r[nameIdx]).trim();
+    if (!name) return;
     const qtyRaw = r[qtyIdx];
     const quantity = qtyRaw == null || qtyRaw === "" ? 0 : Math.round(Number(String(qtyRaw).replace(/[^0-9.\-]/g, ""))) || 0;
-    return { name: name, quantity: quantity };
-  }).filter(function(r) { return r.name && r.quantity > 0; });
+    if (quantity > 0) {
+      out.push({ name: name, quantity: quantity, section_name: currentSection });
+    } else {
+      currentSection = name;
+    }
+  });
+  return out;
 }
 
 async function handlePullSheetImportFile(event) {
@@ -7209,23 +7328,32 @@ async function finishPullSheetImport(nameIdx, qtyIdx) {
     return;
   }
 
-  // Merge duplicate names within the file itself (a company's sheet often
-  // lists the same part more than once across different sections).
+  // Merge duplicate name+section combos within the file itself (a company's
+  // sheet often lists the same part more than once). Two rows with the same
+  // name but different sections are kept separate -- that's a real
+  // distinction the file is making, not a duplicate.
   const merged = new Map();
+  const order = [];
   rows.forEach(function(r) {
-    const key = r.name.toLowerCase();
-    if (merged.has(key)) merged.get(key).quantity += r.quantity;
-    else merged.set(key, { name: r.name, quantity: r.quantity });
+    const key = r.name.toLowerCase() + "|" + (r.section_name || "");
+    if (merged.has(key)) {
+      merged.get(key).quantity += r.quantity;
+    } else {
+      merged.set(key, { name: r.name, quantity: r.quantity, section_name: r.section_name });
+      order.push(key);
+    }
   });
-  const mergedRows = Array.from(merged.values());
+  const mergedRows = order.map(function(key) { return merged.get(key); });
 
   let catalogByName = new Map((window.allCatalogItems || []).map(function(i) { return [i.name.trim().toLowerCase(), i]; }));
-  const missing = mergedRows.filter(function(r) { return !catalogByName.has(r.name.toLowerCase()) || !catalogByName.get(r.name.toLowerCase()).track_inventory; });
+  const missingNames = Array.from(new Set(mergedRows.filter(function(r) {
+    return !catalogByName.has(r.name.toLowerCase()) || !catalogByName.get(r.name.toLowerCase()).track_inventory;
+  }).map(function(r) { return r.name; })));
 
-  if (missing.length > 0) {
-    const names = missing.map(function(r) { return r.name; }).slice(0, 12).join(", ") + (missing.length > 12 ? ", ..." : "");
+  if (missingNames.length > 0) {
+    const names = missingNames.slice(0, 12).join(", ") + (missingNames.length > 12 ? ", ..." : "");
     const ok = confirm(
-      missing.length + " item(s) from this file aren't inventory-tracked catalog items yet:\n" + names +
+      missingNames.length + " item(s) from this file aren't inventory-tracked catalog items yet:\n" + names +
       "\n\nAdd them to your catalog with inventory tracking turned on so they can be pulled? (Starting quantity on hand: 0 -- adjust it after in Inventory.)"
     );
     if (!ok) {
@@ -7234,7 +7362,7 @@ async function finishPullSheetImport(nameIdx, qtyIdx) {
       return;
     }
     try {
-      await admin.importCatalogItems(missing.map(function(r) { return { name: r.name, quantity_on_hand: 0 }; }));
+      await admin.importCatalogItems(missingNames.map(function(name) { return { name: name, quantity_on_hand: 0 }; }));
       await loadCatalogItems();
       catalogByName = new Map((window.allCatalogItems || []).map(function(i) { return [i.name.trim().toLowerCase(), i]; }));
     } catch (err) {
@@ -7249,7 +7377,7 @@ async function finishPullSheetImport(nameIdx, qtyIdx) {
   mergedRows.forEach(function(r) {
     const item = catalogByName.get(r.name.toLowerCase());
     if (item && item.track_inventory) {
-      manualPullSheetItems.push({ catalog_item_id: item.id, name: item.name, quantity: r.quantity });
+      manualPullSheetItems.push({ catalog_item_id: item.id, name: item.name, section_name: r.section_name, quantity: r.quantity });
     } else {
       stillMissing.push(r.name);
     }
@@ -7261,34 +7389,72 @@ async function finishPullSheetImport(nameIdx, qtyIdx) {
     return;
   }
 
-  document.getElementById("pull-sheet-sheet-error").style.display = "none";
+  document.getElementById("pull-sheet-sheet").classList.add("visible");
+  showPullSheetManualStep("build");
   document.getElementById("pull-sheet-manual-label").value = "Imported pull sheet";
-  const picker = document.getElementById("pull-sheet-manual-item-picker");
-  const trackedItems = (window.allCatalogItems || []).filter(function(i) { return i.track_inventory; });
-  picker.innerHTML = trackedItems.length === 0
-    ? '<option value="">No inventory-tracked items yet</option>'
-    : '<option value="">Pick an item...</option>' + trackedItems.map(function(i) {
-        const available = Number(i.quantity_on_hand) - Number(i.quantity_on_hold);
-        return '<option value="' + i.id + '">' + escapeHtml(i.name) + ' (' + available + ' available)</option>';
-      }).join("");
-  document.getElementById("pull-sheet-manual-step").style.display = "";
-  renderManualPullSheetItemsTable();
 
-  let msg = "Imported " + manualPullSheetItems.length + " item(s) from the file -- review quantities below, then Create pull sheet.";
+  let msg = "Imported " + manualPullSheetItems.length + " item(s) from the file -- review quantities below, then Create pull sheet (or Save as default format to reuse this layout every time).";
   if (stillMissing.length > 0) msg += "\n\nCouldn't match: " + stillMissing.slice(0, 10).join(", ") + (stillMissing.length > 10 ? ", ..." : "");
   alert(msg);
 }
 
 function renderManualPullSheetItemsTable() {
   const body = document.getElementById("pull-sheet-manual-items-body");
+  const head = document.getElementById("pull-sheet-manual-items-head");
+  const isFormat = pullSheetManualMode === "format";
+  head.innerHTML = isFormat
+    ? '<th>Section</th><th>Item</th><th colspan="2"></th>'
+    : '<th>Item</th><th>Quantity</th><th colspan="2"></th>';
+
   if (manualPullSheetItems.length === 0) {
-    body.innerHTML = '<tr><td colspan="3" style="text-align:center; color:var(--muted); padding:10px;">No items added yet.</td></tr>';
+    body.innerHTML = '<tr><td colspan="4" style="text-align:center; color:var(--muted); padding:10px;">No items added yet.</td></tr>';
     return;
   }
-  body.innerHTML = manualPullSheetItems.map(function(item) {
-    return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td>' +
-      '<td><button class="save-btn" style="background: #C1502E;" onclick="removeManualPullSheetItem(\'' + item.catalog_item_id + '\')">Remove</button></td></tr>';
-  }).join("");
+
+  const reorderCell = function(i) {
+    return '<td style="white-space:nowrap;">' +
+      '<button class="save-btn" style="background:var(--charcoal); padding:2px 8px;" onclick="moveManualPullSheetItem(' + i + ', -1)" title="Move up">&uarr;</button> ' +
+      '<button class="save-btn" style="background:var(--charcoal); padding:2px 8px;" onclick="moveManualPullSheetItem(' + i + ', 1)" title="Move down">&darr;</button>' +
+      '</td>';
+  };
+  const removeCell = function(i) {
+    return '<td><button class="save-btn" style="background: #C1502E;" onclick="removeManualPullSheetItem(' + i + ')">Remove</button></td>';
+  };
+
+  if (isFormat) {
+    // Format editing: one row per item, section shown as a directly
+    // editable text field (renaming/regrouping happens right here) instead
+    // of a read-only header -- there's no quantity to fill in, just
+    // structure to arrange.
+    body.innerHTML = manualPullSheetItems.map(function(item, i) {
+      return '<tr>' +
+        '<td><input value="' + escapeHtml(item.section_name || "") + '" oninput="updateManualPullSheetItemSection(' + i + ', this.value)" style="width:100%;" placeholder="No section" /></td>' +
+        '<td>' + escapeHtml(item.name) + '</td>' +
+        reorderCell(i) + removeCell(i) +
+        '</tr>';
+    }).join("");
+    return;
+  }
+
+  // Build/view mode: group consecutive items sharing a section under one
+  // bold header row -- this is "what the pull sheet actually looks like",
+  // matching the saved format's structure and what the employee will see
+  // once it's sent to them.
+  let lastSection;
+  const rows = [];
+  manualPullSheetItems.forEach(function(item, i) {
+    if (item.section_name && item.section_name !== lastSection) {
+      rows.push('<tr><td colspan="4" style="font-weight:600; padding-top:12px;">' + escapeHtml(item.section_name) + '</td></tr>');
+    }
+    lastSection = item.section_name || null;
+    rows.push(
+      '<tr><td>' + escapeHtml(item.name) + '</td>' +
+      '<td><input type="number" min="0" step="1" value="' + escapeHtml(String(item.quantity)) + '" oninput="updateManualPullSheetItemQuantity(' + i + ', this.value)" style="width:70px;" /></td>' +
+      reorderCell(i) + removeCell(i) +
+      '</tr>'
+    );
+  });
+  body.innerHTML = rows.join("");
 }
 
 async function submitManualPullSheet() {
@@ -7307,6 +7473,28 @@ async function submitManualPullSheet() {
     loadPullSheets();
   } catch (err) {
     errEl.textContent = err.message || "Couldn't build pull sheet.";
+    errEl.style.display = "block";
+  }
+}
+
+// Saves whatever's currently in the working table (item list, sections,
+// order) as the company's default pull sheet format -- available from both
+// modes, since a sheet you're actively building is also a perfectly good
+// starting point for "this is generally what we need every time." Ignores
+// quantity entirely; a format is structure only.
+async function submitPullSheetFormat() {
+  const errEl = document.getElementById("pull-sheet-sheet-error");
+  errEl.style.display = "none";
+  if (manualPullSheetItems.length === 0) {
+    errEl.textContent = "Add at least one item first.";
+    errEl.style.display = "block";
+    return;
+  }
+  try {
+    await admin.savePullSheetFormat(manualPullSheetItems);
+    alert("Saved as your default pull sheet format. \"Start from my format\" will use this layout from now on.");
+  } catch (err) {
+    errEl.textContent = err.message || "Couldn't save your default format.";
     errEl.style.display = "block";
   }
 }
@@ -7335,16 +7523,28 @@ async function selectPullSheetSource(sourceType, sourceId) {
 function renderPullSheetDetailStep(sheet) {
   document.getElementById("pull-sheet-sheet-title").textContent = sheet.source_label || "Pull sheet";
   document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
   document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "";
   const statusLabel = sheet.status === "fulfilled" ? " -- fulfilled"
     : sheet.status === "pulled" ? " -- reported by employee, not yet fulfilled"
     : " -- not yet fulfilled";
   document.getElementById("pull-sheet-detail-header").textContent = customerDisplayName(sheet.customer_name, sheet.customer_company_name) + statusLabel;
-  document.getElementById("pull-sheet-detail-items").innerHTML = (sheet.items || []).map(function(item) {
+  // Items arrive pre-sorted by sort_order (see GET /admin/pull-sheets/:id) --
+  // a section header row prints whenever this item's section differs from
+  // the previous one, so this is "what the pull sheet actually looks like"
+  // rather than an alphabetized list.
+  let lastSection;
+  const rows = [];
+  (sheet.items || []).forEach(function(item) {
+    if (item.section_name && item.section_name !== lastSection) {
+      rows.push('<tr><td colspan="3" style="font-weight:600; padding-top:10px;">' + escapeHtml(item.section_name) + '</td></tr>');
+    }
+    lastSection = item.section_name || null;
     const pulled = item.quantity_pulled == null ? '<span style="color:var(--muted);">--</span>' : item.quantity_pulled;
-    return '<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td><td>' + pulled + '</td></tr>';
-  }).join("");
+    rows.push('<tr><td>' + escapeHtml(item.name) + '</td><td>' + item.quantity + '</td><td>' + pulled + '</td></tr>');
+  });
+  document.getElementById("pull-sheet-detail-items").innerHTML = rows.join("");
   const fulfillBtn = document.getElementById("pull-sheet-fulfill-btn");
   fulfillBtn.style.display = sheet.status === "fulfilled" ? "none" : "";
   // A fulfilled sheet has already changed real inventory numbers, so (like
