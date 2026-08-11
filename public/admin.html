@@ -258,6 +258,20 @@
     main.content { margin-left: 232px; padding: 28px 32px; max-width: 1100px; margin-right: auto; }
   }
 
+  /* Auto-hidden while on the Chat tab -- see showView()/setSidebarHidden().
+     Higher specificity than both the base and the >=900px main.content rules
+     above, so this wins at any width without needing !important. */
+  body.chat-sidebar-hidden .sidebar { display: none; }
+  body.chat-sidebar-hidden main.content { margin-left: 0; }
+  .sidebar-expand-btn {
+    display: none;
+    position: fixed; top: calc(10px + env(safe-area-inset-top)); left: 10px; z-index: 60;
+    background: var(--charcoal); color: #fff; border: none; border-radius: 10px;
+    width: 38px; height: 38px; align-items: center; justify-content: center;
+    box-shadow: 0 6px 18px rgba(31,36,33,0.3); cursor: pointer;
+  }
+  body.chat-sidebar-hidden .sidebar-expand-btn { display: flex; }
+
   /* ---------- Secret easter egg: The Organ Trail ---------- */
   /* A hidden retro-terminal mini-game, tucked behind clicking the sidebar
      logo 5 times in a row within 2 seconds -- see handleLogoSecretClick()
@@ -587,6 +601,9 @@
 </div>
 
 <div id="app">
+  <button class="sidebar-expand-btn" onclick="setSidebarHidden(false)" aria-label="Show menu">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
   <div class="sidebar">
     <div class="sidebar-header" onclick="handleLogoSecretClick()" style="cursor:default;">
       <img class="sidebar-mark" src="/icons/admin-icon-192.png" alt="" />
@@ -2509,6 +2526,17 @@ function showView(name) {
   window.scrollTo(0, 0);
   if (name === "settings") refreshStripeConnectCard();
   if (name === "inventory") { loadInventory(); loadPullSheets(); }
+  // The sidebar rail (icons-only on phone, still 64px) eats into the Chat
+  // tab's already-tight space more than any other tab -- an open thread is
+  // its own full-screen sheet that covers it, but the thread LIST underneath
+  // is a normal view and doesn't get that for free. Auto-hide the rail on
+  // the way into Chat and restore it on the way back out; the floating
+  // button (shown only while hidden) lets this be overridden manually.
+  setSidebarHidden(name === "chat");
+}
+
+function setSidebarHidden(hidden) {
+  document.body.classList.toggle("chat-sidebar-hidden", hidden);
 }
 
 // ---------- Swipe left/right to switch tabs (mobile touch) ----------
