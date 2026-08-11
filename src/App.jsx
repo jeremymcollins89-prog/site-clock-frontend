@@ -3448,14 +3448,28 @@ function TypingBubble({ avatarName, isOffice }) {
 // an actual newline, which wasn't possible at all with a single-line input.
 const MAX_COMPOSER_HEIGHT = 120;
 
-function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
+function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder, onFocusChange }) {
   const textareaRef = useRef(null);
+
+  // Keeps the box (and whatever's just been typed) visible above the
+  // on-screen keyboard as it grows -- mobile browsers resize the visual
+  // viewport when the keyboard opens, but a fixed-position textarea near
+  // the bottom of the page doesn't automatically scroll itself into that
+  // now-smaller visible area. block:"end" + a short delay (keyboard-open
+  // animation + viewport resize both take a beat) reliably brings it into
+  // view instead of leaving it half-hidden.
+  function scrollComposerIntoView() {
+    requestAnimationFrame(() => {
+      textareaRef.current?.scrollIntoView({ block: "end", behavior: "smooth" });
+    });
+  }
 
   useEffect(() => {
     const el = textareaRef.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = Math.min(el.scrollHeight, MAX_COMPOSER_HEIGHT) + "px";
+    if (document.activeElement === el) scrollComposerIntoView();
   }, [draft]);
 
   function handleKeyDown(e) {
@@ -3465,6 +3479,18 @@ function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
     }
   }
 
+  function handleFocus() {
+    onFocusChange?.(true);
+    // Waits out the keyboard's own open animation (roughly 250-300ms on
+    // most devices) before scrolling -- doing it immediately on focus often
+    // races the viewport resize and undershoots.
+    setTimeout(scrollComposerIntoView, 300);
+  }
+
+  function handleBlur() {
+    onFocusChange?.(false);
+  }
+
   return (
     <div className="flex gap-2 mt-auto pt-3 items-end">
       <textarea
@@ -3472,6 +3498,8 @@ function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder }) {
         value={draft}
         onChange={(e) => onDraftChange(e.target.value)}
         onKeyDown={handleKeyDown}
+        onFocus={handleFocus}
+        onBlur={handleBlur}
         placeholder={placeholder}
         rows={1}
         style={{
@@ -3512,7 +3540,7 @@ function ChatEmptyState({ text }) {
   );
 }
 
-function ChatView({ messages, loading, onSend }) {
+function ChatView({ messages, loading, onSend, onComposerFocusChange }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
@@ -3607,7 +3635,7 @@ function ChatView({ messages, loading, onSend }) {
         </div>
       )}
 
-      <ChatComposer draft={draft} onDraftChange={handleDraftChange} onSend={handleSend} sending={sending} placeholder="Message the office..." />
+      <ChatComposer draft={draft} onDraftChange={handleDraftChange} onSend={handleSend} sending={sending} placeholder="Message the office..." onFocusChange={onComposerFocusChange} />
     </div>
   );
 }
@@ -3635,6 +3663,7 @@ function TeamChatView({
   groupName,
   onGroupNameChange,
   onSubmitNewChat,
+  onComposerFocusChange,
 }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
@@ -3833,7 +3862,7 @@ function TeamChatView({
           </div>
         )}
 
-        <ChatComposer draft={draft} onDraftChange={handleDraftChange} onSend={handleSend} sending={sending} placeholder="Type a message..." />
+        <ChatComposer draft={draft} onDraftChange={handleDraftChange} onSend={handleSend} sending={sending} placeholder="Type a message..." onFocusChange={onComposerFocusChange} />
       </div>
     );
   }
@@ -4040,6 +4069,19 @@ const [emailInput, setEmailInput] = useState("");
   const [chatMessages, setChatMessages] = useState([]);
   const [chatLoading, setChatLoading] = useState(false);
   const [chatUnreadCount, setChatUnreadCount] = useState(0);
+  // True while either chat composer (direct-with-office or team) has focus
+  // -- hides the bottom nav bar (see the "fixed bottom-0" block far below)
+  // so it doesn't sit squeezed between the message list and the on-screen
+  // keyboard while actually typing.
+  const [chatComposerFocused, setChatComposerFocused] = useState(false);
+  // Switching away from the Chat tab unmounts ChatView/TeamChatView (and the
+  // focused textarea with them) via the view==="chat" ternary below, rather
+  // than just hiding them -- a removed-from-DOM element isn't guaranteed to
+  // fire its own blur event, so this is a belt-and-suspenders reset to make
+  // sure the nav bar can never get stuck hidden on some other tab.
+  useEffect(() => {
+    if (view !== "chat") setChatComposerFocused(false);
+  }, [view]);
   const [scheduleUnseenCount, setScheduleUnseenCount] = useState(0);
   const [showTimeOffSheet, setShowTimeOffSheet] = useState(false);
   const [showRouteSheet, setShowRouteSheet] = useState(false);
@@ -5312,6 +5354,7 @@ const [emailInput, setEmailInput] = useState("");
                 messages={chatMessages}
                 loading={chatLoading}
                 onSend={handleSendChatMessage}
+                onComposerFocusChange={setChatComposerFocused}
               />
             ) : (
               <TeamChatView
@@ -5333,6 +5376,7 @@ const [emailInput, setEmailInput] = useState("");
                 groupName={newChatGroupName}
                 onGroupNameChange={setNewChatGroupName}
                 onSubmitNewChat={submitNewTeamChat}
+                onComposerFocusChange={setChatComposerFocused}
               />
             )}
           </div>
@@ -5586,6 +5630,11 @@ const [emailInput, setEmailInput] = useState("");
         )}
       </div>
 
+      {/* Hidden while a chat composer has focus -- see chatComposerFocused
+          above. Otherwise this fixed bar sits squeezed between the message
+          list and the on-screen keyboard while actually typing, which was
+          the whole reason it needed to go away in the first place. */}
+      {!chatComposerFocused && (
       <div
         style={{ background: SURFACE, borderTop: `1px solid ${LINE}`, boxShadow: "0 -8px 20px rgba(31,36,33,0.06)" }}
         className="fixed bottom-0 left-0 right-0 flex"
@@ -5697,6 +5746,7 @@ const [emailInput, setEmailInput] = useState("");
           )}
         </div>
       </div>
+      )}
     </div>
   );
 }
