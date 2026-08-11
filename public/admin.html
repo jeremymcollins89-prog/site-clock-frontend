@@ -26,6 +26,10 @@
   })();
 </script>
 
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+
 <style>
   :root {
     --charcoal: #1F2421;
@@ -363,8 +367,8 @@
 
   /* ---------- Chat ---------- */
   .chat-thread-row { display: flex; align-items: center; gap: 12px; }
-  .chat-thread-name { font-size: 19.5px; font-weight: 800; display: flex; align-items: center; gap: 6px; }
-  .chat-thread-preview { font-size: 17px; font-weight: 600; color: var(--muted); margin-top: 2px; }
+  .chat-thread-name { font-family: 'Oswald', sans-serif; font-size: 19.5px; font-weight: 600; display: flex; align-items: center; gap: 6px; }
+  .chat-thread-preview { font-family: 'Oswald', sans-serif; font-size: 17px; font-weight: 500; color: var(--muted); margin-top: 2px; }
   .chat-on-clock-dot { width: 7px; height: 7px; border-radius: 50%; background: #1E8E5A; flex-shrink: 0; }
   .chat-unread-pill {
     background: var(--rust); color: #fff; font-size: 10px; font-weight: 800;
@@ -390,8 +394,8 @@
   .chat-row.chat-row-mine { flex-direction: row-reverse; }
   .chat-row .chat-avatar-slot { width: 24px; flex-shrink: 0; }
   .chat-bubble-wrap { max-width: 78%; }
-  .chat-sender-name { font-size: 15px; font-weight: 700; margin: 0 4px 2px; color: var(--muted); }
-  .chat-bubble { padding: 10px 14px; border-radius: 16px; font-size: 19px; font-weight: 600; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
+  .chat-sender-name { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 600; margin: 0 4px 2px; color: var(--muted); }
+  .chat-bubble { font-family: 'Oswald', sans-serif; padding: 10px 14px; border-radius: 16px; font-size: 19px; font-weight: 500; line-height: 1.4; white-space: pre-wrap; word-break: break-word; }
   /* The admin bubble's gold gradient is a fixed warm accent in both themes
      (like the amber "bubbles" elsewhere), so it keeps a fixed dark ink
      rather than var(--ink) -- otherwise night mode would flip its text to
@@ -402,14 +406,14 @@
   .chat-bubble-employee { background: var(--surface); color: var(--ink); border: 1px solid var(--line); box-shadow: 0 1px 2px rgba(31,36,33,0.05); }
   .chat-bubble-tail-r { border-bottom-right-radius: 4px; }
   .chat-bubble-tail-l { border-bottom-left-radius: 4px; }
-  .chat-bubble-time { font-size: 15px; font-weight: 600; color: var(--muted); margin-top: 3px; }
+  .chat-bubble-time { font-family: 'Oswald', sans-serif; font-size: 15px; font-weight: 500; color: var(--muted); margin-top: 3px; }
   .chat-bubble-admin .chat-bubble-time { color: rgba(31,36,33,0.55); }
   .chat-empty-state { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 40px 20px; color: var(--muted); text-align: center; }
   .chat-empty-state .icon {
     width: 46px; height: 46px; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--line);
     display: flex; align-items: center; justify-content: center; font-size: 18px;
   }
-  .chat-empty-state p { font-size: 17px; font-weight: 600; max-width: 220px; margin: 0; }
+  .chat-empty-state p { font-family: 'Oswald', sans-serif; font-size: 17px; font-weight: 500; max-width: 220px; margin: 0; }
 
   /* Typing indicator -- same position/shape as an incoming chat-bubble-employee
      bubble (so nothing visually jumps when it's replaced by a real message a
@@ -440,7 +444,7 @@
      script below) up to this max-height, then scrolls internally. */
   .chat-composer textarea {
     flex: 1; margin-bottom: 0; border-radius: 22px; box-shadow: inset 0 1px 2px rgba(0,0,0,0.03);
-    font-size: 19px; font-weight: 600; font-family: inherit; resize: none; overflow-y: auto;
+    font-size: 19px; font-weight: 500; font-family: 'Oswald', sans-serif; resize: none; overflow-y: auto;
     max-height: 120px; line-height: 1.4;
   }
   .chat-send-btn {
@@ -9721,9 +9725,14 @@ async function openChatThreadSheet(employeeId) {
   if (thread) thread.unread_count = 0;
   renderChatThreads();
 
+  // The sheet itself (not #chat-thread-messages, which has no overflow of
+  // its own -- it's just normal-flow content inside the sheet) is what
+  // actually scrolls, see .sheet { overflow-y: auto } -- scrolling the
+  // inner div was a no-op that silently left every thread opening at the
+  // top instead of jumping to the most recent message.
   setTimeout(function() {
-    const box = document.getElementById("chat-thread-messages");
-    box.scrollTop = box.scrollHeight;
+    const sheet = document.getElementById("chat-thread-sheet");
+    sheet.scrollTop = sheet.scrollHeight;
   }, 0);
 
   startChatTypingPoll(employeeId);
@@ -9749,8 +9758,8 @@ function startChatTypingPoll(employeeId) {
     const wasEmpty = !el.innerHTML;
     el.innerHTML = typing ? typingRowHtml(document.getElementById("chat-thread-sheet-title").textContent) : "";
     if (typing && wasEmpty) {
-      const box = document.getElementById("chat-thread-messages");
-      box.scrollTop = box.scrollHeight;
+      const sheet = document.getElementById("chat-thread-sheet");
+      sheet.scrollTop = sheet.scrollHeight;
     }
   }
   poll();
@@ -9892,9 +9901,10 @@ async function openTeamChatThreadSheet(threadId) {
   if (thread) thread.unread_count = 0;
   renderTeamChatThreads();
 
+  // Same fix as openChatThreadSheet -- the sheet is what actually scrolls.
   setTimeout(function() {
-    const box = document.getElementById("team-chat-thread-messages");
-    box.scrollTop = box.scrollHeight;
+    const sheet = document.getElementById("team-chat-thread-sheet");
+    sheet.scrollTop = sheet.scrollHeight;
   }, 0);
 
   startTeamChatTypingPoll(threadId);
@@ -9920,8 +9930,8 @@ function startTeamChatTypingPoll(threadId) {
     const wasEmpty = !el.innerHTML;
     el.innerHTML = names.map(function(name) { return typingRowHtml(name); }).join("");
     if (names.length > 0 && wasEmpty) {
-      const box = document.getElementById("team-chat-thread-messages");
-      box.scrollTop = box.scrollHeight;
+      const sheet = document.getElementById("team-chat-thread-sheet");
+      sheet.scrollTop = sheet.scrollHeight;
     }
   }
   poll();

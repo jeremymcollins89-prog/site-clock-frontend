@@ -3385,7 +3385,7 @@ function ChatBubble({ mine, first, last, avatarName, isOffice, body, createdAt }
       </div>
       <div style={{ maxWidth: "78%" }}>
         {!mine && first && avatarName && (
-          <div className="text-[15px] mb-0.5 px-1 font-semibold" style={{ color: MUTED }}>
+          <div className="text-[15px] mb-0.5 px-1 font-semibold" style={{ color: MUTED, fontFamily: "'Oswald', sans-serif" }}>
             {isOffice ? "The Office" : avatarName}
           </div>
         )}
@@ -3398,12 +3398,14 @@ function ChatBubble({ mine, first, last, avatarName, isOffice, body, createdAt }
             borderRadius: 16,
             borderBottomRightRadius: mine && last ? 4 : 16,
             borderBottomLeftRadius: !mine && last ? 4 : 16,
+            fontFamily: "'Oswald', sans-serif",
+            fontWeight: 500,
           }}
-          className="px-3.5 py-2.5 text-[19px] font-semibold leading-[1.4]"
+          className="px-3.5 py-2.5 text-[19px] leading-[1.4]"
         >
           <span style={{ whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{body}</span>
           {last && (
-            <div className="text-[14px] font-semibold mt-0.5" style={{ color: mine ? "rgba(31,36,33,0.55)" : MUTED }}>
+            <div className="text-[14px] mt-0.5" style={{ color: mine ? "rgba(31,36,33,0.55)" : MUTED, fontFamily: "'Oswald', sans-serif", fontWeight: 500 }}>
               {new Date(createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}
             </div>
           )}
@@ -3505,8 +3507,9 @@ function ChatComposer({ draft, onDraftChange, onSend, sending, placeholder, onFo
         style={{
           border: `1.5px solid ${LINE}`, background: INPUT_BG, boxShadow: "inset 0 1px 2px rgba(0,0,0,0.03)",
           resize: "none", maxHeight: MAX_COMPOSER_HEIGHT, overflowY: "auto",
+          fontFamily: "'Oswald', sans-serif", fontWeight: 500,
         }}
-        className="flex-1 px-4 py-2.5 text-[19px] font-semibold rounded-3xl outline-none leading-snug"
+        className="flex-1 px-4 py-2.5 text-[19px] rounded-3xl outline-none leading-snug"
       />
       <button
         onClick={onSend}
@@ -3535,7 +3538,7 @@ function ChatEmptyState({ text }) {
       >
         <MessageCircle size={20} />
       </div>
-      <p className="text-[17px] font-semibold text-center max-w-[220px]">{text}</p>
+      <p className="text-[17px] text-center max-w-[220px]" style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 500 }}>{text}</p>
     </div>
   );
 }
@@ -3547,8 +3550,20 @@ function ChatView({ messages, loading, onSend, onComposerFocusChange }) {
   const bottomRef = useRef(null);
   const lastTypingPingRef = useRef(0);
 
+  // Jumps to the newest message whenever the list changes -- including the
+  // very first render once messages finish loading, so opening Chat lands
+  // on the latest conversation instead of the top. Instant ("auto"), not
+  // smooth -- an animated scroll on first open looks like nothing happened
+  // if it gets cut short. Fires twice (immediately, then again a beat later
+  // via requestAnimationFrame) since a long thread's images/layout can
+  // still be settling right after mount, which would otherwise leave the
+  // first scrollIntoView undershooting the real bottom.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    const raf = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [messages, otherTyping]);
 
   // Polls "is the office typing right now" every ~2.5s, only while this
@@ -3672,8 +3687,13 @@ function TeamChatView({
   const bottomRef = useRef(null);
   const lastTypingPingRef = useRef(0);
 
+  // Same "land on the newest message" fix as ChatView above.
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ block: "end" });
+    bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    const raf = requestAnimationFrame(() => {
+      bottomRef.current?.scrollIntoView({ block: "end", behavior: "auto" });
+    });
+    return () => cancelAnimationFrame(raf);
   }, [messages, typingNames]);
 
   // Polls "who else is typing" every ~2.5s, only while a thread is actually
@@ -3897,9 +3917,9 @@ function TeamChatView({
               >
                 <Avatar name={otherName} isGroup={isGroup} size={38} />
                 <div className="min-w-0 flex-1">
-                  <div className="text-[18px] font-bold truncate">{threadName(t)}</div>
+                  <div className="text-[18px] truncate" style={{ fontFamily: "'Oswald', sans-serif", fontWeight: 600 }}>{threadName(t)}</div>
                   {t.last_message && (
-                    <div className="text-[16px] font-medium truncate" style={{ color: MUTED }}>
+                    <div className="text-[16px] truncate" style={{ color: MUTED, fontFamily: "'Oswald', sans-serif", fontWeight: 500 }}>
                       {t.last_message.sender_is_admin ? "Admin: " : ""}{t.last_message.body}
                     </div>
                   )}
