@@ -1622,7 +1622,7 @@ const PULL_SHEET_STATUS_STYLE = {
 // card never touches another. Read-only once fulfilled -- at that point
 // the admin has already used these numbers to actually remove stock, so
 // there's nothing left to report.
-function PullSheetCard({ sheet, onSubmitPulled }) {
+function PullSheetCard({ sheet, onSubmitPulled, myEmployeeId }) {
   const [qtys, setQtys] = useState(() =>
     Object.fromEntries(sheet.items.map((i) => [i.id, String(i.quantity_pulled != null ? i.quantity_pulled : i.quantity)]))
   );
@@ -1631,6 +1631,10 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
   const [error, setError] = useState("");
   const style = PULL_SHEET_STATUS_STYLE[sheet.status] || PULL_SHEET_STATUS_STYLE.open;
   const isFulfilled = sheet.status === "fulfilled";
+  // Assignment is purely a heads-up -- every employee can still see and pull
+  // every open sheet (see GET /schedule/pull-sheets), this just flags the
+  // one(s) a specific person was asked to handle.
+  const assignedToMe = !!(sheet.assigned_employee_id && myEmployeeId && sheet.assigned_employee_id === myEmployeeId);
 
   async function handleSave() {
     setSaving(true);
@@ -1651,12 +1655,22 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
     <div style={{ background: SURFACE, border: `1px solid ${LINE}` }} className="rounded-xl p-3">
       <div className="flex items-center justify-between gap-2">
         <span className="text-sm font-medium">{sheet.source_label}</span>
-        <span
-          className="rounded"
-          style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: style.bg, color: style.color }}
-        >
-          {style.label}
-        </span>
+        <div className="flex items-center gap-1.5">
+          {assignedToMe && (
+            <span
+              className="rounded"
+              style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: "#C1502E", color: "#fff" }}
+            >
+              Assigned to you
+            </span>
+          )}
+          <span
+            className="rounded"
+            style={{ fontSize: 10, textTransform: "uppercase", letterSpacing: "0.04em", padding: "2px 8px", background: style.bg, color: style.color }}
+          >
+            {style.label}
+          </span>
+        </div>
       </div>
       {sheet.customer_name && (
         <div className="text-[13px] mt-0.5" style={{ color: MUTED }}>{sheet.customer_name}</div>
@@ -1733,7 +1747,7 @@ function PullSheetCard({ sheet, onSubmitPulled }) {
 // actual quantity they pulled per item (see PullSheetCard above), but that's
 // purely informational -- the admin's own "Mark fulfilled" step in the
 // admin app is still what actually removes anything from real inventory.
-function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled }) {
+function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled, myEmployeeId }) {
   if (!open) return null;
   return (
     <div
@@ -1773,7 +1787,7 @@ function PullSheetsSheet({ open, onClose, pullSheets, loading, onSubmitPulled })
         ) : (
           <div className="flex flex-col gap-2">
             {pullSheets.map((sheet) => (
-              <PullSheetCard key={sheet.id} sheet={sheet} onSubmitPulled={onSubmitPulled} />
+              <PullSheetCard key={sheet.id} sheet={sheet} onSubmitPulled={onSubmitPulled} myEmployeeId={myEmployeeId} />
             ))}
           </div>
         )}
@@ -5206,6 +5220,7 @@ const [emailInput, setEmailInput] = useState("");
               pullSheets={pullSheets}
               loading={pullSheetsLoading}
               onSubmitPulled={submitPulledForSheet}
+              myEmployeeId={employee?.id}
             />
             <CalendarView
               schedule={schedule}

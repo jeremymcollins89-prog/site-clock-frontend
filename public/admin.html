@@ -1874,6 +1874,12 @@
     <div id="pull-sheet-manual-step" style="display:none;">
       <label id="pull-sheet-manual-label-label">What's this for? (optional)</label>
       <input id="pull-sheet-manual-label" placeholder="e.g. Restocking the van" />
+      <div id="pull-sheet-manual-assignee-row">
+        <label>Assign to employee (optional -- they'll get a notification)</label>
+        <select id="pull-sheet-manual-assignee-picker">
+          <option value="">Not assigned</option>
+        </select>
+      </div>
       <label>Item</label>
       <select id="pull-sheet-manual-item-picker"></select>
       <label id="pull-sheet-manual-section-label">Section (optional -- groups items when viewing/printing)</label>
@@ -2240,8 +2246,8 @@ const admin = {
   getPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`),
   buildPullSheet: (sourceType, sourceId) =>
     apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: sourceType, source_id: sourceId } }),
-  buildManualPullSheet: (items, label) =>
-    apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: "manual", items, label } }),
+  buildManualPullSheet: (items, label, assignedEmployeeId) =>
+    apiFetch("/api/admin/pull-sheets", { method: "POST", body: { source_type: "manual", items, label, assigned_employee_id: assignedEmployeeId || null } }),
   fulfillPullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}/fulfill`, { method: "PATCH" }),
   deletePullSheet: (id) => apiFetch(`/api/admin/pull-sheets/${id}`, { method: "DELETE" }),
   getPullSheetFormat: () => apiFetch("/api/admin/pull-sheet-format"),
@@ -6935,8 +6941,11 @@ function renderPullSheetRow(s) {
       ? '<button class="save-btn" style="background: var(--teal); margin-right:6px;" onclick="fulfillPullSheetFromList(\'' + s.id + '\')">Fulfill</button>' +
         '<button class="save-btn" style="background: #C1502E;" onclick="deletePullSheetConfirm(\'' + s.id + '\')">Delete</button>'
       : '');
+  const assigneeLine = s.assigned_employee_name
+    ? '<div style="font-size:11px; color:var(--muted);">Assigned to ' + escapeHtml(s.assigned_employee_name) + '</div>'
+    : '';
   return '<tr>' +
-    '<td>' + escapeHtml(s.source_label || "") + '</td>' +
+    '<td>' + escapeHtml(s.source_label || "") + assigneeLine + '</td>' +
     '<td>' + escapeHtml(customerDisplayName(s.customer_name, s.customer_company_name) || "") + '</td>' +
     '<td>' + s.item_count + '</td>' +
     '<td>' + statusBadge + '</td>' +
@@ -7097,12 +7106,21 @@ function showPullSheetManualStep(mode) {
 
   document.getElementById("pull-sheet-manual-label-label").style.display = isFormat ? "none" : "";
   document.getElementById("pull-sheet-manual-label").style.display = isFormat ? "none" : "";
+  document.getElementById("pull-sheet-manual-assignee-row").style.display = isFormat ? "none" : "";
   document.getElementById("pull-sheet-manual-qty-label").style.display = isFormat ? "none" : "";
   document.getElementById("pull-sheet-manual-qty-input").style.display = isFormat ? "none" : "";
   document.getElementById("pull-sheet-create-btn").style.display = isFormat ? "none" : "";
   if (!isFormat) document.getElementById("pull-sheet-manual-label").value = "";
   document.getElementById("pull-sheet-manual-section-input").value = "";
   document.getElementById("pull-sheet-manual-qty-input").value = "";
+
+  if (!isFormat) {
+    const assigneePicker = document.getElementById("pull-sheet-manual-assignee-picker");
+    const activeEmployees = (window.allEmployees || []).filter(function(e) { return e.active; });
+    assigneePicker.innerHTML = '<option value="">Not assigned</option>' + activeEmployees.map(function(e) {
+      return '<option value="' + e.id + '">' + escapeHtml(e.name) + '</option>';
+    }).join("");
+  }
 
   const picker = document.getElementById("pull-sheet-manual-item-picker");
   const trackedItems = (window.allCatalogItems || []).filter(function(i) { return i.track_inventory; });
@@ -7585,8 +7603,9 @@ async function submitManualPullSheet() {
     return;
   }
   const label = document.getElementById("pull-sheet-manual-label").value.trim();
+  const assignedEmployeeId = document.getElementById("pull-sheet-manual-assignee-picker").value || null;
   try {
-    const sheet = await admin.buildManualPullSheet(manualPullSheetItems, label);
+    const sheet = await admin.buildManualPullSheet(manualPullSheetItems, label, assignedEmployeeId);
     currentPullSheetId = sheet.id;
     renderPullSheetDetailStep(sheet);
     loadPullSheets();
@@ -7648,7 +7667,11 @@ function renderPullSheetDetailStep(sheet) {
   const statusLabel = sheet.status === "fulfilled" ? " -- fulfilled"
     : sheet.status === "pulled" ? " -- reported by employee, not yet fulfilled"
     : " -- not yet fulfilled";
-  document.getElementById("pull-sheet-detail-header").textContent = customerDisplayName(sheet.customer_name, sheet.customer_company_name) + statusLabel;
+  const assigneeName = sheet.assigned_employee_name || (sheet.assigned_employee_id
+    ? (((window.allEmployees || []).find(function(e) { return e.id === sheet.assigned_employee_id; }) || {}).name)
+    : null);
+  const assigneeLabel = assigneeName ? (" -- assigned to " + assigneeName) : "";
+  document.getElementById("pull-sheet-detail-header").textContent = customerDisplayName(sheet.customer_name, sheet.customer_company_name) + statusLabel + assigneeLabel;
   // Items arrive pre-sorted by sort_order (see GET /admin/pull-sheets/:id) --
   // a section header row prints whenever this item's section differs from
   // the previous one, so this is "what the pull sheet actually looks like"
