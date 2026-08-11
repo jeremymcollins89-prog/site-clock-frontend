@@ -1837,9 +1837,33 @@
     <div id="pull-sheet-sheet-error" class="error" style="display:none;"></div>
 
     <div id="pull-sheet-picker-step">
-      <button class="btn-small" style="background:var(--charcoal); margin-bottom:12px;" onclick="openManualPullSheetStep()">Start a blank pull sheet</button>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; margin-bottom:12px;">
+        <button class="btn-small" style="background:var(--charcoal); width:auto;" onclick="openManualPullSheetStep()">Start a blank pull sheet</button>
+        <button class="btn-small" style="background:var(--teal-deep); width:auto;" onclick="document.getElementById('pull-sheet-import-input').click()">Import from file</button>
+        <input type="file" id="pull-sheet-import-input" accept=".xlsx,.xls,.csv,text/csv" style="display:none;" onchange="handlePullSheetImportFile(event)" />
+      </div>
+      <p style="font-size:13px; color:var(--muted);">Import reads any company's own material/pull-sheet spreadsheet (Excel or CSV) -- it doesn't need to match a particular format.
+        Don't have one yet? <a href="/pull-sheet-import-template.xlsx" target="_blank" style="color:var(--teal-deep);">Download a blank template</a>.</p>
       <p style="font-size:13px; color:var(--muted);">Or choose the quote or invoice this pull sheet is for. Only jobs with inventory-tracked items still left to pull are listed.</p>
       <div id="pull-sheet-source-list"></div>
+    </div>
+
+    <div id="pull-sheet-import-mapping-step" style="display:none;">
+      <p style="font-size:13px; color:var(--muted);">Couldn't automatically tell which columns are which -- pick them below.</p>
+      <label>Item name column</label>
+      <select id="pull-sheet-import-name-col"></select>
+      <label>Quantity column</label>
+      <select id="pull-sheet-import-qty-col"></select>
+      <div class="table-scroll" style="margin-top:10px; max-height:220px;">
+        <table>
+          <thead><tr id="pull-sheet-import-preview-head"></tr></thead>
+          <tbody id="pull-sheet-import-preview-body"></tbody>
+        </table>
+      </div>
+      <div style="margin-top:14px; display:flex; gap:8px; flex-wrap:wrap;">
+        <button class="btn-small" style="background:var(--charcoal);" onclick="cancelPullSheetImportMapping()">Cancel</button>
+        <button class="btn-primary" onclick="confirmPullSheetImportMapping()">Continue</button>
+      </div>
     </div>
 
     <div id="pull-sheet-manual-step" style="display:none;">
@@ -6866,6 +6890,7 @@ async function buildPullSheetForSource(sourceType, sourceId) {
   document.getElementById("pull-sheet-sheet-title").textContent = "Build pull sheet";
   document.getElementById("pull-sheet-sheet-error").style.display = "none";
   document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
   document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "none";
   document.getElementById("pull-sheet-sheet").classList.add("visible");
@@ -6958,6 +6983,7 @@ async function openBuildPullSheetSheet() {
   document.getElementById("pull-sheet-sheet-title").textContent = "Build pull sheet";
   document.getElementById("pull-sheet-sheet-error").style.display = "none";
   document.getElementById("pull-sheet-picker-step").style.display = "";
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
   document.getElementById("pull-sheet-manual-step").style.display = "none";
   document.getElementById("pull-sheet-detail-step").style.display = "none";
   document.getElementById("pull-sheet-sheet").classList.add("visible");
@@ -7040,6 +7066,217 @@ function addManualPullSheetItem() {
 function removeManualPullSheetItem(itemId) {
   manualPullSheetItems = manualPullSheetItems.filter(function(i) { return i.catalog_item_id !== itemId; });
   renderManualPullSheetItemsTable();
+}
+
+// ---- Import a pull sheet from a spreadsheet (Excel/CSV) ----
+// Any company's own material list can be dropped in here -- headers rarely
+// match exactly (one shop's "Item" is another's "Material" or "Part"), so
+// this first tries the same generous alias-matching the Catalog import uses
+// (see CATALOG_FIELD_ALIASES below), and only falls back to asking the admin
+// to pick the columns by hand when that guess isn't confident. Matching
+// against the catalog then happens by name (case-insensitive); any name with
+// no existing inventory-tracked catalog item is offered up to auto-create,
+// since POST /pull-sheets (manual) can only pull items that already exist as
+// inventory-tracked catalog items -- a raw item name from someone else's
+// spreadsheet is otherwise meaningless to the rest of the app.
+const PULL_SHEET_FIELD_ALIASES = {
+  name: ["item", "item name", "material", "material name", "material description", "part", "part name", "part number", "product", "product name", "description", "item description", "name"],
+  quantity: ["quantity", "qty", "quantity needed", "qty needed", "pull qty", "quantity to pull", "amount", "count", "needed"],
+};
+
+let pullSheetImportRows2D = null;
+
+// Returns { nameIdx, qtyIdx } if both columns can be confidently guessed
+// from the header row, or null if a human needs to pick.
+function guessPullSheetColumns(rows2D) {
+  if (!rows2D || rows2D.length < 2) return null;
+  const headerRow = rows2D[0].map(normalizeCsvHeader);
+  const nameIdx = headerRow.findIndex(function(h) { return PULL_SHEET_FIELD_ALIASES.name.indexOf(h) !== -1; });
+  const qtyIdx = headerRow.findIndex(function(h) { return PULL_SHEET_FIELD_ALIASES.quantity.indexOf(h) !== -1; });
+  if (nameIdx === -1 || qtyIdx === -1 || nameIdx === qtyIdx) return null;
+  return { nameIdx: nameIdx, qtyIdx: qtyIdx };
+}
+
+// Turns the 2D rows + chosen column indexes into { name, quantity } pairs.
+// Rows with no usable quantity are silently dropped rather than flagged as
+// errors -- in a real-world sheet these are almost always section-header
+// rows (e.g. "Ceiling Grid CLASS ONE" grouping a set of sub-items below it),
+// not mistakes worth interrupting the import over.
+function extractPullSheetRows(rows2D, nameIdx, qtyIdx) {
+  return rows2D.slice(1).map(function(r) {
+    const name = String(r[nameIdx] == null ? "" : r[nameIdx]).trim();
+    const qtyRaw = r[qtyIdx];
+    const quantity = qtyRaw == null || qtyRaw === "" ? 0 : Math.round(Number(String(qtyRaw).replace(/[^0-9.\-]/g, ""))) || 0;
+    return { name: name, quantity: quantity };
+  }).filter(function(r) { return r.name && r.quantity > 0; });
+}
+
+async function handlePullSheetImportFile(event) {
+  const file = event.target.files[0];
+  event.target.value = ""; // allow re-selecting the same file later
+  if (!file) return;
+
+  const isExcel = /\.(xlsx|xls)$/i.test(file.name);
+  let rows2D;
+  try {
+    if (isExcel) {
+      const buffer = await file.arrayBuffer();
+      const workbook = XLSX.read(buffer, { type: "array" });
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]];
+      rows2D = XLSX.utils.sheet_to_json(firstSheet, { header: 1, defval: "" });
+    } else {
+      const text = await file.text();
+      rows2D = parseCsv(text);
+    }
+  } catch (err) {
+    alert("Couldn't read that file. Make sure it's a valid Excel (.xlsx) or CSV file.");
+    return;
+  }
+  // Drop fully-blank rows (common padding in exported sheets) before anything else.
+  rows2D = (rows2D || []).filter(function(r) { return r.some(function(c) { return String(c == null ? "" : c).trim() !== ""; }); });
+  if (rows2D.length < 2) {
+    alert("Couldn't find any rows in that file.");
+    return;
+  }
+  pullSheetImportRows2D = rows2D;
+
+  const guess = guessPullSheetColumns(rows2D);
+  if (guess) {
+    finishPullSheetImport(guess.nameIdx, guess.qtyIdx);
+  } else {
+    openPullSheetImportMappingStep(rows2D);
+  }
+}
+
+function openPullSheetImportMappingStep(rows2D) {
+  document.getElementById("pull-sheet-sheet-error").style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "none";
+  document.getElementById("pull-sheet-manual-step").style.display = "none";
+  document.getElementById("pull-sheet-detail-step").style.display = "none";
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "";
+
+  const headerRow = rows2D[0];
+  const options = headerRow.map(function(h, i) {
+    return '<option value="' + i + '">' + escapeHtml(String(h || "Column " + (i + 1))) + '</option>';
+  }).join("");
+  const nameSelect = document.getElementById("pull-sheet-import-name-col");
+  const qtySelect = document.getElementById("pull-sheet-import-qty-col");
+  nameSelect.innerHTML = options;
+  qtySelect.innerHTML = options;
+  // Best-effort default so there's always a valid starting pick even when
+  // nothing in the header row matched an alias -- better than leaving it on
+  // an arbitrary browser default.
+  nameSelect.value = "0";
+  qtySelect.value = headerRow.length > 1 ? "1" : "0";
+
+  document.getElementById("pull-sheet-import-preview-head").innerHTML =
+    headerRow.map(function(h, i) { return '<th>' + escapeHtml(String(h || "Column " + (i + 1))) + '</th>'; }).join("");
+  document.getElementById("pull-sheet-import-preview-body").innerHTML = rows2D.slice(1, 6).map(function(r) {
+    return '<tr>' + headerRow.map(function(_, i) { return '<td>' + escapeHtml(String(r[i] == null ? "" : r[i])) + '</td>'; }).join("") + '</tr>';
+  }).join("");
+}
+
+function cancelPullSheetImportMapping() {
+  pullSheetImportRows2D = null;
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
+  document.getElementById("pull-sheet-picker-step").style.display = "";
+}
+
+function confirmPullSheetImportMapping() {
+  const nameIdx = Number(document.getElementById("pull-sheet-import-name-col").value);
+  const qtyIdx = Number(document.getElementById("pull-sheet-import-qty-col").value);
+  if (nameIdx === qtyIdx) {
+    alert("Item name and quantity can't be the same column.");
+    return;
+  }
+  finishPullSheetImport(nameIdx, qtyIdx);
+}
+
+// Matches parsed rows against the company's existing catalog by name. Any
+// name with no inventory-tracked match is offered up to auto-create (as a
+// new catalog item with tracking turned on, starting at 0 on hand) before
+// continuing -- otherwise it would just silently vanish from the sheet.
+// Ends by dropping the admin into the same review table the manual builder
+// uses, pre-filled from the file, so quantities can still be checked or
+// adjusted before actually creating the pull sheet.
+async function finishPullSheetImport(nameIdx, qtyIdx) {
+  const rows = extractPullSheetRows(pullSheetImportRows2D, nameIdx, qtyIdx);
+  pullSheetImportRows2D = null;
+  document.getElementById("pull-sheet-import-mapping-step").style.display = "none";
+  if (rows.length === 0) {
+    alert("Couldn't find any rows with both a name and a quantity greater than 0.");
+    document.getElementById("pull-sheet-picker-step").style.display = "";
+    return;
+  }
+
+  // Merge duplicate names within the file itself (a company's sheet often
+  // lists the same part more than once across different sections).
+  const merged = new Map();
+  rows.forEach(function(r) {
+    const key = r.name.toLowerCase();
+    if (merged.has(key)) merged.get(key).quantity += r.quantity;
+    else merged.set(key, { name: r.name, quantity: r.quantity });
+  });
+  const mergedRows = Array.from(merged.values());
+
+  let catalogByName = new Map((window.allCatalogItems || []).map(function(i) { return [i.name.trim().toLowerCase(), i]; }));
+  const missing = mergedRows.filter(function(r) { return !catalogByName.has(r.name.toLowerCase()) || !catalogByName.get(r.name.toLowerCase()).track_inventory; });
+
+  if (missing.length > 0) {
+    const names = missing.map(function(r) { return r.name; }).slice(0, 12).join(", ") + (missing.length > 12 ? ", ..." : "");
+    const ok = confirm(
+      missing.length + " item(s) from this file aren't inventory-tracked catalog items yet:\n" + names +
+      "\n\nAdd them to your catalog with inventory tracking turned on so they can be pulled? (Starting quantity on hand: 0 -- adjust it after in Inventory.)"
+    );
+    if (!ok) {
+      alert("Import cancelled. Add those items to your Catalog first, then try importing again.");
+      document.getElementById("pull-sheet-picker-step").style.display = "";
+      return;
+    }
+    try {
+      await admin.importCatalogItems(missing.map(function(r) { return { name: r.name, quantity_on_hand: 0 }; }));
+      await loadCatalogItems();
+      catalogByName = new Map((window.allCatalogItems || []).map(function(i) { return [i.name.trim().toLowerCase(), i]; }));
+    } catch (err) {
+      alert(err.message || "Couldn't add the missing catalog items.");
+      document.getElementById("pull-sheet-picker-step").style.display = "";
+      return;
+    }
+  }
+
+  const stillMissing = [];
+  manualPullSheetItems = [];
+  mergedRows.forEach(function(r) {
+    const item = catalogByName.get(r.name.toLowerCase());
+    if (item && item.track_inventory) {
+      manualPullSheetItems.push({ catalog_item_id: item.id, name: item.name, quantity: r.quantity });
+    } else {
+      stillMissing.push(r.name);
+    }
+  });
+
+  if (manualPullSheetItems.length === 0) {
+    alert("None of the items in this file could be matched to a trackable catalog item.");
+    document.getElementById("pull-sheet-picker-step").style.display = "";
+    return;
+  }
+
+  document.getElementById("pull-sheet-sheet-error").style.display = "none";
+  document.getElementById("pull-sheet-manual-label").value = "Imported pull sheet";
+  const picker = document.getElementById("pull-sheet-manual-item-picker");
+  const trackedItems = (window.allCatalogItems || []).filter(function(i) { return i.track_inventory; });
+  picker.innerHTML = trackedItems.length === 0
+    ? '<option value="">No inventory-tracked items yet</option>'
+    : '<option value="">Pick an item...</option>' + trackedItems.map(function(i) {
+        const available = Number(i.quantity_on_hand) - Number(i.quantity_on_hold);
+        return '<option value="' + i.id + '">' + escapeHtml(i.name) + ' (' + available + ' available)</option>';
+      }).join("");
+  document.getElementById("pull-sheet-manual-step").style.display = "";
+  renderManualPullSheetItemsTable();
+
+  let msg = "Imported " + manualPullSheetItems.length + " item(s) from the file -- review quantities below, then Create pull sheet.";
+  if (stillMissing.length > 0) msg += "\n\nCouldn't match: " + stillMissing.slice(0, 10).join(", ") + (stillMissing.length > 10 ? ", ..." : "");
+  alert(msg);
 }
 
 function renderManualPullSheetItemsTable() {
