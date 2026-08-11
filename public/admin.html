@@ -7180,6 +7180,31 @@ function updateManualPullSheetItemQuantity(index, value) {
   manualPullSheetItems[index].quantity = value === "" ? "" : Math.max(0, Math.round(Number(value)) || 0);
 }
 
+// Up/Down moves between quantity fields row-to-row (like a spreadsheet)
+// instead of the browser's default behavior of nudging a number input's
+// value up or down -- that default is more annoying than useful here, since
+// every row already has its own Add/Remove/reorder controls for that.
+// Enter also moves down, matching the muscle memory of hitting Enter after
+// typing a number into a form.
+function handlePullSheetQtyKeydown(event, index) {
+  if (event.key === "ArrowDown" || event.key === "Enter") {
+    event.preventDefault();
+    focusPullSheetQtyInput(index + 1);
+  } else if (event.key === "ArrowUp") {
+    event.preventDefault();
+    focusPullSheetQtyInput(index - 1);
+  }
+}
+
+function focusPullSheetQtyInput(index) {
+  const inputs = document.querySelectorAll(".pull-sheet-qty-input");
+  const el = inputs[index];
+  if (el) {
+    el.focus();
+    el.select();
+  }
+}
+
 // ---- Import a pull sheet from a spreadsheet (Excel/CSV) ----
 // Any company's own material list can be dropped in here -- headers rarely
 // match exactly (one shop's "Item" is another's "Material" or "Part"), so
@@ -7498,14 +7523,19 @@ function renderManualPullSheetItemsTable() {
     return;
   }
 
+  // tabindex="-1" keeps these off the keyboard Tab sequence entirely (still
+  // fully clickable) -- otherwise tabbing through the Quantity column would
+  // stop at the move-up/move-down/Remove buttons of every single row on the
+  // way to the next quantity field, which is exactly the friction being
+  // fixed here.
   const reorderCell = function(i) {
     return '<td style="white-space:nowrap;">' +
-      '<button class="save-btn" style="background:var(--charcoal); padding:2px 8px;" onclick="moveManualPullSheetItem(' + i + ', -1)" title="Move up">&uarr;</button> ' +
-      '<button class="save-btn" style="background:var(--charcoal); padding:2px 8px;" onclick="moveManualPullSheetItem(' + i + ', 1)" title="Move down">&darr;</button>' +
+      '<button class="save-btn" tabindex="-1" style="background:var(--charcoal); padding:2px 8px;" onclick="moveManualPullSheetItem(' + i + ', -1)" title="Move up">&uarr;</button> ' +
+      '<button class="save-btn" tabindex="-1" style="background:var(--charcoal); padding:2px 8px;" onclick="moveManualPullSheetItem(' + i + ', 1)" title="Move down">&darr;</button>' +
       '</td>';
   };
   const removeCell = function(i) {
-    return '<td><button class="save-btn" style="background: #C1502E;" onclick="removeManualPullSheetItem(' + i + ')">Remove</button></td>';
+    return '<td><button class="save-btn" tabindex="-1" style="background: #C1502E;" onclick="removeManualPullSheetItem(' + i + ')">Remove</button></td>';
   };
 
   if (isFormat) {
@@ -7536,7 +7566,9 @@ function renderManualPullSheetItemsTable() {
     lastSection = item.section_name || null;
     rows.push(
       '<tr><td>' + escapeHtml(item.name) + '</td>' +
-      '<td><input type="number" min="0" step="1" value="' + (item.quantity ? escapeHtml(String(item.quantity)) : "") + '" oninput="updateManualPullSheetItemQuantity(' + i + ', this.value)" style="width:70px;" placeholder="Qty" /></td>' +
+      '<td><input type="number" min="0" step="1" class="pull-sheet-qty-input" value="' + (item.quantity ? escapeHtml(String(item.quantity)) : "") + '" ' +
+        'oninput="updateManualPullSheetItemQuantity(' + i + ', this.value)" onkeydown="handlePullSheetQtyKeydown(event, ' + i + ')" ' +
+        'style="width:70px;" placeholder="Qty" /></td>' +
       reorderCell(i) + removeCell(i) +
       '</tr>'
     );
