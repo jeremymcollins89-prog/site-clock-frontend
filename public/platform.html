@@ -6,7 +6,7 @@
 <title>Coll Platform</title>
 
 <link rel="manifest" href="/platform-manifest.json" />
-<meta name="theme-color" content="#060911" />
+<meta name="theme-color" content="#060708" />
 <link rel="apple-touch-icon" href="/icons/platform-apple-touch-icon.png" />
 <meta name="apple-mobile-web-app-capable" content="yes" />
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -17,553 +17,248 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
 
 <style>
+  /* Command-center HUD theme -- flat, dark, precise. No gradients, no blur,
+     no glow. The only recurring motif is the small corner-bracket frame
+     (see .login-box / .card ::before/::after below) borrowed from
+     viewfinder/targeting-reticle UI, plus a static technical grid behind
+     everything instead of the old animated starfield.
+
+     Repurposed var names kept so the inline styles the JS injects at
+     runtime (var(--teal-deep), var(--line), var(--charcoal) on the exempt
+     toggle button, and var(--rust-deep) on the delete button) still
+     resolve to sensible colors under this palette -- only the values
+     changed, not the variable names, so no JS edits were needed. */
   :root {
-    /* Repurposed names kept so the inline styles the JS injects at runtime
-       (var(--teal-deep), var(--line), var(--charcoal) on the exempt toggle
-       button, and var(--amber)/var(--amber-deep) on the primary button)
-       still resolve to sensible colors under the new palette -- only the
-       values changed, not the variable names, so no JS edits were needed. */
-    --bg-deep: #05070d;
-    --bg-navy: #0a0f1e;
-    --panel: rgba(15, 21, 38, 0.66);
-    --panel-solid: #0e1526;
-    --panel-border: rgba(140, 170, 255, 0.14);
-    --line: #c9d3e8;
-    --charcoal: #0b0e1a;
-    --cyan: #52e3ff;
-    --cyan-deep: #17b4d9;
-    --violet: #9c8bff;
-    --violet-deep: #6a56f0;
-    --gold: #f4c169;
-    --amber: #f4b04c;
-    --amber-deep: #db8a16;
-    --teal-deep: #17e0c0;
-    --rust: #ff6b6b;
-    --rust-deep: #ff4d6d;
-    --text: #e8ecf9;
-    --text-dim: #8a93b8;
+    --bg: #060708;
+    --panel: #0d0f12;
+    --panel-alt: #111318;
+    --border: rgba(255,255,255,0.10);
+    --border-strong: rgba(255,255,255,0.22);
+    --line: #aab3c0;
+    --charcoal: #060708;
+    --cyan: #3ad6ff;
+    --teal-deep: #1fd8a8;
+    --rust: #ff5568;
+    --rust-deep: #e0334c;
+    --text: #e7ebf0;
+    --text-dim: #7a8290;
+    --text-faint: #4a505c;
   }
   * { box-sizing: border-box; }
   html, body {
     margin: 0; min-height: 100%;
     font-family: "Space Grotesk", "Segoe UI", -apple-system, sans-serif;
-    background: var(--bg-deep); color: var(--text);
+    background: var(--bg); color: var(--text);
   }
   body {
     position: relative;
     overflow-x: hidden;
     background-image:
-      radial-gradient(1.5px 1.5px at 20px 30px, #fff, transparent),
-      radial-gradient(1px 1px at 90px 110px, #fff, transparent),
-      radial-gradient(1.5px 1.5px at 160px 60px, #cfe0ff, transparent),
-      radial-gradient(1px 1px at 210px 150px, #fff, transparent),
-      radial-gradient(1.5px 1.5px at 280px 40px, #fff, transparent),
-      radial-gradient(1px 1px at 45px 180px, #cfe0ff, transparent),
-      radial-gradient(1px 1px at 320px 190px, #fff, transparent);
-    background-repeat: repeat;
-    background-size: 340px 220px;
-    background-color: var(--bg-deep);
-    animation: driftStars 220s linear infinite;
+      linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+    background-size: 48px 48px;
+    background-position: -1px -1px;
   }
-  @keyframes driftStars {
-    from { background-position: 0 0; }
-    to { background-position: -3400px 2200px; }
-  }
-  /* Second, sparser star layer -- different size/speed than the body's own
-     starfield so the two drift past each other at slightly different rates
-     (a cheap parallax illusion), plus a slow twinkle so the sky doesn't feel
-     static. Purely decorative, sits behind the planets. */
-  body::after {
-    content: "";
-    position: fixed; inset: -20% -20%;
-    background-image:
-      radial-gradient(1.5px 1.5px at 60px 20px, #fff, transparent),
-      radial-gradient(1px 1px at 200px 90px, #fff, transparent),
-      radial-gradient(1.5px 1.5px at 340px 170px, #cfe0ff, transparent),
-      radial-gradient(1px 1px at 120px 220px, #fff, transparent),
-      radial-gradient(1.5px 1.5px at 400px 60px, #e6d9ff, transparent);
-    background-repeat: repeat;
-    background-size: 420px 280px;
-    pointer-events: none;
-    z-index: 0;
-    animation: driftStars 160s linear infinite reverse, twinkle 6s ease-in-out infinite;
-  }
-  @keyframes twinkle { 0%, 100% { opacity: 0.3; } 50% { opacity: 0.95; } }
+  /* One faint, static wash top-center -- reads as depth/atmosphere on a
+     command console, not a nebula. No blur filter, no animation. */
   body::before {
     content: "";
-    position: fixed;
-    inset: -10% -10% auto -10%;
-    height: 70vh;
-    background:
-      radial-gradient(closest-side, rgba(108, 99, 255, 0.22), transparent 70%),
-      radial-gradient(closest-side, rgba(82, 227, 255, 0.14), transparent 65%);
-    background-position: 15% 10%, 80% 0%;
-    background-repeat: no-repeat;
+    position: fixed; inset: 0;
+    background: radial-gradient(ellipse 60% 40% at 50% 0%, rgba(58,214,255,0.05), transparent 70%);
     pointer-events: none;
     z-index: 0;
-    filter: blur(10px);
-  }
-
-  /* A little solar system living behind the whole app -- purely decorative.
-     Fixed + pointer-events:none so nothing here ever intercepts a click or
-     interferes with scrolling.
-
-     Two motions layer on top of each other on purpose, on two different
-     elements so they never fight over the same `transform`:
-       - Each .parallax wrapper below gets its position moved by JS (script
-         at the bottom of this file) based on scroll position and cursor --
-         data-depth controls how much: near-zero for the sun (it's the
-         center of the system, it should barely drift), higher for
-         "closer" planets. This is the "changes as you scroll around" part.
-       - The .planet element *inside* each wrapper runs its own gentle,
-         always-on CSS drift/rotation independent of scroll -- so the scene
-         still feels alive even sitting still.
-  */
-  .cosmos { position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden; }
-  .parallax { position: absolute; will-change: transform; }
-  .planet { position: relative; width: 100%; height: 100%; }
-  .planet-sphere { width: 100%; height: 100%; border-radius: 50%; position: relative; }
-
-  /* The sun -- the anchor of the scene. Lowest depth of anything here (see
-     data-depth on its wrapper in the HTML) so it stays nearly still while
-     everything else drifts around it, the way a real system's star would. */
-  .px-sun { bottom: -50px; right: 10%; width: 160px; height: 160px; }
-  .sun {
-    width: 100%; height: 100%; border-radius: 50%;
-    background: radial-gradient(circle at 40% 35%, #fff8e2 0%, #ffd782 20%, #ffb347 44%, #e07a1c 70%, #7a3403 100%);
-    box-shadow: 0 0 70px 14px rgba(255, 199, 120, 0.5), 0 0 160px 46px rgba(255, 170, 80, 0.22);
-    animation: sunPulse 5s ease-in-out infinite;
-  }
-  @keyframes sunPulse {
-    0%, 100% { filter: brightness(1); }
-    50% { filter: brightness(1.12); }
-  }
-
-  .px-saturn { top: -70px; right: -80px; width: 280px; height: 280px; }
-  .planet-saturn { animation: driftPlanet 36s ease-in-out infinite; }
-  .planet-saturn .planet-sphere {
-    background: radial-gradient(circle at 32% 26%, #ffe7ba 0%, #f2b46a 22%, #d9823f 48%, #a85a2c 76%, #4a2410 100%);
-    box-shadow: -16px 20px 60px rgba(0,0,0,0.55), 0 0 70px rgba(244,193,105,0.16);
-  }
-  .planet-saturn .planet-ring {
-    position: absolute; top: 50%; left: 50%; width: 178%; height: 44%;
-    transform: translate(-50%, -50%) rotate(-16deg);
-    border-radius: 50%;
-    border: 8px solid rgba(244, 209, 158, 0.32);
-    box-shadow: 0 0 22px rgba(244,209,158,0.14);
-    z-index: -1;
-  }
-
-  .px-teal { bottom: 8%; left: -55px; width: 130px; height: 130px; }
-  .planet-teal { animation: driftPlanet 27s ease-in-out infinite reverse; }
-  .planet-teal .planet-sphere {
-    background: radial-gradient(circle at 30% 24%, #c4fff0 0%, #52e3ff 26%, #17b4d9 56%, #0d5e79 82%, #052029 100%);
-    box-shadow: -8px 10px 32px rgba(0,0,0,0.5), 0 0 44px rgba(82,227,255,0.2);
-  }
-  .moon-orbit {
-    position: absolute; inset: -34px;
-    animation: orbitMoon 24s linear infinite;
-  }
-  .moon {
-    position: absolute; top: 2px; left: calc(50% - 7px); width: 14px; height: 14px; border-radius: 50%;
-    background: radial-gradient(circle at 35% 30%, #f6f6fb, #b7bcd6 60%, #6b6f8c 100%);
-    box-shadow: 0 0 10px rgba(255,255,255,0.25);
-  }
-
-  .px-mars { top: 20%; left: 5%; width: 48px; height: 48px; }
-  .planet-mars { opacity: 0.75; animation: driftPlanet 42s ease-in-out infinite; }
-  .planet-mars .planet-sphere {
-    background: radial-gradient(circle at 32% 28%, #ff9d7a 0%, #db6a49 36%, #8f3a26 72%, #391307 100%);
-    box-shadow: 0 0 26px rgba(219,106,73,0.18);
-  }
-
-  .px-violet { top: 62%; right: 6%; width: 34px; height: 34px; }
-  .planet-violet { opacity: 0.6; animation: driftPlanet 30s ease-in-out infinite reverse; }
-  .planet-violet .planet-sphere {
-    background: radial-gradient(circle at 34% 28%, #d7c9ff 0%, #9c8bff 40%, #6a56f0 75%, #26185c 100%);
-    box-shadow: 0 0 20px rgba(156,139,255,0.2);
-  }
-
-  /* Pale ice giant, thin tilted ring -- new */
-  .px-neptune { top: 9%; left: -34px; width: 100px; height: 100px; }
-  .planet-neptune { animation: driftPlanet 33s ease-in-out infinite; }
-  .planet-neptune .planet-sphere {
-    background: radial-gradient(circle at 30% 26%, #eafcff 0%, #9fe3f0 24%, #4fb8d6 52%, #276f8c 80%, #0e2c38 100%);
-    box-shadow: -6px 8px 28px rgba(0,0,0,0.5), 0 0 38px rgba(79,184,214,0.22);
-  }
-  .planet-neptune .planet-ring {
-    position: absolute; top: 50%; left: 50%; width: 152%; height: 32%;
-    transform: translate(-50%, -50%) rotate(14deg);
-    border-radius: 50%;
-    border: 4px solid rgba(200, 240, 255, 0.3);
-    z-index: -1;
-  }
-
-  /* Small cratered rocky planetoid -- new, tucked in the mid-right */
-  .px-ember { top: 40%; right: 3%; width: 30px; height: 30px; }
-  .planet-ember { opacity: 0.8; animation: driftPlanet 24s ease-in-out infinite reverse; }
-  .planet-ember .planet-sphere {
-    background: radial-gradient(circle at 30% 25%, #ffd9a0 0%, #e08a3e 32%, #a1501f 64%, #4a1f0a 100%);
-    box-shadow: 0 0 18px rgba(224,138,62,0.18);
-  }
-  .planet-ember .planet-sphere::after {
-    content: ""; position: absolute; inset: 0; border-radius: 50%;
-    background:
-      radial-gradient(circle at 65% 60%, rgba(0,0,0,0.28) 0 12%, transparent 13%),
-      radial-gradient(circle at 40% 72%, rgba(0,0,0,0.22) 0 8%, transparent 9%),
-      radial-gradient(circle at 55% 30%, rgba(0,0,0,0.2) 0 6%, transparent 7%);
-  }
-
-  /* A soft Milky-Way-style dust/light band running diagonally across the
-     whole sky -- the angle lives in the gradient itself (not a rotated
-     box), so it always fully covers the oversized wrapper with no gaps at
-     the corners. Depth is almost 0 (see data-depth in the HTML): real
-     background starfields like this barely shift at all, even scrolling
-     or moving the cursor a lot. */
-  .px-milkyway { top: -20%; left: -20%; width: 140vw; height: 140vh; }
-  .milkyway {
-    width: 100%; height: 100%;
-    background: linear-gradient(102deg,
-      transparent 40%,
-      rgba(180, 190, 255, 0.05) 45%,
-      rgba(210, 215, 255, 0.10) 48.5%,
-      rgba(232, 226, 255, 0.13) 50%,
-      rgba(210, 215, 255, 0.10) 51.5%,
-      rgba(180, 190, 255, 0.05) 55%,
-      transparent 60%);
-    filter: blur(2px);
-  }
-
-  /* A second, warmer nebula cloud (real astrophotos usually layer several
-     gas-cloud colors -- cool blue/violet plus a warmer rose/magenta one) to
-     balance the cooler nebula glow already coming from body::before. */
-  .px-nebula2 { bottom: -15%; left: -10%; width: 90vw; height: 60vh; }
-  .nebula-cloud {
-    width: 100%; height: 100%;
-    background:
-      radial-gradient(closest-side, rgba(255, 122, 178, 0.10), transparent 70%),
-      radial-gradient(closest-side, rgba(255, 180, 120, 0.07), transparent 65%);
-    background-position: 20% 70%, 60% 40%;
-    background-repeat: no-repeat;
-    filter: blur(14px);
-  }
-
-  /* A proper spiral galaxy as the scene's centerpiece -- flattened and
-     tilted like a real galaxy seen at an angle, with a bright core and a
-     few soft, blurred arms instead of a plain smudge. Still faint enough
-     to read as background, not a cartoon logo. */
-  .px-galaxy { top: 2%; left: 26%; width: 480px; height: 480px; }
-  .galaxy {
-    position: relative; width: 100%; height: 100%;
-    transform: rotate(-20deg) scaleY(0.4);
-    opacity: 0.8;
-  }
-  .galaxy::before {
-    content: ""; position: absolute; inset: 0; border-radius: 50%;
-    background: conic-gradient(from 10deg,
-      rgba(156,139,255,0.34) 0deg,
-      rgba(82,227,255,0.10) 35deg,
-      transparent 75deg,
-      rgba(244,193,105,0.22) 125deg,
-      rgba(82,227,255,0.10) 165deg,
-      transparent 205deg,
-      rgba(156,139,255,0.30) 255deg,
-      transparent 300deg,
-      rgba(244,193,105,0.18) 335deg,
-      rgba(156,139,255,0.34) 360deg);
-    filter: blur(13px);
-  }
-  .galaxy::after {
-    content: ""; position: absolute; top: 50%; left: 50%; width: 22%; height: 22%;
-    transform: translate(-50%, -50%);
-    border-radius: 50%;
-    background: radial-gradient(circle, #fff8e6 0%, #ffe3ad 32%, rgba(255,211,140,0.35) 62%, transparent 100%);
-    filter: blur(2px);
-  }
-
-  @keyframes driftPlanet {
-    0%, 100% { transform: translate(0, 0) rotate(0deg); }
-    50% { transform: translate(-14px, 16px) rotate(3deg); }
-  }
-  @keyframes orbitMoon {
-    from { transform: rotate(0deg); }
-    to { transform: rotate(360deg); }
-  }
-
-  /* Two lone shooting stars on long, staggered timers -- rare enough to
-     feel like a little reward when one happens to streak by. */
-  .shooting-star {
-    position: absolute; width: 2px; height: 2px; border-radius: 50%;
-    background: #fff; box-shadow: 0 0 6px 1px rgba(255,255,255,0.9);
-    opacity: 0;
-  }
-  .shooting-star::before {
-    content: ""; position: absolute; top: 50%; right: 0; width: 130px; height: 1px;
-    background: linear-gradient(90deg, rgba(255,255,255,0.95), transparent);
-    transform: translateY(-50%);
-  }
-  .shooting-star.s1 { top: 14%; left: 68%; animation: shoot 11s ease-in 3s infinite; }
-  .shooting-star.s2 { top: 58%; left: 82%; animation: shoot 15s ease-in 8s infinite; }
-  @keyframes shoot {
-    0% { opacity: 0; transform: translate(0, 0); }
-    2% { opacity: 1; }
-    16% { opacity: 0; transform: translate(-280px, 170px); }
-    100% { opacity: 0; }
-  }
-
-  /* A single comet, slow full diagonal pass every ~26s then invisible until
-     the next lap -- distinct from the quick white shooting stars above. */
-  .comet {
-    position: absolute; top: -6%; left: -6%; width: 8px; height: 8px; border-radius: 50%;
-    background: #eafcff; box-shadow: 0 0 12px 3px rgba(180,230,255,0.9);
-    animation: cometPass 26s linear infinite;
-    opacity: 0;
-  }
-  .comet::after {
-    content: ""; position: absolute; top: 50%; right: 100%; width: 100px; height: 3px;
-    background: linear-gradient(270deg, rgba(180,230,255,0.75), transparent);
-    transform: translateY(-50%);
-    border-radius: 4px;
-  }
-  @keyframes cometPass {
-    0% { opacity: 0; transform: translate(0, 0); }
-    4% { opacity: 1; }
-    40% { opacity: 1; transform: translate(92vw, 62vh); }
-    44% { opacity: 0; transform: translate(92vw, 62vh); }
-    100% { opacity: 0; transform: translate(92vw, 62vh); }
   }
 
   #login-screen, #app { position: relative; z-index: 1; }
 
   input, button { font-family: inherit; }
   input {
-    width: 100%; padding: 12px 14px; border-radius: 12px;
-    font-size: 15px; margin-bottom: 12px;
-    background: rgba(255,255,255,0.04);
-    border: 1.5px solid var(--panel-border);
+    width: 100%; padding: 12px 14px; border-radius: 2px;
+    font-size: 14px; margin-bottom: 12px;
+    background: var(--panel-alt);
+    border: 1px solid var(--border);
     color: var(--text);
+    font-family: "JetBrains Mono", monospace;
   }
-  input::placeholder { color: var(--text-dim); }
+  input::placeholder { color: var(--text-faint); }
   input:focus {
     outline: none; border-color: var(--cyan);
-    box-shadow: 0 0 0 3px rgba(82,227,255,0.18), 0 0 18px rgba(82,227,255,0.25);
-    background: rgba(255,255,255,0.06);
+    box-shadow: 0 0 0 1px var(--cyan);
+    background: var(--panel);
   }
   button { cursor: pointer; }
   .btn-primary {
-    width: 100%; color: #0b0e1a; border: none; border-radius: 12px; font-weight: 700;
-    padding: 13px; font-size: 15px; margin-top: 6px;
-    letter-spacing: 0.03em;
-    background: linear-gradient(135deg, var(--cyan) 0%, var(--violet) 100%);
-    box-shadow: 0 6px 22px rgba(108, 99, 255, 0.4), 0 0 0 1px rgba(255,255,255,0.08) inset;
-    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    width: 100%; color: var(--charcoal); border: none; border-radius: 2px; font-weight: 700;
+    padding: 13px; font-size: 12.5px; margin-top: 6px;
+    letter-spacing: 0.1em; text-transform: uppercase;
+    background: var(--cyan);
+    transition: background 0.15s ease;
+    font-family: "JetBrains Mono", monospace;
   }
-  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 10px 28px rgba(108,99,255,0.5), 0 0 0 1px rgba(255,255,255,0.1) inset; }
-  .btn-primary:active { transform: translateY(0); }
+  .btn-primary:hover { background: #7fe4ff; }
+  .btn-primary:active { background: var(--cyan); }
 
   .error {
-    color: var(--rust); font-size: 13px; margin: 4px 0 10px; display: none;
-    background: rgba(255,77,109,0.1); border: 1px solid rgba(255,77,109,0.35);
-    border-radius: 10px; padding: 8px 10px;
+    color: var(--rust); font-size: 12.5px; margin: 4px 0 10px; display: none;
+    background: rgba(255,85,104,0.08); border: 1px solid rgba(255,85,104,0.3);
+    border-radius: 2px; padding: 8px 10px;
+    font-family: "JetBrains Mono", monospace;
   }
 
   #login-screen { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 20px; }
   #login-screen.hidden { display: none; }
 
   .brand-mark {
-    display: flex; align-items: center; justify-content: center; gap: 10px;
-    margin-bottom: 18px;
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+    margin-bottom: 22px;
   }
-  .brand-ring {
-    width: 34px; height: 34px; flex-shrink: 0;
-  }
-  .brand-ring circle { fill: none; stroke-width: 1.6; }
-  .brand-ring .orbit { stroke: rgba(82,227,255,0.35); }
-  .brand-ring .core { fill: url(#coreGlow); }
-  .brand-ring .dot { fill: var(--cyan); filter: drop-shadow(0 0 4px var(--cyan)); }
+  .brand-ring { width: 30px; height: 30px; flex-shrink: 0; }
+  .brand-ring path { fill: none; stroke: var(--cyan); stroke-width: 1.6; stroke-linecap: square; }
+  .brand-ring .scope { fill: none; stroke: rgba(58,214,255,0.4); stroke-width: 1; stroke-dasharray: 2 3; }
+  .brand-ring .dot { fill: var(--cyan); }
 
-  .login-box {
+  .login-box, .card {
+    position: relative;
     background: var(--panel);
-    backdrop-filter: blur(18px);
-    -webkit-backdrop-filter: blur(18px);
-    border: 1px solid var(--panel-border);
-    border-radius: 20px; padding: 34px 30px; width: 360px; max-width: 90vw;
-    box-shadow: 0 24px 60px rgba(0,0,0,0.55), 0 0 0 1px rgba(255,255,255,0.03) inset;
+    border: 1px solid var(--border);
+    border-radius: 2px;
   }
+  .login-box::before, .login-box::after,
+  .card::before, .card::after {
+    content: ""; position: absolute; width: 14px; height: 14px; pointer-events: none;
+  }
+  .login-box::before, .card::before { top: -1px; left: -1px; border-top: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
+  .login-box::after, .card::after { bottom: -1px; right: -1px; border-bottom: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
+
+  .login-box { padding: 36px 32px; width: 360px; max-width: 90vw; }
   .login-box h1 {
-    font-size: 20px; margin: 0 0 4px; text-align: center;
-    letter-spacing: 0.08em; text-transform: uppercase;
+    font-size: 16px; margin: 0 0 4px; text-align: center;
+    letter-spacing: 0.14em; text-transform: uppercase; font-weight: 600;
   }
   .login-box p {
-    color: var(--text-dim); font-size: 12.5px; margin: 0 0 22px; text-align: center;
-    letter-spacing: 0.04em; text-transform: uppercase;
+    color: var(--text-dim); font-size: 11px; margin: 0 0 26px; text-align: center;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    font-family: "JetBrains Mono", monospace;
   }
 
   #app { display: none; max-width: 1140px; margin: 0 auto; padding: 28px 20px 60px; }
   #app.visible { display: block; }
 
-  header.top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px; gap: 14px; flex-wrap: wrap; }
+  header.top {
+    display: flex; justify-content: space-between; align-items: center; margin-bottom: 22px;
+    gap: 14px; flex-wrap: wrap; padding-bottom: 16px; border-bottom: 1px solid var(--border);
+  }
   header.top .title-group { display: flex; align-items: center; gap: 10px; }
   header.top h1 {
-    font-size: 19px; margin: 0; letter-spacing: 0.06em; text-transform: uppercase;
+    font-size: 15px; margin: 0; letter-spacing: 0.12em; text-transform: uppercase; font-weight: 600;
   }
   .status-dot {
-    width: 8px; height: 8px; border-radius: 50%; background: var(--teal-deep);
-    box-shadow: 0 0 8px var(--teal-deep), 0 0 16px var(--teal-deep);
+    width: 6px; height: 6px; border-radius: 50%; background: var(--teal-deep);
     animation: pulseDot 2.4s ease-in-out infinite;
     flex-shrink: 0;
   }
-  @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+  @keyframes pulseDot { 0%, 100% { opacity: 1; } 50% { opacity: 0.3; } }
   .live-label {
-    font-family: "JetBrains Mono", monospace; font-size: 10.5px; color: var(--text-dim);
-    letter-spacing: 0.12em; text-transform: uppercase; display: flex; align-items: center; gap: 6px;
+    font-family: "JetBrains Mono", monospace; font-size: 10px; color: var(--text-dim);
+    letter-spacing: 0.14em; text-transform: uppercase; display: flex; align-items: center; gap: 7px;
   }
 
   .logout-btn {
-    background: rgba(255,255,255,0.05); color: var(--text); border: 1px solid var(--panel-border);
-    border-radius: 10px; padding: 9px 16px; font-size: 12.5px; font-weight: 600;
-    letter-spacing: 0.03em; transition: background 0.15s ease, border-color 0.15s ease;
+    background: transparent; color: var(--text); border: 1px solid var(--border);
+    border-radius: 2px; padding: 9px 16px; font-size: 11px; font-weight: 600;
+    letter-spacing: 0.08em; text-transform: uppercase;
+    transition: border-color 0.15s ease, color 0.15s ease;
+    font-family: "JetBrains Mono", monospace;
   }
-  .logout-btn:hover { background: rgba(255,255,255,0.09); border-color: rgba(255,255,255,0.24); }
+  .logout-btn:hover { border-color: var(--cyan); color: var(--cyan); }
 
-  .stats-row { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 22px; }
+  .stats-row {
+    display: flex; flex-wrap: wrap; gap: 1px; margin-bottom: 22px;
+    background: var(--border); border: 1px solid var(--border);
+  }
   .stat-card {
     background: var(--panel);
-    backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
-    border: 1px solid var(--panel-border);
-    border-radius: 16px; padding: 16px 18px; flex: 1; min-width: 165px;
-    box-shadow: 0 10px 26px rgba(0,0,0,0.35);
-    position: relative; overflow: hidden;
+    padding: 16px 18px; flex: 1; min-width: 165px;
+    position: relative;
   }
   .stat-card::after {
-    content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 2px;
-    background: linear-gradient(90deg, var(--cyan), var(--violet));
-    opacity: 0.8;
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 2px;
+    background: var(--cyan);
   }
   .stat-card .label {
-    font-size: 10.5px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.08em;
+    font-size: 10px; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.1em;
     font-family: "JetBrains Mono", monospace;
   }
   .stat-card .value {
-    font-size: 23px; font-weight: 700; margin-top: 6px;
+    font-size: 21px; font-weight: 600; margin-top: 6px;
     font-family: "JetBrains Mono", monospace;
     color: var(--text);
-    text-shadow: 0 0 18px rgba(82,227,255,0.25);
   }
 
-  .card {
-    background: var(--panel);
-    backdrop-filter: blur(16px); -webkit-backdrop-filter: blur(16px);
-    border: 1px solid var(--panel-border);
-    border-radius: 20px; padding: 20px;
-    box-shadow: 0 20px 50px rgba(0,0,0,0.4);
-  }
+  .card { padding: 20px; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th {
-    text-align: left; font-size: 10.5px; color: var(--text-dim); text-transform: uppercase;
-    letter-spacing: 0.06em; padding: 10px 12px; border-bottom: 1px solid var(--panel-border);
+    text-align: left; font-size: 10px; color: var(--text-dim); text-transform: uppercase;
+    letter-spacing: 0.08em; padding: 10px 12px; border-bottom: 1px solid var(--border);
     font-family: "JetBrains Mono", monospace; font-weight: 500;
   }
   td { padding: 12px; border-bottom: 1px solid rgba(255,255,255,0.05); vertical-align: middle; }
   tr:last-child td { border-bottom: none; }
   tbody tr { transition: background 0.15s ease; }
-  tbody tr:hover { background: rgba(82,227,255,0.045); }
+  tbody tr:hover { background: rgba(58,214,255,0.045); }
 
   .badge {
-    display: inline-block; font-size: 10.5px; padding: 5px 12px; border-radius: 20px;
-    font-weight: 700; letter-spacing: 0.03em;
+    display: inline-block; font-size: 10px; padding: 4px 10px; border-radius: 2px;
+    font-weight: 600; letter-spacing: 0.04em; text-transform: uppercase;
     font-family: "JetBrains Mono", monospace;
   }
   .badge-yes {
-    background: rgba(23,224,192,0.14); color: var(--teal-deep);
-    border: 1px solid rgba(23,224,192,0.4); box-shadow: 0 0 10px rgba(23,224,192,0.15);
+    background: rgba(31,216,168,0.1); color: var(--teal-deep);
+    border: 1px solid rgba(31,216,168,0.35);
   }
   .badge-no {
-    background: rgba(255,255,255,0.05); color: var(--text-dim);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border);
   }
   .badge-dormant {
-    background: rgba(255,77,109,0.14); color: var(--rust-deep);
-    border: 1px solid rgba(255,77,109,0.4); box-shadow: 0 0 10px rgba(255,77,109,0.15);
+    background: rgba(224,51,76,0.1); color: #ff7d8f;
+    border: 1px solid rgba(224,51,76,0.35);
   }
   .badge-fresh {
-    background: rgba(23,224,192,0.14); color: var(--teal-deep);
-    border: 1px solid rgba(23,224,192,0.4); box-shadow: 0 0 10px rgba(23,224,192,0.15);
+    background: rgba(31,216,168,0.1); color: var(--teal-deep);
+    border: 1px solid rgba(31,216,168,0.35);
   }
   .badge-never {
-    background: rgba(255,255,255,0.05); color: var(--text-dim);
-    border: 1px solid rgba(255,255,255,0.12);
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--border);
   }
 
   .toggle-btn {
-    border: none; border-radius: 10px; padding: 7px 14px; font-size: 11.5px; font-weight: 700;
-    color: #fff; letter-spacing: 0.02em;
+    border: none; border-radius: 2px; padding: 7px 14px; font-size: 10.5px; font-weight: 700;
+    color: #fff; letter-spacing: 0.04em; text-transform: uppercase;
     font-family: "JetBrains Mono", monospace;
-    box-shadow: 0 4px 14px rgba(0,0,0,0.3);
   }
 
   .search-input { max-width: 300px; margin-bottom: 16px; }
 
   ::-webkit-scrollbar { width: 10px; height: 10px; }
   ::-webkit-scrollbar-track { background: transparent; }
-  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.12); border-radius: 20px; }
+  ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.14); border-radius: 2px; }
 </style>
 </head>
 <body>
 
-<div class="cosmos" id="cosmos" aria-hidden="true">
-  <div class="parallax px-milkyway" data-depth="0.01"><div class="milkyway"></div></div>
-  <div class="parallax px-nebula2" data-depth="0.015"><div class="nebula-cloud"></div></div>
-  <div class="parallax px-galaxy" data-depth="0.02"><div class="galaxy"></div></div>
-  <div class="parallax px-sun" data-depth="0.03"><div class="sun"></div></div>
-
-  <div class="parallax px-saturn" data-depth="0.18">
-    <div class="planet planet-saturn">
-      <div class="planet-ring"></div>
-      <div class="planet-sphere"></div>
-    </div>
-  </div>
-  <div class="parallax px-teal" data-depth="0.28">
-    <div class="planet planet-teal">
-      <div class="planet-sphere"></div>
-      <div class="moon-orbit"><div class="moon"></div></div>
-    </div>
-  </div>
-  <div class="parallax px-neptune" data-depth="0.15">
-    <div class="planet planet-neptune">
-      <div class="planet-ring"></div>
-      <div class="planet-sphere"></div>
-    </div>
-  </div>
-  <div class="parallax px-mars" data-depth="0.12">
-    <div class="planet planet-mars"><div class="planet-sphere"></div></div>
-  </div>
-  <div class="parallax px-violet" data-depth="0.08">
-    <div class="planet planet-violet"><div class="planet-sphere"></div></div>
-  </div>
-  <div class="parallax px-ember" data-depth="0.07">
-    <div class="planet planet-ember"><div class="planet-sphere"></div></div>
-  </div>
-
-  <div class="shooting-star s1"></div>
-  <div class="shooting-star s2"></div>
-  <div class="comet"></div>
-</div>
-
 <div id="login-screen">
   <div class="login-box">
     <div class="brand-mark">
-      <svg class="brand-ring" viewBox="0 0 40 40" xmlns="http://www.w3.org/2000/svg">
-        <defs>
-          <radialGradient id="coreGlow" cx="50%" cy="50%" r="50%">
-            <stop offset="0%" stop-color="#9c8bff" />
-            <stop offset="100%" stop-color="#52e3ff" stop-opacity="0.2" />
-          </radialGradient>
-        </defs>
-        <circle class="orbit" cx="20" cy="20" r="17" />
-        <circle class="core" cx="20" cy="20" r="6" />
-        <circle class="dot" cx="34" cy="20" r="2.2" />
+      <svg class="brand-ring" viewBox="0 0 32 32" xmlns="http://www.w3.org/2000/svg">
+        <path d="M4 10 V5 H9" />
+        <path d="M23 5 H28 V10" />
+        <path d="M28 22 V27 H23" />
+        <path d="M9 27 H4 V22" />
+        <circle class="scope" cx="16" cy="16" r="8" />
+        <circle class="dot" cx="16" cy="16" r="2.2" />
       </svg>
       <h1 style="margin:0;">Coll Platform</h1>
     </div>
@@ -805,42 +500,6 @@ if ("serviceWorker" in navigator) {
   navigator.serviceWorker.register("/service-worker.js", { updateViaCache: "none" });
 }
 
-// Solar system parallax -- moves each .parallax layer in the cosmos
-// background based on scroll position and cursor location, per its own
-// data-depth (0 = practically fixed, like the sun; higher = drifts more,
-// reading as "closer"). This is separate from the CSS drift/orbit
-// animations each planet already runs on itself, so the two motions layer
-// naturally instead of fighting over the same transform. Runs regardless of
-// login state, since the login screen sits on top of this same background.
-(function () {
-  const layers = Array.prototype.slice.call(document.querySelectorAll(".parallax"));
-  if (!layers.length) return;
-  let mouseX = 0, mouseY = 0, ticking = false;
-
-  function apply() {
-    const scrollY = window.scrollY || 0;
-    layers.forEach(function (el) {
-      const depth = parseFloat(el.getAttribute("data-depth")) || 0;
-      const dx = mouseX * depth * 40;
-      const dy = (-scrollY * depth) + (mouseY * depth * 40);
-      el.style.transform = "translate3d(" + dx.toFixed(1) + "px, " + dy.toFixed(1) + "px, 0)";
-    });
-    ticking = false;
-  }
-  function requestTick() {
-    if (!ticking) {
-      ticking = true;
-      requestAnimationFrame(apply);
-    }
-  }
-  window.addEventListener("scroll", requestTick, { passive: true });
-  window.addEventListener("mousemove", function (e) {
-    mouseX = (e.clientX / window.innerWidth) - 0.5;
-    mouseY = (e.clientY / window.innerHeight) - 0.5;
-    requestTick();
-  }, { passive: true });
-  apply();
-})();
 </script>
 </body>
 </html>
