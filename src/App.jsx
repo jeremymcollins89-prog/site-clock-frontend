@@ -5092,7 +5092,17 @@ const [emailInput, setEmailInput] = useState("");
 
   if (!loggedIn) {
     return (
-      <div style={{ background: BG, minHeight: "100vh", color: INK, fontFamily: "'IBM Plex Mono', monospace" }} className="w-full min-h-screen flex items-center justify-center px-4">
+      <div
+        style={{
+          background: BG,
+          minHeight: "100vh",
+          color: INK,
+          fontFamily: "'IBM Plex Mono', monospace",
+          paddingTop: "env(safe-area-inset-top)",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}
+        className="w-full min-h-screen flex items-center justify-center px-4"
+      >
         <style>{FONT_IMPORT}</style>
         <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: SURFACE, boxShadow: "0 20px 45px rgba(31,36,33,0.14), 0 4px 12px rgba(31,36,33,0.08)" }} className="w-full max-w-xs rounded-2xl p-6">
           <h1 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xl font-semibold uppercase mb-1 text-center">
@@ -5216,7 +5226,10 @@ const [emailInput, setEmailInput] = useState("");
         saving={savingAnimation}
         error={animationSaveError}
       />
-      <div style={{ fontFamily: "'IBM Plex Mono', monospace" }} className="max-w-md mx-auto px-4 pt-8">
+      <div
+        style={{ fontFamily: "'IBM Plex Mono', monospace", paddingTop: "calc(2rem + env(safe-area-inset-top))" }}
+        className="max-w-md mx-auto px-4"
+      >
         <div className="flex items-center justify-between mb-1">
           {/* No visible hint on purpose -- tap this 7x fast to open Snake. */}
           <div onClick={handleLogoSecretTap} style={{ cursor: "default" }}>
