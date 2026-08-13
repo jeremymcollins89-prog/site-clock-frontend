@@ -192,6 +192,36 @@
     display: inline-block; height: 4px; width: 64px; margin-left: 6px;
     background: var(--amber); border-radius: 2px; opacity: 0.85;
   }
+  .lcars-seg {
+    display: inline-block; height: 4px; width: 14px; margin-left: 3px;
+    background: var(--teal-deep); border-radius: 2px; opacity: 0.85;
+  }
+  /* Tiny console "systems nominal" readout -- a row of small labeled
+     status LEDs, two lit and slowly pulsing, one dark. Purely decorative
+     dashboard flavor, kept small enough not to compete with the real
+     Live/chronometer status next to it. */
+  .sys-strip {
+    display: flex; align-items: center; gap: 5px;
+    font-family: "JetBrains Mono", monospace; font-size: 9px; letter-spacing: 0.08em;
+    color: var(--text-faint); text-transform: uppercase;
+  }
+  .sys-led { width: 5px; height: 5px; border-radius: 50%; background: rgba(255,255,255,0.15); margin-right: 3px; }
+  .sys-led.on {
+    background: var(--teal-deep); box-shadow: 0 0 4px 1px rgba(31,216,168,0.6);
+    animation: pulseDot 3s ease-in-out infinite;
+  }
+  .sys-lbl { margin-right: 8px; }
+
+  /* A large, faint bracket frame pinned to the browser viewport itself
+     (not any one panel) -- the "you're looking through a viewscreen"
+     touch. Fixed + pointer-events:none so it never intercepts a click or
+     moves with scroll. */
+  .viewport-frame { position: fixed; inset: 14px; z-index: 2; pointer-events: none; }
+  .vf-corner { position: absolute; width: 34px; height: 34px; opacity: 0.5; }
+  .vf-tl { top: 0; left: 0; border-top: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
+  .vf-tr { top: 0; right: 0; border-top: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
+  .vf-bl { bottom: 0; left: 0; border-bottom: 2px solid var(--cyan); border-left: 2px solid var(--cyan); }
+  .vf-br { bottom: 0; right: 0; border-bottom: 2px solid var(--cyan); border-right: 2px solid var(--cyan); }
   .status-dot {
     width: 6px; height: 6px; border-radius: 50%; background: var(--teal-deep);
     box-shadow: 0 0 6px 1px rgba(31,216,168,0.6);
@@ -238,6 +268,15 @@
   }
 
   .card { padding: 20px; }
+
+  /* The card's own clip-path (see .login-box, .card above) clips anything
+     that overflows its box, corners included -- with 8 columns, the table
+     is wider than the card on most screens, so without its own scroll
+     region the rightmost columns (Last activity / Billing exempt / Delete)
+     were getting silently clipped away instead of just spilling out
+     messily like before. Scrolling this inner wrapper instead keeps every
+     column reachable. */
+  .table-wrap { overflow-x: auto; }
 
   table { width: 100%; border-collapse: collapse; font-size: 13px; }
   th {
@@ -292,6 +331,12 @@
 <body>
 
 <div class="scan-sweep" aria-hidden="true"></div>
+<div class="viewport-frame" aria-hidden="true">
+  <span class="vf-corner vf-tl"></span>
+  <span class="vf-corner vf-tr"></span>
+  <span class="vf-corner vf-bl"></span>
+  <span class="vf-corner vf-br"></span>
+</div>
 
 <div id="login-screen">
   <div class="login-box">
@@ -319,8 +364,14 @@
     <div class="title-group">
       <h1 class="lcars-chip">All companies</h1>
       <span class="lcars-bar"></span>
+      <span class="lcars-seg"></span>
     </div>
-    <div style="display:flex; align-items:center; gap:16px;">
+    <div style="display:flex; align-items:center; gap:18px;">
+      <span class="sys-strip" aria-hidden="true">
+        <span class="sys-led on"></span><span class="sys-lbl">Pwr</span>
+        <span class="sys-led on"></span><span class="sys-lbl">Net</span>
+        <span class="sys-led"></span><span class="sys-lbl">Aux</span>
+      </span>
       <span class="live-label"><span class="status-dot"></span>Live <span id="chrono" class="chrono"></span></span>
       <button class="logout-btn" onclick="doLogout()">Log out</button>
     </div>
@@ -330,21 +381,23 @@
 
   <div class="card">
     <input class="search-input" id="company-search" placeholder="Search companies..." oninput="renderCompanies()" />
-    <table>
-      <thead>
-        <tr>
-          <th>Company</th>
-          <th>Owner email</th>
-          <th>Signed up</th>
-          <th>Employees</th>
-          <th>Stripe connected</th>
-          <th>Last activity</th>
-          <th>Billing exempt</th>
-          <th>Delete</th>
-        </tr>
-      </thead>
-      <tbody id="companies-body"></tbody>
-    </table>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Company</th>
+            <th>Owner email</th>
+            <th>Signed up</th>
+            <th>Employees</th>
+            <th>Stripe connected</th>
+            <th>Last activity</th>
+            <th>Billing exempt</th>
+            <th>Delete</th>
+          </tr>
+        </thead>
+        <tbody id="companies-body"></tbody>
+      </table>
+    </div>
   </div>
 </div>
 
