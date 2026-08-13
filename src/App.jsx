@@ -4192,101 +4192,123 @@ const [emailInput, setEmailInput] = useState("");
       }
     }
 
-    // Prefer the one-time native GPS handoff from the Android app (see
-    // nativeLocationRef's declaration above) when it's reasonably fresh --
-    // calling navigator.geolocation directly fails inside this app's
-    // Trusted Web Activity (Chrome tries to delegate the request to a
-    // native service the app doesn't implement, and errors out with "no
-    // twa found" even though location permission is genuinely granted).
-    // 30 minutes covers the realistic case (checking this screen shortly
-    // after opening the app); anything older falls back to trying the
-    // browser API directly, which still works fine outside the Android
-    // wrapper (desktop, iOS, or any future non-TWA context).
-    const handoff = nativeLocationRef.current;
-    const handoffFresh = handoff && Date.now() - handoff.capturedAt < 30 * 60 * 1000;
-    if (handoffFresh) {
+    // One run of the auto-detect check -- called immediately below, then
+    // again on a timer while this screen stays open (see the interval
+    // further down). Re-running matters: an employee can open this screen
+    // while still mid-drive, and without a periodic re-check the toggle
+    // would just freeze on whatever state it first landed on, even after
+    // they've since crossed into a different one.
+    function runCheck() {
+      if (cancelled || manualLocationRef.current) return;
+
+      // Prefer the one-time native GPS handoff from the Android app (see
+      // nativeLocationRef's declaration above) ONLY for the first couple
+      // minutes after login -- calling navigator.geolocation directly can
+      // intermittently fail right at launch inside this app's Trusted Web
+      // Activity (Chrome tries to delegate the request to a native service
+      // the app doesn't implement, and errors out with "no twa found" even
+      // though location permission is genuinely granted). Past that short
+      // window this deliberately falls through to a live browser check
+      // instead of continuing to trust that single login-time fix --
+      // treating it as valid for up to 30 minutes was the bug: an employee
+      // who logged in near a state line and then drove could see a stale
+      // "you're still in the old state" result for half an hour, exactly
+      // like the Colorado/New Mexico mixup this was built to fix.
+      const handoff = nativeLocationRef.current;
+      const handoffFresh = handoff && Date.now() - handoff.capturedAt < 2 * 60 * 1000;
+      if (handoffFresh) {
+        setLocationCheckNote("Checking your location…");
+        checkCoords(handoff.lat, handoff.lng);
+        return;
+      }
+
+      if (!navigator.geolocation) {
+        setLocationCheckNote("Your browser doesn't support location, so this can't auto-detect.");
+        return;
+      }
       setLocationCheckNote("Checking your location…");
-      checkCoords(handoff.lat, handoff.lng);
-      return () => {
-        cancelled = true;
-      };
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          if (cancelled || manualLocationRef.current) return;
+          checkCoords(pos.coords.latitude, pos.coords.longitude);
+        },
+        (err) => {
+          if (cancelled) return;
+          // GeolocationPositionError codes: 1 = permission denied, 2 = position
+          // unavailable, 3 = timeout. Including the raw code/message (rather
+          // than just a friendly summary) temporarily, so a failure mode we
+          // haven't seen yet is diagnosable from the phone screen itself
+          // instead of needing another round-trip to guess at it.
+          const code = err && err.code;
+          const raw = err && err.message ? ` (${err.message})` : "";
+          // Chrome's Trusted Web Activity wrapper intermittently fails to hand
+          // navigator.geolocation off to its native location service ("no twa
+          // found" / "NoTwaFound") -- a known, flaky Chromium quirk specific
+          // to running inside the wrapped Android app, not a real permission
+          // or GPS problem. It's not actionable, so show a plain note instead
+          // of the raw diagnostic and skip the permission cross-check below.
+          // Since this now retries every few minutes (see the interval
+          // below), a transient failure here just gets picked up on the
+          // next pass instead of leaving a stale result on screen.
+          const isKnownTwaQuirk = err && err.message && /no\s*twa\s*found/i.test(err.message);
+          if (isKnownTwaQuirk) {
+            setLocationCheckNote("Couldn't auto-detect your location right now -- tap Traveling above if you're away from the shop.");
+            return;
+          }
+          if (code === 1) {
+            // getCurrentPosition's own PERMISSION_DENIED code is unreliable
+            // inside this app's Trusted Web Activity wrapper -- it can fire
+            // with a generic "User denied Geolocation" message even when the
+            // site's actual permission, per the standalone Permissions API,
+            // is still "prompt" (never actually asked) or already "granted".
+            // Cross-check before showing the scarier "permission is off"
+            // wording, so this doesn't contradict itself on screen (the old
+            // version showed that message AND a "[permission: prompt]" tag
+            // side by side, which is exactly the confusing, wrong-looking
+            // combination this avoids).
+            if (navigator.permissions && navigator.permissions.query) {
+              navigator.permissions
+                .query({ name: "geolocation" })
+                .then((status) => {
+                  if (cancelled) return;
+                  if (status.state === "denied") {
+                    setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+                  } else {
+                    setLocationCheckNote("Couldn't auto-detect your location right now -- tap Traveling above if you're away from the shop.");
+                  }
+                })
+                .catch(() => {
+                  if (!cancelled) setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+                });
+            } else {
+              setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
+            }
+          } else if (code === 3) {
+            setLocationCheckNote(`Location check timed out -- try again in a moment${raw}.`);
+          } else {
+            setLocationCheckNote(`Couldn't get your current location [code ${code}]${raw}.`);
+          }
+        },
+        // enableHighAccuracy forces a real GPS fix instead of network-based
+        // (cell/Wi-Fi) location -- network location depends on Google having
+        // crowd-sourced signal data for the area, which is often missing in
+        // rural/remote areas and fails outright with POSITION_UNAVAILABLE,
+        // exactly where an out-of-state "Traveling" employee is most likely to
+        // be. GPS works anywhere with sky view, at the cost of a slower first
+        // fix -- hence the longer timeout below.
+        { enableHighAccuracy: true, timeout: 15000, maximumAge: 5 * 60 * 1000 }
+      );
     }
 
-    if (!navigator.geolocation) {
-      setLocationCheckNote("Your browser doesn't support location, so this can't auto-detect.");
-      return;
-    }
-    setLocationCheckNote("Checking your location…");
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        if (cancelled || manualLocationRef.current) return;
-        checkCoords(pos.coords.latitude, pos.coords.longitude);
-      },
-      (err) => {
-        if (cancelled) return;
-        // GeolocationPositionError codes: 1 = permission denied, 2 = position
-        // unavailable, 3 = timeout. Including the raw code/message (rather
-        // than just a friendly summary) temporarily, so a failure mode we
-        // haven't seen yet is diagnosable from the phone screen itself
-        // instead of needing another round-trip to guess at it.
-        const code = err && err.code;
-        const raw = err && err.message ? ` (${err.message})` : "";
-        // Chrome's Trusted Web Activity wrapper intermittently fails to hand
-        // navigator.geolocation off to its native location service ("no twa
-        // found" / "NoTwaFound") -- a known, flaky Chromium quirk specific
-        // to running inside the wrapped Android app, not a real permission
-        // or GPS problem. It's not actionable, so show a plain note instead
-        // of the raw diagnostic and skip the permission cross-check below.
-        const isKnownTwaQuirk = err && err.message && /no\s*twa\s*found/i.test(err.message);
-        if (isKnownTwaQuirk) {
-          setLocationCheckNote("Couldn't auto-detect your location right now -- tap Traveling above if you're away from the shop.");
-          return;
-        }
-        if (code === 1) {
-          // getCurrentPosition's own PERMISSION_DENIED code is unreliable
-          // inside this app's Trusted Web Activity wrapper -- it can fire
-          // with a generic "User denied Geolocation" message even when the
-          // site's actual permission, per the standalone Permissions API,
-          // is still "prompt" (never actually asked) or already "granted".
-          // Cross-check before showing the scarier "permission is off"
-          // wording, so this doesn't contradict itself on screen (the old
-          // version showed that message AND a "[permission: prompt]" tag
-          // side by side, which is exactly the confusing, wrong-looking
-          // combination this avoids).
-          if (navigator.permissions && navigator.permissions.query) {
-            navigator.permissions
-              .query({ name: "geolocation" })
-              .then((status) => {
-                if (cancelled) return;
-                if (status.state === "denied") {
-                  setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
-                } else {
-                  setLocationCheckNote("Couldn't auto-detect your location right now -- tap Traveling above if you're away from the shop.");
-                }
-              })
-              .catch(() => {
-                if (!cancelled) setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
-              });
-          } else {
-            setLocationCheckNote(`Location permission is off for this app, so Traveling can't auto-detect${raw}.`);
-          }
-        } else if (code === 3) {
-          setLocationCheckNote(`Location check timed out -- try again in a moment${raw}.`);
-        } else {
-          setLocationCheckNote(`Couldn't get your current location [code ${code}]${raw}.`);
-        }
-      },
-      // enableHighAccuracy forces a real GPS fix instead of network-based
-      // (cell/Wi-Fi) location -- network location depends on Google having
-      // crowd-sourced signal data for the area, which is often missing in
-      // rural/remote areas and fails outright with POSITION_UNAVAILABLE,
-      // exactly where an out-of-state "Traveling" employee is most likely to
-      // be. GPS works anywhere with sky view, at the cost of a slower first
-      // fix -- hence the longer timeout below.
-      { enableHighAccuracy: true, timeout: 15000, maximumAge: 5 * 60 * 1000 }
-    );
+    runCheck();
+    // Re-check every 5 minutes while this screen is still showing and no
+    // manual pick has happened yet, so someone who leaves the app open
+    // while driving gets self-corrected instead of being stuck on whatever
+    // state they were in when the screen first loaded.
+    const interval = setInterval(runCheck, 5 * 60 * 1000);
     return () => {
       cancelled = true;
+      clearInterval(interval);
     };
   }, [status]);
 
