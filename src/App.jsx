@@ -4572,21 +4572,42 @@ const [emailInput, setEmailInput] = useState("");
   function startRoute() {
     if (!todaysRoute || todaysRoute.stops.length === 0) return;
     const fallbackUrl = todaysRoute.maps_url;
+
+    function openWithOrigin(lat, lng) {
+      const origin = `${lat},${lng}`;
+      const destination = todaysRoute.shop_location
+        ? `${todaysRoute.shop_location.lat},${todaysRoute.shop_location.lng}`
+        : origin;
+      const waypoints = todaysRoute.stops.map((s) => `${s.lat},${s.lng}`).join("|");
+      const params = new URLSearchParams({ api: "1", origin, destination, travelmode: "driving" });
+      if (waypoints) params.set("waypoints", waypoints);
+      window.open(`https://www.google.com/maps/dir/?${params.toString()}`, "_blank");
+    }
+
+    // Prefer the native GPS handoff (see nativeLocationRef's declaration
+    // near the travel-check effect above) the same way that effect does,
+    // for the same reason: on at least one real device, a direct
+    // navigator.geolocation call inside this app's Android wrapper has been
+    // confirmed to return a flatly wrong position (a different US state)
+    // even though the OS's own location (and the native handoff, taken via
+    // Play Services at app launch) is correct. Unlike the travel-check
+    // effect, this isn't time-gated to a couple minutes after launch --
+    // this only runs when the employee actually taps "Start route", and a
+    // same-session native fix that's an hour old is still far more
+    // trustworthy here than a "live" browser fix that's been shown to be
+    // confidently wrong on this wrapper.
+    const handoff = nativeLocationRef.current;
+    if (handoff) {
+      openWithOrigin(handoff.lat, handoff.lng);
+      return;
+    }
+
     if (!navigator.geolocation) {
       if (fallbackUrl) window.open(fallbackUrl, "_blank");
       return;
     }
     navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        const origin = `${pos.coords.latitude},${pos.coords.longitude}`;
-        const destination = todaysRoute.shop_location
-          ? `${todaysRoute.shop_location.lat},${todaysRoute.shop_location.lng}`
-          : origin;
-        const waypoints = todaysRoute.stops.map((s) => `${s.lat},${s.lng}`).join("|");
-        const params = new URLSearchParams({ api: "1", origin, destination, travelmode: "driving" });
-        if (waypoints) params.set("waypoints", waypoints);
-        window.open(`https://www.google.com/maps/dir/?${params.toString()}`, "_blank");
-      },
+      (pos) => openWithOrigin(pos.coords.latitude, pos.coords.longitude),
       () => {
         if (fallbackUrl) window.open(fallbackUrl, "_blank");
       },
