@@ -4170,14 +4170,23 @@ const [emailInput, setEmailInput] = useState("");
       try {
         const res = await apiFetch(`/api/time-entries/travel-check?lat=${lat}&lng=${lng}`);
         if (cancelled || manualLocationRef.current) return;
+        // Temporary diagnostic: show exactly what coordinates were checked
+        // and what state they resolved to, right on screen, even on a
+        // successful check -- not just on failure. This is here specifically
+        // to help track down a report of the detected state being wrong
+        // (Colorado employee, New Mexico shown) without needing a laptop or
+        // Logcat access; safe to remove once that's root-caused.
+        const diag = `[diag] sent ${lat.toFixed(4)}, ${lng.toFixed(4)} -- resolved: ${
+          res && res.employee_state ? res.employee_state : "?"
+        } (shop: ${res && res.shop_state ? res.shop_state : "?"})`;
         if (res && res.traveling === true) {
           setLocation("traveling");
           setLocationAutoDetected(true);
-          setLocationCheckNote("");
+          setLocationCheckNote(diag);
         } else if (res && res.traveling === false) {
           setLocation("in_town");
           setLocationAutoDetected(false);
-          setLocationCheckNote("");
+          setLocationCheckNote(diag);
         } else {
           // Server couldn't make a confident call (shop location not set,
           // or couldn't resolve a state for these coordinates) -- surface
@@ -5551,6 +5560,7 @@ const [emailInput, setEmailInput] = useState("");
           {status === "off" && locationAutoDetected && (
             <div className="text-[13px] mb-3 -mt-3" style={{ color: MUTED }}>
               Set to Traveling automatically based on your location — tap In Town if that's wrong.
+              {locationCheckNote && <div>{locationCheckNote}</div>}
             </div>
           )}
           {status === "off" && !locationAutoDetected && locationCheckNote && (
