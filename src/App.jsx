@@ -4362,6 +4362,17 @@ const [emailInput, setEmailInput] = useState("");
   useEffect(() => {
     if (status === "off") return;
     if (!("geolocation" in navigator)) return;
+    // Skip entirely inside the native Android app (Trusted Web Activity):
+    // navigator.geolocation is unreliable in that wrapper (Chrome's location
+    // delegation to the native app is broken -- see LocationDelegationService.kt's
+    // notes), and can silently resolve to a stale or wrong fix instead of
+    // erroring out. The native app already posts a reliable location every
+    // 15 minutes on its own (LocationPingWorker.kt) -- letting this browser
+    // path run too just means the two race, and whichever fires last wins,
+    // occasionally clobbering a correct native ping with a bad browser one.
+    // document.referrer is exactly "android-app://<package>" when a page is
+    // opened via a Trusted Web Activity (same check used in handleLogout()).
+    if (document.referrer.indexOf("android-app://com.collbusinesssolutions.timeclock") === 0) return;
 
     function sendPing() {
       navigator.geolocation.getCurrentPosition(
@@ -4382,6 +4393,12 @@ const [emailInput, setEmailInput] = useState("");
   }, [status]);
   useEffect(() => {
     if (status === "off") return;
+    // Same reasoning as the effect above: inside the native Android app this
+    // on-demand ping (triggered by the admin's "Build a Route" request) would
+    // still be calling the same unreliable navigator.geolocation, so skip it
+    // there too and let the native app's own 15-minute background ping be
+    // the only thing updating this employee's location.
+    if (document.referrer.indexOf("android-app://com.collbusinesssolutions.timeclock") === 0) return;
 
     async function checkPingRequest() {
       try {
