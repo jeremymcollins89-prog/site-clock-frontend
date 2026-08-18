@@ -3947,7 +3947,7 @@ export default function TimeClock() {
   // Company's uploaded logo (see admin apps' Settings > company logo card),
   // shown in the header in place of the generic app name -- mirrors what
   // the desktop/mobile admin apps already do. Null means none uploaded, so
-  // the header falls back to the plain "Site Clock" text.
+  // the header falls back to the plain "Coll Timeclock" text.
   const [companyLogo, setCompanyLogo] = useState(null);
 
   // Easter egg: tap the header logo/title 7 times within 2 seconds to open
@@ -5127,7 +5127,7 @@ const [emailInput, setEmailInput] = useState("");
         <style>{FONT_IMPORT}</style>
         <div style={{ border: `1px solid rgba(31,36,33,0.06)`, background: SURFACE, boxShadow: "0 20px 45px rgba(31,36,33,0.14), 0 4px 12px rgba(31,36,33,0.08)" }} className="w-full max-w-xs rounded-2xl p-6">
           <h1 style={{ fontFamily: "'Oswald', sans-serif" }} className="text-xl font-semibold uppercase mb-1 text-center">
-            Site Clock
+            Coll Timeclock
           </h1>
           <p className="text-[13px] text-center mb-5" style={{ color: MUTED }}>Your personal time clock</p>
           <input
@@ -5262,7 +5262,7 @@ const [emailInput, setEmailInput] = useState("");
               />
             ) : (
               <h1 style={{ fontFamily: "'Oswald', sans-serif", letterSpacing: "0.02em" }} className="text-2xl font-semibold uppercase">
-                Site Clock
+                Coll Timeclock
               </h1>
             )}
           </div>

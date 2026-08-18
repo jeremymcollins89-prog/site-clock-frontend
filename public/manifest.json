@@ -1,6 +1,6 @@
 {
-  "name": "Site Clock",
-  "short_name": "Site Clock",
+  "name": "Coll Timeclock",
+  "short_name": "Coll Timeclock",
   "description": "Employee time clock — clock in/out, breaks, and job notes",
   "start_url": "/",
   "scope": "/",
