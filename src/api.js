@@ -263,6 +263,12 @@ async function sendChatMessage(body) {
   return apiFetch("/api/chat/messages", { method: "POST", body: { body } });
 }
 
+// Clears the whole Direct conversation with the office -- there's only one
+// thread per employee here, so no id is needed.
+async function deleteChatMessages() {
+  return apiFetch("/api/chat/messages", { method: "DELETE" });
+}
+
 async function getCoworkers() {
   return apiFetch("/api/team-chat/coworkers");
 }
@@ -285,6 +291,11 @@ async function getTeamMessages(threadId) {
 
 async function sendTeamMessage(threadId, body) {
   return apiFetch(`/api/team-chat/threads/${threadId}/messages`, { method: "POST", body: { body } });
+}
+
+// Deletes a Team chat thread (DM or group) for everyone in it.
+async function deleteTeamThread(threadId) {
+  return apiFetch(`/api/team-chat/threads/${threadId}`, { method: "DELETE" });
 }
 
 // Typing indicator -- see ChatView/TeamChatView in App.jsx for the throttled
@@ -382,12 +393,14 @@ export {
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
+  deleteChatMessages,
   getCoworkers,
   getTeamUnreadCount,
   getTeamThreads,
   createTeamThread,
   getTeamMessages,
   sendTeamMessage,
+  deleteTeamThread,
   getCurrentPayPeriod,
   pingChatTyping,
   getChatTypingStatus,

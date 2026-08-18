@@ -487,7 +487,15 @@
     border: 1px solid rgba(31,36,33,0.05); border-radius: 16px; padding: 14px; margin-bottom: 12px; background: var(--surface);
     box-shadow: 0 6px 16px rgba(31,36,33,0.06), 0 1px 3px rgba(31,36,33,0.04);
   }
-  .entry-field { margin-bottom: 8px; }
+  /* min-width: 0 overrides flexbox's default "never shrink below content's
+     natural size" rule -- without it, a datetime-local input's native
+     multi-segment display (date + time + AM/PM) refuses to compress inside
+     its half-width flex slot (see the paired Break start/end row below),
+     forcing the whole row -- and everything after it -- wider than the
+     screen. The visible symptom was the whole sheet appearing shifted left,
+     clipping the heading and every label/value by the same amount, as if
+     scrolled. */
+  .entry-field { margin-bottom: 8px; min-width: 0; }
   .entry-field label { margin-bottom: 3px; }
   .entry-meta { display: flex; gap: 18px; font-size: 13px; margin: 6px 0 10px; }
   .entry-meta div strong { display: block; font-size: 15px; }
@@ -2244,6 +2252,7 @@ const admin = {
     apiFetch(`/api/admin/chat/${employeeId}/messages`, { method: "POST", body: { body } }),
   pingChatTyping: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}/typing`, { method: "POST" }),
   getChatTypingStatus: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}/typing`),
+  deleteChatThread: (employeeId) => apiFetch(`/api/admin/chat/${employeeId}`, { method: "DELETE" }),
 
   listTeamChatThreads: () => apiFetch("/api/admin/team-chat/threads"),
   getTeamChatUnreadCount: () => apiFetch("/api/admin/team-chat/unread-count"),
@@ -2254,12 +2263,15 @@ const admin = {
     apiFetch(`/api/admin/team-chat/threads/${threadId}/messages`, { method: "POST", body: { body } }),
   pingTeamChatTyping: (threadId) => apiFetch(`/api/admin/team-chat/threads/${threadId}/typing`, { method: "POST" }),
   getTeamChatTypingStatus: (threadId) => apiFetch(`/api/admin/team-chat/threads/${threadId}/typing`),
+  deleteTeamChatThread: (threadId) => apiFetch(`/api/admin/team-chat/threads/${threadId}`, { method: "DELETE" }),
 
   getVapidPublicKey: () => apiFetch("/api/push/vapid-public-key"),
   subscribeAdminPush: (subscription) => apiFetch("/api/admin/push/subscribe", { method: "POST", body: subscription }),
 
   getReportSummary: (start, end) => apiFetch(`/api/admin/reports/summary?start=${start}&end=${end}`),
   getLaborBreakdown: (start, end) => apiFetch(`/api/admin/reports/labor-breakdown?start=${start}&end=${end}`),
+  getLaborBreakdownWeekly: (employeeId, start, end) =>
+    apiFetch(`/api/admin/reports/labor-breakdown/weekly?employee_id=${employeeId}&start=${start}&end=${end}`),
   getMonthlyProfit: (months) => apiFetch(`/api/admin/reports/monthly-profit?months=${months || 6}`),
   getPaymentBreakdown: () => apiFetch("/api/admin/reports/payment-breakdown"),
   getPayments: (start, end) => apiFetch(`/api/admin/reports/payments?start=${start}&end=${end}`),
@@ -3137,11 +3149,13 @@ async function renderEmployeeDetail(start, end) {
     // that an admin can now actually fill in, instead of only ever seeing a
     // read-only, ever-growing "Break" total with no way to fix it.
     const breaks = Array.isArray(r.breaks) ? r.breaks : [];
+    // Stacked full-width (like Clock in/Clock out below), not side-by-side --
+    // a datetime-local input's native date+time+AM/PM display needs more
+     // room than half a phone screen gives it; cramming two into one row is
+    // what caused the clipped/overflowing time bubbles.
     const breaksHtml = breaks.map(function(b) {
-      return '<div class="entry-field" style="display:flex; gap:8px;">' +
-        '<div style="flex:1;"><label>Break start</label><input type="datetime-local" value="' + (b.break_start ? toLocalDatetimeInputValue(b.break_start) : "") + '" data-break-field="break_start" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>' +
-        '<div style="flex:1;"><label>Break end' + (!b.break_end ? ' <span style="color:var(--rust);">(never ended)</span>' : '') + '</label><input type="datetime-local" value="' + (b.break_end ? toLocalDatetimeInputValue(b.break_end) : "") + '" data-break-field="break_end" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>' +
-      '</div>';
+      return '<div class="entry-field"><label>Break start</label><input type="datetime-local" value="' + (b.break_start ? toLocalDatetimeInputValue(b.break_start) : "") + '" data-break-field="break_start" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>' +
+        '<div class="entry-field"><label>Break end' + (!b.break_end ? ' <span style="color:var(--rust);">(never ended)</span>' : '') + '</label><input type="datetime-local" value="' + (b.break_end ? toLocalDatetimeInputValue(b.break_end) : "") + '" data-break-field="break_end" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>';
     }).join("");
     return '<div class="entry-card">' +
       '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" disabled /></div>' +
@@ -6684,6 +6698,11 @@ async function openReportBreakdown(kind, start, end) {
   try {
     if (kind === "labor") {
       const breakdown = await admin.getLaborBreakdown(start, end);
+      // Stashed so openLaborEmployeeWeekly() can look up the tapped
+      // employee's name/rate without re-fetching, and so its own Back
+      // button can re-render this exact list without re-opening the sheet.
+      window.currentLaborBreakdown = breakdown;
+      window.currentLaborRange = { start: start, end: end };
       bodyEl.innerHTML = renderLaborBreakdownRows(breakdown);
     } else if (kind === "invoiced" || kind === "paid") {
       // Always re-fetch invoices fresh rather than trusting window.allInvoices
@@ -6712,11 +6731,15 @@ async function openReportBreakdown(kind, start, end) {
   }
 }
 
+// Rows are tappable -- opens a per-employee week-by-week (Sunday-Saturday)
+// cost view via openLaborEmployeeWeekly() below. employee_id is a UUID (no
+// quotes/HTML-special characters to escape), so it's safe to drop straight
+// into the onclick attribute unescaped, unlike employee_name.
 function renderLaborBreakdownRows(breakdown) {
   if (!breakdown.length) return '<p style="color:var(--muted); font-size:13px;">No hours worked in this range.</p>';
   const rows = breakdown.map(function(r) {
     const rateText = r.hourly_rate === null ? '<span style="color:var(--rust);">no rate set</span>' : fmtMoney(r.hourly_rate) + '/hr';
-    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
+    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px; cursor:pointer;" onclick="openLaborEmployeeWeekly(\'' + r.employee_id + '\')">' +
       '<span>' + escapeHtml(r.employee_name) + '</span>' +
       '<span style="color:var(--muted); text-align:right;">' + fmtHours(r.hours) + ' &middot; ' + rateText + ' &middot; ' + fmtMoney(r.cost) + '</span>' +
     '</div>';
@@ -6726,6 +6749,69 @@ function renderLaborBreakdownRows(breakdown) {
   return rows + '<div style="display:flex; justify-content:space-between; padding-top:10px; font-size:13px; font-weight:600;">' +
     '<span>Total</span><span>' + fmtHours(totalHours) + ' &middot; ' + fmtMoney(totalCost) + '</span>' +
   '</div>';
+}
+
+// Drill-down from a tapped employee row: fetches that employee's hours/cost
+// split into Sunday-Saturday weeks for the same date range the sheet is
+// already showing, and swaps the sheet body to show it with a Back button
+// that re-renders the original per-employee list (no re-fetch needed --
+// window.currentLaborBreakdown/currentLaborRange were stashed when the
+// sheet first opened).
+async function openLaborEmployeeWeekly(employeeId) {
+  const bodyEl = document.getElementById("report-breakdown-sheet-body");
+  const titleEl = document.getElementById("report-breakdown-sheet-title");
+  const breakdown = window.currentLaborBreakdown || [];
+  const range = window.currentLaborRange || {};
+  const emp = breakdown.find(function(r) { return r.employee_id === employeeId; });
+  const employeeName = emp ? emp.employee_name : "Employee";
+
+  titleEl.textContent = employeeName + " -- by week";
+  bodyEl.innerHTML = '<p style="color:var(--muted); font-size:13px;">Loading...</p>';
+
+  try {
+    const weeks = await admin.getLaborBreakdownWeekly(employeeId, range.start, range.end);
+    bodyEl.innerHTML = renderLaborWeeklyRows(weeks) + backToLaborBreakdownButtonHtml();
+  } catch (err) {
+    bodyEl.innerHTML = '<p style="color:var(--muted); font-size:13px;">Couldn\'t load weekly breakdown.</p>' + backToLaborBreakdownButtonHtml();
+  }
+}
+
+function backToLaborBreakdownButtonHtml() {
+  return '<button class="btn-secondary" style="margin-top:14px;" onclick="backToLaborBreakdown()">&larr; Back to all employees</button>';
+}
+
+function backToLaborBreakdown() {
+  const titleEl = document.getElementById("report-breakdown-sheet-title");
+  const bodyEl = document.getElementById("report-breakdown-sheet-body");
+  titleEl.textContent = REPORT_BREAKDOWN_TITLES.labor;
+  bodyEl.innerHTML = renderLaborBreakdownRows(window.currentLaborBreakdown || []);
+}
+
+function renderLaborWeeklyRows(weeks) {
+  if (!weeks.length) return '<p style="color:var(--muted); font-size:13px;">No hours worked in this range.</p>';
+  const rows = weeks.map(function(w) {
+    return '<div style="display:flex; justify-content:space-between; padding:6px 0; border-bottom:1px solid var(--line); font-size:13px;">' +
+      '<span>' + fmtShortDate(w.week_start) + ' &ndash; ' + fmtShortDate(w.week_end) + '</span>' +
+      '<span style="color:var(--muted); text-align:right;">' + fmtHours(w.hours) + ' &middot; ' + fmtMoney(w.cost) + '</span>' +
+    '</div>';
+  }).join("");
+  const totalHours = weeks.reduce(function(sum, w) { return sum + w.hours; }, 0);
+  const totalCost = weeks.reduce(function(sum, w) { return sum + w.cost; }, 0);
+  return rows + '<div style="display:flex; justify-content:space-between; padding-top:10px; font-size:13px; font-weight:600;">' +
+    '<span>Total</span><span>' + fmtHours(totalHours) + ' &middot; ' + fmtMoney(totalCost) + '</span>' +
+  '</div>';
+}
+
+// "2026-07-19" -> "Jul 19", using the plain YYYY-MM-DD string directly
+// rather than `new Date(str)` -- parsing a bare date string as UTC midnight
+// and then reading it back with local getters is exactly the kind of
+// off-by-one-day bug the backend's own ymd() helper was written to avoid.
+function fmtShortDate(isoDate) {
+  const MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+  const parts = isoDate.split("-");
+  const month = MONTHS[Number(parts[1]) - 1] || "";
+  const day = Number(parts[2]);
+  return month + " " + day;
 }
 
 // mode: "invoiced" mirrors the backend's issue_date-based filter (any
@@ -9700,8 +9786,34 @@ function renderChatThreads() {
         '<div class="chat-thread-preview">' + escapeHtml(preview) + '</div>' +
       '</div>' +
       (t.unread_count > 0 ? '<span class="chat-unread-pill">' + t.unread_count + '</span>' : '') +
+      chatDeleteBtnHtml('deleteDirectChatThread(\'' + t.id + '\')') +
     '</div>';
   }).join("");
+}
+
+// Shared trash-icon button markup for a conversation row -- stopPropagation
+// keeps the row's own onclick (which opens the thread) from also firing.
+function chatDeleteBtnHtml(onclickCall) {
+  return '<button onclick="event.stopPropagation(); ' + onclickCall + '" aria-label="Delete conversation" ' +
+    'style="background:none; border:none; padding:6px; margin:0; width:auto; flex-shrink:0; color:var(--muted); display:flex; align-items:center; cursor:pointer;">' +
+    '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+      '<path d="M3 6h18"/><path d="M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/>' +
+      '<line x1="10" y1="11" x2="10" y2="17"/><line x1="14" y1="11" x2="14" y2="17"/>' +
+    '</svg>' +
+  '</button>';
+}
+
+async function deleteDirectChatThread(employeeId) {
+  const thread = chatThreads.find(function(t) { return t.id === employeeId; });
+  const name = thread ? thread.name : "this employee";
+  if (!confirm("Delete your whole conversation with " + name + "? This can't be undone.")) return;
+  try {
+    await admin.deleteChatThread(employeeId);
+    chatThreads = chatThreads.filter(function(t) { return t.id !== employeeId; });
+    renderChatThreads();
+  } catch (err) {
+    alert("Couldn't delete conversation: " + err.message);
+  }
 }
 
 async function openChatThreadSheet(employeeId) {
@@ -9876,8 +9988,25 @@ function renderTeamChatThreads() {
         '<div class="chat-thread-preview">' + escapeHtml(preview) + '</div>' +
       '</div>' +
       (t.unread_count > 0 ? '<span class="chat-unread-pill">' + t.unread_count + '</span>' : '') +
+      chatDeleteBtnHtml('deleteTeamChatThreadRow(\'' + t.id + '\')') +
     '</div>';
   }).join("");
+}
+
+async function deleteTeamChatThreadRow(threadId) {
+  const thread = teamChatThreads.find(function(t) { return t.id === threadId; });
+  const name = thread ? teamThreadName(thread) : "this chat";
+  if (!confirm("Delete \"" + name + "\"? This can't be undone.")) return;
+  try {
+    await admin.deleteTeamChatThread(threadId);
+    teamChatThreads = teamChatThreads.filter(function(t) { return t.id !== threadId; });
+    renderTeamChatThreads();
+    // The open thread sheet, if this was the thread showing in it, would
+    // otherwise keep displaying a now-deleted conversation.
+    if (openTeamChatThreadId === threadId) closeTeamChatThreadSheet();
+  } catch (err) {
+    alert("Couldn't delete chat: " + err.message);
+  }
 }
 
 async function openTeamChatThreadSheet(threadId) {

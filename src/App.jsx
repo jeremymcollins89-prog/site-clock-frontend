@@ -1,5 +1,5 @@
 import { useState, useEffect, useLayoutEffect, useRef } from "react";
-import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper, Sun, Moon, ArrowLeft, Search } from "lucide-react";
+import { Play, Pause, Square, MapPin, Plane, Clock, Send, LogOut, Mail, CalendarDays, Timer, Users, MessageCircle, Navigation, Menu, ClipboardList, Package, ScanBarcode, PartyPopper, Sun, Moon, ArrowLeft, Search, Trash2 } from "lucide-react";
 // @zxing/library is the single biggest contributor to the main JS bundle,
 // but only employees with can_manage_inventory ever open the barcode
 // scanner -- so it's loaded on demand (see loadZxing, used by
@@ -40,12 +40,14 @@ import {
   getChatUnreadCount,
   getChatMessages,
   sendChatMessage,
+  deleteChatMessages,
   getCoworkers,
   getTeamUnreadCount,
   getTeamThreads,
   createTeamThread,
   getTeamMessages,
   sendTeamMessage,
+  deleteTeamThread,
   getCurrentPayPeriod,
   pingChatTyping,
   getChatTypingStatus,
@@ -3543,12 +3545,18 @@ function ChatEmptyState({ text }) {
   );
 }
 
-function ChatView({ messages, loading, onSend, onComposerFocusChange }) {
+function ChatView({ messages, loading, onSend, onComposerFocusChange, onDelete }) {
   const [draft, setDraft] = useState("");
   const [sending, setSending] = useState(false);
   const [otherTyping, setOtherTyping] = useState(false);
   const bottomRef = useRef(null);
   const lastTypingPingRef = useRef(0);
+
+  function handleDeleteClick() {
+    if (window.confirm("Delete this whole conversation with the office? This can't be undone.")) {
+      onDelete();
+    }
+  }
 
   // Jumps to the newest message whenever the list changes -- including the
   // very first render once messages finish loading, so opening Chat lands
@@ -3619,6 +3627,18 @@ function ChatView({ messages, loading, onSend, onComposerFocusChange }) {
 
   return (
     <div style={{ fontFamily: "'IBM Plex Mono', monospace", minHeight: "calc(100vh - 220px)" }} className="flex flex-col">
+      {!loading && messages.length > 0 && (
+        <div className="mb-2 flex items-center justify-end">
+          <button
+            onClick={handleDeleteClick}
+            className="flex items-center gap-1 text-[12px] rounded-lg px-2 py-1"
+            style={{ color: MUTED }}
+            aria-label="Delete conversation"
+          >
+            <Trash2 size={13} /> Delete
+          </button>
+        </div>
+      )}
       {loading ? (
         <p className="text-sm" style={{ color: MUTED }}>Loading…</p>
       ) : messages.length === 0 && !otherTyping ? (
@@ -3669,6 +3689,7 @@ function TeamChatView({
   onOpenThread,
   onCloseThread,
   onSend,
+  onDeleteThread,
   showNewChat,
   onOpenNewChat,
   onCancelNewChat,
@@ -3908,11 +3929,21 @@ function TeamChatView({
           {threads.map((t) => {
             const isGroup = !!t.is_group;
             const otherName = t.other_participants?.[0]?.name;
+            function handleDeleteClick(e) {
+              // Stops the click from also bubbling up to the row's own
+              // onClick (which would open the thread right as it's deleted).
+              e.stopPropagation();
+              if (window.confirm("Delete this conversation? This can't be undone.")) {
+                onDeleteThread(t.id);
+              }
+            }
             return (
-              <button
+              <div
                 key={t.id}
                 onClick={() => onOpenThread(t.id)}
-                className="text-left rounded-2xl px-3 py-2.5 flex items-center gap-3 transition-transform"
+                role="button"
+                tabIndex={0}
+                className="text-left rounded-2xl px-3 py-2.5 flex items-center gap-3 transition-transform cursor-pointer"
                 style={{ background: SURFACE, border: `1px solid ${LINE}`, boxShadow: "0 1px 3px rgba(0,0,0,0.04)" }}
               >
                 <Avatar name={otherName} isGroup={isGroup} size={38} />
@@ -3931,7 +3962,15 @@ function TeamChatView({
                     {t.unread_count}
                   </span>
                 )}
-              </button>
+                <button
+                  onClick={handleDeleteClick}
+                  className="flex items-center justify-center flex-shrink-0"
+                  style={{ width: 30, height: 30, color: MUTED }}
+                  aria-label="Delete conversation"
+                >
+                  <Trash2 size={15} />
+                </button>
+              </div>
             );
           })}
         </div>
@@ -4720,6 +4759,11 @@ const [emailInput, setEmailInput] = useState("");
     setChatMessages((prev) => [...prev, saved]);
   }
 
+  async function handleDeleteChatMessages() {
+    await deleteChatMessages();
+    setChatMessages([]);
+  }
+
   // Team chat (employee-to-employee) -- separate thread list from the
   // single admin channel above. loadTeamThreads never marks anything read
   // by itself (unlike loadChatMessages); read state is per-thread and only
@@ -4768,6 +4812,15 @@ const [emailInput, setEmailInput] = useState("");
   async function handleSendTeamMessage(body) {
     const saved = await sendTeamMessage(activeTeamThreadId, body);
     setTeamMessages((prev) => [...prev, saved]);
+  }
+
+  // Deletes straight from the thread list -- no need to open a thread first.
+  // If the deleted thread happened to be open, close it too so the app
+  // doesn't keep showing a now-nonexistent thread's messages.
+  async function handleDeleteTeamThread(threadId) {
+    await deleteTeamThread(threadId);
+    setTeamThreads((prev) => prev.filter((t) => t.id !== threadId));
+    if (activeTeamThreadId === threadId) closeTeamThread();
   }
 
   async function openNewTeamChat() {
@@ -5447,6 +5500,7 @@ const [emailInput, setEmailInput] = useState("");
                 messages={chatMessages}
                 loading={chatLoading}
                 onSend={handleSendChatMessage}
+                onDelete={handleDeleteChatMessages}
                 onComposerFocusChange={setChatComposerFocused}
               />
             ) : (
@@ -5460,6 +5514,7 @@ const [emailInput, setEmailInput] = useState("");
                 onOpenThread={openTeamThread}
                 onCloseThread={closeTeamThread}
                 onSend={handleSendTeamMessage}
+                onDeleteThread={handleDeleteTeamThread}
                 showNewChat={showNewTeamChat}
                 onOpenNewChat={openNewTeamChat}
                 onCancelNewChat={cancelNewTeamChat}
