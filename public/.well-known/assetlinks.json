@@ -15,7 +15,8 @@
       "namespace": "android_app",
       "package_name": "com.collbusinesssolutions.admin",
       "sha256_cert_fingerprints": [
-        "39:16:3F:14:61:03:6C:1C:16:D4:2D:83:40:A6:D5:F3:4F:CB:F3:4B:32:C6:82:57:D6:C6:FD:59:9F:E1:28:3C"
+        "39:16:3F:14:61:03:6C:1C:16:D4:2D:83:40:A6:D5:F3:4F:CB:F3:4B:32:C6:82:57:D6:C6:FD:59:9F:E1:28:3C",
+        "C5:76:9B:FF:63:33:69:C3:25:A8:56:C4:2D:FC:E5:36:7F:79:73:68:12:FB:44:E6:BE:DA:EE:3F:65:28:84:7A"
       ]
     }
   }
