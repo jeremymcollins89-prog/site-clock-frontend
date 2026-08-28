@@ -5768,7 +5768,7 @@ const [emailInput, setEmailInput] = useState("");
                   </div>
                 </div>
                 <div className="flex justify-between text-[13px] pt-2" style={{ color: MUTED, borderTop: `1px solid ${LINE}` }}>
-                  <span>{formatClock(entry.clock_in)} → {formatClock(entry.clock_out)}</span>
+                  <span>{formatDateShort(entry.clock_in)} · {formatClock(entry.clock_in)} → {formatClock(entry.clock_out)}</span>
                   {entry.break_seconds > 0 && <span>break {formatDuration(entry.break_seconds)}</span>}
                 </div>
               </div>
