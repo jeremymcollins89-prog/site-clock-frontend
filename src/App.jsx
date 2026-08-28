@@ -1216,6 +1216,10 @@ function formatDateShort(d) {
   return new Date(d).toLocaleDateString([], { month: "short", day: "numeric" });
 }
 
+function formatDateWithDay(d) {
+  return new Date(d).toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+}
+
 // "14:30:00" / "14:30" -> "2:30 PM". Returns "" for null/undefined, so it's
 // safe to use directly wherever a job's start_time might not be set (the
 // admin app's "No specific time" toggle leaves it null).
@@ -5768,7 +5772,7 @@ const [emailInput, setEmailInput] = useState("");
                   </div>
                 </div>
                 <div className="flex justify-between text-[13px] pt-2" style={{ color: MUTED, borderTop: `1px solid ${LINE}` }}>
-                  <span>{formatDateShort(entry.clock_in)} · {formatClock(entry.clock_in)} → {formatClock(entry.clock_out)}</span>
+                  <span>{formatDateWithDay(entry.clock_in)} · {formatClock(entry.clock_in)} → {formatClock(entry.clock_out)}</span>
                   {entry.break_seconds > 0 && <span>break {formatDuration(entry.break_seconds)}</span>}
                 </div>
               </div>
