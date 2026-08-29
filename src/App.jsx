@@ -5251,6 +5251,13 @@ const [emailInput, setEmailInput] = useState("");
           <p className="text-[11px] text-center mt-4" style={{ color: MUTED }}>
             You only need to do this once on this device.
           </p>
+          {/* Employees never sign themselves up here -- their employer sets up
+              their email/PIN login (see store listing copy). This is only for
+              a business owner who downloaded the employee app by mistake when
+              they actually meant to create a company account. */}
+          <p className="text-[11px] text-center mt-2" style={{ color: MUTED }}>
+            Own a business? <a href="/signup.html" style={{ color: MUTED, textDecoration: "underline" }}>Sign up here</a>
+          </p>
         </div>
       </div>
     );
