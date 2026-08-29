@@ -2078,6 +2078,7 @@ const admin = {
     return apiFetch(`/api/admin/time-entries?${qs}`);
   },
   updateTimeEntry: (id, patch) => apiFetch(`/api/admin/time-entries/${id}`, { method: "PATCH", body: patch }),
+  deleteTimeEntry: (id) => apiFetch(`/api/admin/time-entries/${id}`, { method: "DELETE" }),
   updateBreak: (timeEntryId, breakId, patch) => apiFetch(`/api/admin/time-entries/${timeEntryId}/breaks/${breakId}`, { method: "PATCH", body: patch }),
 
   getOverview: () => apiFetch("/api/admin/overview"),
@@ -3157,7 +3158,14 @@ async function renderEmployeeDetail(start, end) {
       return '<div class="entry-field"><label>Break start</label><input type="datetime-local" value="' + (b.break_start ? toLocalDatetimeInputValue(b.break_start) : "") + '" data-break-field="break_start" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>' +
         '<div class="entry-field"><label>Break end' + (!b.break_end ? ' <span style="color:var(--rust);">(never ended)</span>' : '') + '</label><input type="datetime-local" value="' + (b.break_end ? toLocalDatetimeInputValue(b.break_end) : "") + '" data-break-field="break_end" data-break-id="' + b.id + '" data-id="' + r.time_entry_id + '" disabled /></div>';
     }).join("");
+    // Shown above the editable fields so an admin can tell at a glance which
+    // shift they're looking at (e.g. picking the right one out of several
+    // same-week punches) without having to parse each datetime-local input.
+    const weekdayLabel = r.clock_in
+      ? new Date(r.clock_in).toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" })
+      : "";
     return '<div class="entry-card">' +
+      (weekdayLabel ? '<div style="font-size:12px; font-weight:600; color:var(--muted); margin-bottom:6px;">' + weekdayLabel + '</div>' : '') +
       '<div class="entry-field"><label>Job</label><input value="' + (r.job_name || "") + '" data-field="job_name" data-id="' + r.time_entry_id + '" disabled /></div>' +
       '<div class="entry-field"><label>Location</label><select data-field="location_type" data-id="' + r.time_entry_id + '" disabled>' +
         '<option value="in_town"' + (r.location_type === "in_town" ? " selected" : "") + '>In town</option>' +
@@ -3167,7 +3175,10 @@ async function renderEmployeeDetail(start, end) {
       '<div class="entry-field"><label>Clock out</label><input type="datetime-local" value="' + (r.clock_out ? toLocalDatetimeInputValue(r.clock_out) : "") + '" data-field="clock_out" data-id="' + r.time_entry_id + '" disabled /></div>' +
       breaksHtml +
       '<div class="entry-meta"><div><strong>' + fmtDuration(r.worked_seconds) + '</strong>Worked</div><div><strong>' + fmtDuration(r.break_seconds) + '</strong>Break</div></div>' +
-      '<button class="btn-secondary" onclick="toggleEmployeeRowEdit(\'' + r.time_entry_id + '\', this)">Edit</button>' +
+      '<div style="display:flex; gap:8px;">' +
+        '<button class="btn-secondary" style="flex:1;" onclick="toggleEmployeeRowEdit(\'' + r.time_entry_id + '\', this)">Edit</button>' +
+        '<button class="btn-secondary" style="flex:1; background:#C1502E; color:#fff; border-color:#C1502E;" onclick="deleteTimeEntryConfirm(\'' + r.time_entry_id + '\')">Delete</button>' +
+      '</div>' +
     '</div>';
   }).join("");
 
@@ -3278,6 +3289,26 @@ async function saveEmployeeDetailRow(id, btn) {
   } catch (err) {
     if (btn) { btn.disabled = false; btn.textContent = "Save"; }
     alert(err.message || "Couldn't save this time entry. Try again.");
+  }
+}
+
+// Permanently removes a punch -- for a duplicate, a mis-tap, or a shift that
+// never should have been recorded. One confirm() is enough friction to stop
+// an accidental tap without turning it into a whole extra dialog/typed-name
+// flow like the destructive deletes elsewhere in the app; there's nothing
+// else attached to a time entry (no messages, no history) that makes a
+// stronger warning worth it.
+async function deleteTimeEntryConfirm(timeEntryId) {
+  if (!confirm("Delete this punch? This can't be undone.")) return;
+  try {
+    await admin.deleteTimeEntry(timeEntryId);
+    const start = document.getElementById("emp-detail-start").value;
+    const end = document.getElementById("emp-detail-end").value;
+    await renderEmployeeDetail(start, end);
+    if (document.getElementById("overview-list")) loadOverview();
+    if (document.getElementById("employees-list")) loadEmployees();
+  } catch (err) {
+    alert(err.message || "Couldn't delete this punch.");
   }
 }
 
