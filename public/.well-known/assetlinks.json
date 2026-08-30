@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.collbusinesssolutions.timeclock",
       "sha256_cert_fingerprints": [
-        "19:9E:8F:CA:F0:76:F6:30:74:70:1D:C3:61:18:22:B1:1B:A0:9E:83:40:9C:52:5C:F7:07:6A:84:CE:A8:5C:26"
+        "19:9E:8F:CA:F0:76:F6:30:74:70:1D:C3:61:18:22:B1:1B:A0:9E:83:40:9C:52:5C:F7:07:6A:84:CE:A8:5C:26",
+        "DC:8C:12:B7:40:2A:2C:32:13:62:4A:66:AD:28:73:A7:C2:25:0D:FC:05:09:96:1E:8C:09:49:66:B3:FE:4E:F8"
       ]
     }
   },
