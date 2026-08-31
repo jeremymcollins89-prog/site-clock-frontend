@@ -2046,6 +2046,16 @@ async function apiFetch(path, { method = "GET", body } = {}) {
     // give a message that points at the real, actionable cause instead.
     throw new Error(`The server didn't respond as expected (status ${res.status}). If you just deployed an update, give it a minute and try again.`);
   }
+  if (res.status === 402) {
+    // Server-side backstop for the billing paywall (middleware/requireActiveBilling.js)
+    // -- normally the post-login checkBillingStatus() call already caught
+    // this and the modal is already showing, but a subscription can also
+    // lapse mid-session (trial ending while someone's actively using the
+    // app), so this is what catches that case. Fetches its own fresh status
+    // rather than trusting anything from this particular response, since
+    // the billing/status route itself is exempt from ever 402ing.
+    showBillingPaywall();
+  }
   if (!res.ok) throw new Error(data.error || "Request failed");
   return data;
 }
@@ -2066,6 +2076,9 @@ const admin = {
   // loading/saving data on its own.
   pingActivity: () => apiFetch("/api/admin/activity-ping", { method: "POST" }).catch(() => {}),
   forgotPassword: (email) => apiFetch("/api/admin/forgot-password", { method: "POST", body: { email } }),
+  getBillingStatus: () => apiFetch("/api/admin/billing/status"),
+  startBillingCheckout: () => apiFetch("/api/admin/billing/checkout", { method: "POST" }),
+  openBillingPortal: () => apiFetch("/api/admin/billing/portal", { method: "POST" }),
   changePassword: (currentPassword, newPassword) =>
     apiFetch("/api/admin/change-password", { method: "POST", body: { current_password: currentPassword, new_password: newPassword } }),
   changeEmail: (newEmail, currentPassword) =>
@@ -2383,6 +2396,76 @@ async function doLogin() {
   }
 }
 
+// Called once right after login (fresh or auto-login from a stored token,
+// both funnel through showApp()). A blocked company can still log in --
+// that's deliberate -- this is purely what stops them from using anything
+// past that point until they're paid up. See middleware/requireActiveBilling.js
+// for the server-side enforcement this mirrors; this modal alone is not the
+// real security boundary, just the friendly version of it.
+async function checkBillingStatus() {
+  try {
+    const status = await admin.getBillingStatus();
+    if (status.blocked) showBillingPaywall(status);
+  } catch (err) {
+    // Non-fatal -- if this check itself fails (network hiccup, etc.), don't
+    // lock a paying, exempt company out of their own app over it. The 402
+    // backstop in apiFetch still catches a genuinely blocked company the
+    // moment they try to actually do anything.
+  }
+}
+
+let billingPaywallShown = false;
+
+function showBillingPaywall(status) {
+  if (billingPaywallShown) return;
+  billingPaywallShown = true;
+
+  const overlay = document.createElement("div");
+  overlay.id = "billing-paywall";
+  overlay.style.cssText =
+    "position:fixed; inset:0; z-index:9999; background:rgba(31,36,33,0.85); " +
+    "display:flex; align-items:center; justify-content:center; padding:24px;";
+
+  const trialLine =
+    status && status.trial_ends_at && status.subscription_status === "trialing"
+      ? "<p style=\"font-size:13px; color:var(--muted); margin:0 0 16px;\">Your free trial ended " +
+        new Date(status.trial_ends_at).toLocaleDateString() + ".</p>"
+      : "";
+
+  overlay.innerHTML =
+    '<div style="background:var(--surface); border-radius:16px; padding:28px; max-width:360px; width:100%; text-align:center; box-shadow:0 20px 45px rgba(31,36,33,0.3);">' +
+      '<h2 style="margin:0 0 8px; font-size:19px;">Payment needed to continue</h2>' +
+      '<p style="font-size:13px; color:var(--muted); margin:0 0 16px;">Coll Timeclock is $9.99/month. Add a card to keep using the app for your business.</p>' +
+      trialLine +
+      '<button id="billing-paywall-btn" class="btn-primary" style="width:100%;">Update payment method</button>' +
+      '<p id="billing-paywall-error" class="error" style="display:none; margin-top:10px;"></p>' +
+    '</div>';
+
+  document.body.appendChild(overlay);
+
+  document.getElementById("billing-paywall-btn").onclick = async function () {
+    const btn = document.getElementById("billing-paywall-btn");
+    const errEl = document.getElementById("billing-paywall-error");
+    btn.disabled = true;
+    btn.textContent = "Redirecting...";
+    errEl.style.display = "none";
+    try {
+      // action ("checkout" vs "portal") tells us whether this company has a
+      // Stripe customer yet at all -- e.g. they cancelled out of Checkout
+      // during signup and never got one, vs. an existing subscription that
+      // just needs a card update or a failed payment retried.
+      const result =
+        status && status.action === "portal" ? await admin.openBillingPortal() : await admin.startBillingCheckout();
+      window.location.href = result.url;
+    } catch (err) {
+      btn.disabled = false;
+      btn.textContent = "Update payment method";
+      errEl.textContent = err.message || "Couldn't open payment setup. Try again.";
+      errEl.style.display = "block";
+    }
+  };
+}
+
 function doLogout() {
   admin.logout();
   // Clearing this page's own session isn't enough when we're running inside
@@ -2448,6 +2531,7 @@ async function doForgotPassword() {
 function showApp() {
   document.getElementById("login-screen").classList.remove("visible");
   document.getElementById("app").classList.add("visible");
+  checkBillingStatus();
   loadOverview();
   loadEmployees();
   loadCrews();

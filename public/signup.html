@@ -114,9 +114,15 @@
     <div id="signup-error" class="error"></div>
   </div>
 
+  <div id="checkout-cancelled-view" class="success" style="display:none;">
+    <h2>No problem</h2>
+    <p>Your account was created, but your 14-day free trial hasn't started yet — you'll need to add a card before you can use the app. You can do that anytime from the admin app itself, whenever you're ready.</p>
+    <a class="btn-link" href="https://admin.collbusinesssolutions.com/admin.html">Open the admin app</a>
+  </div>
+
   <div id="success-view" class="success">
     <h2>You're all set</h2>
-    <p>Your company account is ready. Here's what to do next, in order:</p>
+    <p>Your 14-day free trial has started. Here's what to do next, in order:</p>
     <div class="creds">
       <div><strong>Your admin login:</strong> <span id="success-email"></span></div>
       <div>Use the password you just created.</div>
@@ -149,6 +155,11 @@
 
 <script>
 const API_BASE_URL = "https://site-clock-backend-production.up.railway.app";
+// Same key admin.html reads from -- both pages are served from the same
+// origin, so storing it here means someone who lands back on admin.html
+// after Stripe Checkout (see success_url below) is already logged in,
+// no separate sign-in step needed.
+const TOKEN_KEY = "coll-admin-token";
 
 async function doSignup() {
   const companyName = document.getElementById("company-name").value.trim();
@@ -182,9 +193,31 @@ async function doSignup() {
     const data = await res.json();
     if (!res.ok) throw new Error(data.error || "Something went wrong");
 
-    document.getElementById("success-email").textContent = email;
-    document.getElementById("form-view").style.display = "none";
-    document.getElementById("success-view").style.display = "block";
+    localStorage.setItem(TOKEN_KEY, data.token);
+    // Survives the round trip to Stripe's own domain and back (sessionStorage
+    // is per-tab, not per-origin, so it's still there when Checkout's
+    // success_url below lands back on this same page/tab).
+    sessionStorage.setItem("coll-signup-email", email);
+
+    btn.textContent = "Setting up your trial...";
+    try {
+      const checkoutRes = await fetch(`${API_BASE_URL}/api/admin/billing/checkout`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${data.token}` },
+      });
+      const checkoutData = await checkoutRes.json();
+      if (!checkoutRes.ok || !checkoutData.url) throw new Error(checkoutData.error || "Couldn't start checkout");
+      window.location.href = checkoutData.url;
+      return; // leaving the page -- nothing below matters once this fires
+    } catch (checkoutErr) {
+      // The account itself was created fine even if this part failed (e.g.
+      // Stripe hiccup, or STRIPE_SUBSCRIPTION_PRICE_ID not configured yet)
+      // -- don't strand someone who already has a real account on an error
+      // screen. Same landing spot as a deliberately cancelled checkout: they
+      // can add a card from the admin app whenever they're ready.
+      console.error("Checkout handoff failed:", checkoutErr);
+      showCancelledView();
+    }
   } catch (err) {
     errEl.textContent = err.message;
     errEl.style.display = "block";
@@ -192,6 +225,33 @@ async function doSignup() {
     btn.textContent = "Create account";
   }
 }
+
+function showSuccessView() {
+  const email = sessionStorage.getItem("coll-signup-email") || "";
+  document.getElementById("success-email").textContent = email;
+  document.getElementById("form-view").style.display = "none";
+  document.getElementById("checkout-cancelled-view").style.display = "none";
+  document.getElementById("success-view").style.display = "block";
+}
+
+function showCancelledView() {
+  document.getElementById("form-view").style.display = "none";
+  document.getElementById("success-view").style.display = "none";
+  document.getElementById("checkout-cancelled-view").style.display = "block";
+}
+
+// Landing back here after Stripe Checkout -- see success_url/cancel_url in
+// utils/billing.js's createSubscriptionCheckoutSession(). The account and
+// trial themselves are already recorded server-side by the
+// customer.subscription.created webhook regardless of whether this redirect
+// even completes, so this is purely about what the person sees, not a
+// source of truth for anything.
+(function handleCheckoutReturn() {
+  const params = new URLSearchParams(window.location.search);
+  const checkout = params.get("checkout");
+  if (checkout === "success") showSuccessView();
+  else if (checkout === "cancelled") showCancelledView();
+})();
 </script>
 </body>
 </html>
