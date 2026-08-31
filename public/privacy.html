@@ -54,7 +54,7 @@
 
 <div class="box">
   <h1>Privacy Policy</h1>
-  <p class="sub">Coll Timeclock — last updated August 4, 2026</p>
+  <p class="sub">Coll Timeclock — last updated August 30, 2026</p>
 
   <p>Coll Timeclock is a work-hours tracking service used by employers ("companies") and their
   employees. This page explains what information we collect through the employee app and the
@@ -108,6 +108,11 @@
     status, amount, date, Stripe's own transaction reference, the processing fee and our platform
     fee for that transaction (used only to calculate that company's own profit reports), and the
     email address used to send that customer an automatic payment receipt.</li>
+    <li><strong>Subscription billing information:</strong> to bill your own company's $9.99/month
+    subscription to use Coll Timeclock, we store a Stripe customer and subscription reference, your
+    subscription status (for example, trialing, active, or past due), and your trial end date. As
+    with the customer payments above, your card details are collected and stored by Stripe
+    directly — we never receive or store your card number.</li>
     <li><strong>Team messages:</strong> chat messages sent between a company's admin and its
     employees, and messages employees at the same company send directly to each other or in a group
     thread, all within the app.</li>
@@ -164,9 +169,10 @@
   the specific job described:</p>
   <ul>
     <li><strong>Stripe</strong> — processes online invoice payments (card and bank transfer/ACH)
-    through each company's own connected Stripe account. Stripe collects and stores the actual
-    payment details; we only receive the payment status, amount, fees, and a transaction
-    reference.</li>
+    through each company's own connected Stripe account, and separately processes your own
+    company's $9.99/month subscription payment to Coll Business Solutions. Stripe collects and
+    stores the actual payment details in both cases; we only receive the payment status, amount,
+    fees, and a transaction or subscription reference.</li>
     <li><strong>Resend</strong> — delivers the emails Coll Timeclock sends (timesheets, password/PIN
     resets, quotes, invoices, and payment receipts).</li>
     <li><strong>Railway</strong> — hosts our servers and database.</li>
