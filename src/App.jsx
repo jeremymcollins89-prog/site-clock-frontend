@@ -5035,7 +5035,7 @@ const [emailInput, setEmailInput] = useState("");
     const body = encodeURIComponent(
       `Please delete my Coll Timeclock account.\n\nName: ${employee?.name || ""}\n(Please reply from the email address on your account so we can verify it's you.)`
     );
-    window.location.href = `mailto:jeremymcollins89@gmail.com?subject=${subject}&body=${body}`;
+    window.location.href = `mailto:collbusinesssolutions@gmail.com?subject=${subject}&body=${body}`;
   }
   async function clockIn() {
     setActionError("");
